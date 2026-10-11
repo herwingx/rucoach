@@ -29,11 +29,11 @@
   - **Rutina y Sustituciones Activas**: Visualización de la rutina asignada y tarjeta de `client_exercise_overrides` con opción de restaurar el ejercicio original (`revertExerciseOverride`).
   - **Historial con Sensación Post-Entreno**: Sesiones completadas con badge semafórico de sensación (`feeling_score` 1–5), notas de la sesión (`feeling_note`), duración y volumen total.
   - **Progreso, Medidas y Fotos**: Gráficas de fuerza por ejercicio, tabla/gráficas de las 7 medidas corporales y galería de fotos de progreso firmadas desde R2.
-- **Constructor de Rutinas (`/admin/routines/builder`)**: Creación, clonación y edición con soporte de objetivo (`goal`), nivel (`level`), reordenamiento Drag & Drop (`@dnd-kit`) y agrupación en **Superseries A–E**.
-- **Catálogo de Ejercicios (`/admin/exercises`)**: 1,324 ejercicios bilingües (`_es` prioritario), filtros por músculo/equipo y creación de ejercicios propios con traducción automática.
-- **Pagos y Planes (`/admin/payments` y `/admin/settings`)**: Registro de cobros, recibos por email/Push y CRUD de **Planes y Tarifas (`membership_plans`)**.
+- **Constructor de Rutinas (`/admin/routines/builder` y `/admin/routines`)**: Creación, clonación en 1 clic (`cloneRoutine`), asignación rápida (`AssignRoutineModal`) y edición no destructiva (`updateRoutineFromBuilder`) con soporte de objetivo (`goal`), nivel (`level`), enfoque del día (`focus`), notas por ejercicio (`notes`), vista previa técnica (`ExerciseDetailDrawer`), reordenamiento Drag & Drop (`@dnd-kit`) y agrupación en **Superseries A–E**.
+- **Catálogo y Editor de Ejercicios (`/admin/exercises`)**: 1,324+ ejercicios bilingües (`_es` prioritario), filtros por músculo/equipo y modal de creación/edición (`ExerciseFormModal`) con editor interactivo de instrucciones por puntos y subida directa de GIF a Cloudflare R2.
+- **Pagos, Descuentos y Planes (`/admin/payments` y `/admin/settings`)**: Estado efectivo por vigencia (`period_end`), renovación en 1 clic, píldoras de descuento (`-10%`, `-15%`, `-20%`, `-50%`), recibos por email/Push y CRUD de **Planes y Tarifas (`membership_plans`)**.
 - **Invitaciones (`/admin/invitations`)**: Códigos de invitación para clientes o coaches con validación de expiración y envío por Resend.
-- **Chat en Tiempo Real (`/admin/messages`)**: Bandeja de entrada conectada a `Supabase Realtime` con indicador de doble check (`is_read`), contadores de no leídos y respuestas rápidas.
+- **Chat en Tiempo Real (`/admin/messages` y `/client/messages`)**: Bandeja de entrada conectada a `Supabase Realtime` (`postgres_changes` + Broadcast `chat_room` + puente Service Worker `CHAT_NEW_MESSAGE`), soporte de teclado virtual móvil (`VisualViewport`), doble check (`is_read`) y respuestas rápidas.
 
 ### 2. Flujo del Asesorado (`/client/*`)
 - **Dashboard (`/client/dashboard`)**: Nivel y progreso de XP, racha de días entrenados, acceso directo al entrenamiento del día y gráfica de actividad.

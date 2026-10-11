@@ -26,3 +26,24 @@ Todas las mejoras funcionales, de arquitectura, base de datos, seguridad, diseñ
   - Tarjeta de **ejercicios intercambiados por el asesorado** (`client_exercise_overrides`) en la pestaña *Rutina* con botón **"Restaurar original"**.
   - Visualización de **sensación post-entreno (`1–5`)** y notas de sesión en la pestaña *Historial*.
 - [x] **Gestor de Planes y Tarifas (`/admin/settings`)**: Creación, edición y activación/desactivación de planes de membresía (`membership_plans`), además de activación de Web Push y cambio de contraseña para el coach.
+
+### 4. Gestión Inteligente de Pagos y Vigencia de Membresías
+- [x] **Estado Efectivo de Pagos (`lib/membership-utils.ts` + `/admin/payments`)**: Separación clara entre cobro registrado (`paid`) y vigencia real del periodo (`period_end` vencido, por vencer en $\le 5$ días o vigente), con filtros dedicados (*Vencidos*, *Por vencer*, *Vigentes*) y botón de **Renovar en 1 clic** (`/admin/payments/new?clientId=...&planId=...`).
+- [x] **Descuentos Rápidos y Precios Personalizados (`/admin/payments/new`)**: Selector de plan base con píldoras de descuento (`-10%`, `-15%`, `-20%`, `-50%`) o precio especial editable sin alterar el catálogo base, calculando automáticamente el próximo periodo desde el vencimiento actual si el cliente aún está vigente.
+- [x] **Sincronización Automática de Acceso (`syncClientMembershipFromPayments` + `app/client/layout.tsx`)**: Al registrar o marcar un pago como pagado, se reactiva automáticamente al cliente y al recargar `/suspended` redirige de inmediato a `/client/dashboard` si ya cuenta con membresía activa.
+- [x] **Transparencia para el Asesorado (`/client/dashboard` y `/client/profile`)**: Banner de aviso cuando la membresía vence en $\le 5$ días y tarjeta completa de **Mi Membresía e Historial de Pagos** en el perfil del cliente.
+
+### 5. Chat Móvil (`VisualViewport`) y Notificaciones Push en Tiempo Real
+- [x] **Soporte de Teclado Virtual en iOS/Android (`components/chat/chat-view.tsx`)**: Ajuste dinámico con `window.visualViewport` para que al abrir el teclado móvil los mensajes nunca desaparezcan ni el header se desplace fuera de pantalla.
+- [x] **Doble Canal en Tiempo Real + Puente Service Worker (`app/sw.ts` + `lib/push.ts`)**: Combinación de `postgres_changes`, canal Broadcast `chat_room` de baja latencia, resincronización automática al volver la app a primer plano (`visibilitychange` / `focus`) y puente `postMessage({ type: "CHAT_NEW_MESSAGE" })` desde el Service Worker al recibir un Push.
+- [x] **Cliente Admin para Push (`createAdminClient` en `lib/push.ts`)**: Lectura de `push_subscriptions` con `service_role` para garantizar que el coach pueda enviar notificaciones Push al cliente (y viceversa) sin bloqueo por RLS.
+
+### 6. Catálogo de Ejercicios, Constructor de Rutinas y Skeletons
+- [x] **Editor de Ejercicios por Puntos (`components/admin/exercises/exercise-form-modal.tsx` + `app/actions/exercises.ts`)**: Creación y edición de cualquiera de los 1,324+ ejercicios con lista interactiva de **pasos numerados** (agregar, insertar, reordenar arriba/abajo, pegar múltiples líneas y eliminar) y subida directa de GIF/imagen a Cloudflare R2 (`exercises/`).
+- [x] **Constructor y Gestión de Rutinas sin Deuda Técnica (`/admin/routines/*`)**:
+  - Edición no destructiva (`updateRoutineFromBuilder`) que preserva `routine_days.id` y `client_exercise_overrides`.
+  - Campos de **Enfoque del día (`focus`)** y **Notas por ejercicio (`notes`)** visibles tanto para el coach como para el asesorado.
+  - Vista previa técnica (`ExerciseDetailDrawer`) dentro del Builder y del selector de catálogo.
+  - Duplicado/clonación de rutinas en 1 clic (`cloneRoutine`) y modal de asignación rápida a asesorados (`AssignRoutineModal`).
+- [x] **Sistema Unificado de Skeletons (`loading.tsx`)**: 33 pantallas de carga alineadas píxel a píxel con los contenedores reales (`ADMIN_DATA_PAGE_SHELL` / `CLIENT_DATA_PAGE_SHELL`) tanto en Desktop (1440px) como en Mobile (375px).
+

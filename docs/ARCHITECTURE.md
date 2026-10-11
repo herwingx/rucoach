@@ -58,15 +58,15 @@ gym-coaching/
 │   │   ├── onboarding/                 # Configuración inicial del gimnasio/marca en 2 pasos
 │   │   ├── dashboard/                  # Vista ejecutiva de asesorados, alertas, KPIs y gráfica semanal
 │   │   ├── clients/                    # Directorio, creación, asignaciones y Hub 360° (/admin/clients/[clientId])
-│   │   ├── routines/                   # Catálogo de rutinas, detalle y Constructor Visual (/admin/routines/builder)
-│   │   ├── exercises/                  # Catálogo bilingüe de 1,324 ejercicios y creación de ejercicios propios
-│   │   ├── payments/                   # Gestión de cobros, estados de membresía y edición de pagos
+│   │   ├── routines/                   # Catálogo de rutinas, clonación, asignación rápida y Constructor Visual (/admin/routines/builder)
+│   │   ├── exercises/                  # Catálogo bilingüe de 1,324+ ejercicios, creación y edición paso a paso con GIF en R2
+│   │   ├── payments/                   # Gestión de cobros, estados efectivos por vigencia, descuentos y renovación en 1 clic
 │   │   ├── invitations/                # Generación y administración de códigos de invitación
 │   │   ├── messages/                   # Inbox de chat en tiempo real con todos los asesorados
 │   │   └── settings/                   # Configuración de marca, Planes y Tarifas, perfil del coach y Web Push
 │   ├── client/                         # Portal del Asesorado
-│   │   ├── layout.tsx                  # Verificación de rol client, vigencia de membresía y onboarding
-│   │   ├── dashboard/                  # Nivel/XP, racha, próximo entrenamiento, gráfica e hitos
+│   │   ├── layout.tsx                  # Verificación de rol client, vigencia efectiva de membresía y onboarding
+│   │   ├── dashboard/                  # Nivel/XP, racha, próximo entrenamiento, estado de membresía, gráfica e hitos
 │   │   ├── routines/                   # Rutina activa, visor de técnica, cambio de ejercicio y cambio de día
 │   │   ├── workout/start/              # Sesión de entrenamiento en vivo con cronómetro y sensación post-entreno (1–5)
 │   │   ├── workout/summary/            # Resumen de sesión, PRs, desglose de series, logros y auto-progresión
@@ -76,22 +76,22 @@ gym-coaching/
 │   │   ├── photos/                     # Galería en R2 y comparador interactivo Antes / Después
 │   │   ├── calendar/                   # Calendario mensual de entrenamientos
 │   │   ├── achievements/               # Vitrina de logros, medallas y rachas
-│   │   ├── messages/                   # Chat directo en tiempo real con el Coach
-│   │   └── profile/                    # Perfil físico/médico, reporte de dolor, contraseña y Web Push
+│   │   ├── messages/                   # Chat directo en tiempo real con el Coach (VisualViewport mobile-safe)
+│   │   └── profile/                    # Perfil físico/médico, membresía e historial de pagos, reporte de dolor y Web Push
 │   ├── receptionist/                   # Portal de Recepción (dashboard, check-in, clientes, pagos)
 │   └── actions/                        # Server Actions protegidas en servidor
 │       ├── clients.ts                  # Creación/edición/suspensión de clientes
-│       ├── exercises.ts                # Creación de ejercicios personalizados con mapeo bilingüe
+│       ├── exercises.ts                # Creación y edición de ejercicios (`createAdminExercise`, `updateAdminExercise`) con pasos numerados y GIF en R2
 │       ├── gym-settings.ts             # Configuración del gym, perfil del coach y CRUD de membership_plans
 │       ├── invitations.ts              # Generación y revocación de invitaciones
 │       ├── measurements.ts             # Registro de medidas antropométricas y chequeo de logros
-│       ├── messages.ts                 # Envío de mensajes, marcado de lectura y notificación Push
+│       ├── messages.ts                 # Envío de mensajes, marcado de lectura y notificación Push con ServiceRole
 │       ├── onboarding.ts               # Finalización de onboarding (cliente/admin), email de bienvenida y Push
-│       ├── payments.ts                 # Registro/actualización de pagos, vigencia de membresía, email y Push
+│       ├── payments.ts                 # Registro/actualización de pagos, sincronización inteligente de membresía, email y Push
 │       ├── profile.ts                  # Actualización de perfil y avatar del cliente
-│       ├── r2-storage.ts               # Generación de Presigned URLs (PUT/GET) y borrado seguro en Cloudflare R2
-│       ├── routine-assignment.ts       # Asignación de rutinas y cálculo de `getNextWorkoutDay`
-│       ├── routine-builder.ts          # Guardado y edición por lotes de rutinas, días y ejercicios
+│       ├── r2-storage.ts               # Generación de Presigned URLs (PUT/GET) y borrado seguro en Cloudflare R2 (incluye `exercises/`)
+│       ├── routine-assignment.ts       # Asignación de rutinas (`assignRoutineToClient`) y cálculo de `getNextWorkoutDay`
+│       ├── routine-builder.ts          # Guardado, edición no destructiva (`updateRoutineFromBuilder`) y clonación (`cloneRoutine`)
 │       ├── routine-overrides.ts        # Sustitución de ejercicios, reportes de dolor y resolución clínica
 │       ├── schedule-override.ts        # Cambio temporal del próximo día de entrenamiento (`override_next_day_id`)
 │       ├── web-push.ts                 # Suscripción y baja de endpoints Web Push del usuario autenticado

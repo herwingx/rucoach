@@ -83,16 +83,18 @@ flowchart LR
   - **Pestaña Rutina**: Desglose diario del programa activo con trazabilidad de **sustituciones de ejercicios** (`client_exercise_overrides`) y botón para restaurar el ejercicio original (`revertExerciseOverride`).
   - **Pestaña Historial**: Sesiones finalizadas con duración, tonelaje movido, series efectivas, **esfuerzo percibido post-entreno (`feeling_score` 1–5)** y comentarios del atleta (`feeling_note`).
   - **Pestaña Progreso y Físico**: Curvas de evolución de fuerza por ejercicio (`@tanstack/charts`), historial de **7 perímetros y medidas corporales** (Peso, % Grasa, Cintura, Cadera, Pecho, Brazo, Muslo) y galería privada de fotos de progreso con URLs firmadas desde Cloudflare R2.
-- **Constructor Visual de Rutinas (`/admin/routines/builder`)**:
-  - Diseño de programas por objetivo (`goal`), nivel (`level`), duración en semanas y distribución de días de entrenamiento/descanso.
-  - Reordenamiento *Drag & Drop* (`@dnd-kit`), agrupación visual de **Biseries y Superseries (Grupos A–E)**, prescripción de series, repeticiones, carga sugerida, descanso y notas biomecánicas.
-  - Asignación instantánea con notificación automática vía **Resend** y **Web Push**.
-- **Catálogo Bilingüe de Ejercicios (`/admin/exercises`)**:
-  - **1,324 ejercicios** con esquema bilingüe (español prioritario `_es` e inglés como respaldo), GIFs demostrativos servidos desde Cloudflare R2, clasificación por modalidad (`strength`, `bodyweight`, `timed`, `cardio`, `mobility`) y bandera `uses_external_load`.
-- **Pagos, Planes y Membresías (`/admin/payments` y `/admin/settings`)**:
-  - Control de pagos (`paid`, `pending`, `overdue`), actualización automática de vigencia (`membership_end_date`), recibos por correo/Push y gestor CRUD de **Planes y Tarifas (`membership_plans`)**.
-- **Invitaciones y Mensajería Realtime (`/admin/invitations`, `/admin/messages`)**:
-  - Códigos de invitación exclusivos para nuevos atletas o coaches y bandeja de chat en vivo con indicadores de lectura (`Check` / `CheckCheck`) y respuestas rápidas.
+- **Constructor Visual de Rutinas (`/admin/routines/builder` y `/admin/routines`)**:
+  - Diseño de programas por objetivo (`goal`), nivel (`level`), duración en semanas y distribución de días de entrenamiento/descanso con **Enfoque del día (`focus`)** y contadores de volumen en vivo (`X ej. · Y series`).
+  - Reordenamiento *Drag & Drop* (`@dnd-kit`), agrupación visual de **Biseries y Superseries (Grupos A–E)**, vista previa técnica integrada (`ExerciseDetailDrawer`), prescripción de series, repeticiones, descanso y **notas por ejercicio (`notes`)**.
+  - **Edición No Destructiva (`updateRoutineFromBuilder`)** que preserva el ciclo de días y las sustituciones de ejercicios del atleta, **clonación en 1 clic (`cloneRoutine`)** y **asignación rápida (`AssignRoutineModal`)** con notificación vía **Resend** y **Web Push**.
+- **Catálogo Bilingüe y Editor Paso a Paso de Ejercicios (`/admin/exercises`)**:
+  - **1,324+ ejercicios** con esquema bilingüe (`_es` prioritario), GIFs demostrativos servidos desde Cloudflare R2, clasificación por modalidad (`strength`, `bodyweight`, `timed`, `cardio`, `mobility`) y bandera `uses_external_load`.
+  - **Creación y Edición por Puntos (`ExerciseFormModal`)**: Permite editar o crear ejercicios con una lista interactiva de pasos numerados (insertar, reordenar, pegar bloques de texto) y subida directa de GIF/imagen a Cloudflare R2.
+- **Pagos Inteligentes, Descuentos y Vigencias (`/admin/payments` y `/admin/settings`)**:
+  - Evaluación de vigencia efectiva (`period_end` vencido, por vencer en $\le 5$ días o vigente), renovación rápida en 1 clic, píldoras de descuento (`-10%`, `-15%`, `-20%`, `-50%`) o precio personalizado, reactivación inmediata de acceso y gestor CRUD de **Planes y Tarifas (`membership_plans`)**.
+- **Invitaciones y Mensajería Realtime Multi-Canal (`/admin/invitations`, `/admin/messages`)**:
+  - Códigos de invitación exclusivos para nuevos atletas o coaches y bandeja de chat en vivo con `postgres_changes` + canal Broadcast `chat_room` + puente Service Worker (`CHAT_NEW_MESSAGE`), soporte de teclado virtual móvil (`VisualViewport`) e indicadores de lectura (`Check` / `CheckCheck`).
+
 
 ### 2. Portal del Asesorado / Atleta (`/client/*`)
 - **Onboarding Clínico y Antropométrico en 4 Pasos (`/onboarding`)**:

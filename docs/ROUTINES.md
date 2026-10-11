@@ -13,27 +13,29 @@
 
 ### Paso a Paso para Crear o Editar una Rutina
 
-1. Entra a **Panel del Coach → Rutinas** (`/admin/routines`) y haz clic en **"+ Nueva rutina"** (o **"Editar"** dentro de una rutina existente).
+1. Entra a **Panel del Coach → Rutinas** (`/admin/routines`) y haz clic en **"+ Nueva Rutina (Builder)"** (o **"Editar"** dentro de una rutina existente).
 2. Define los metadatos principales del programa:
    - **Nombre de la rutina**: ej. *"Hipertrofia 12 Semanas — Upper/Lower"*
    - **Objetivo (`goal`)**: *Ganancia muscular*, *Pérdida de grasa*, *Fuerza / Tonificación*, *Resistencia* o *Mantenimiento*
-   - **Nivel (`level`)**: *Principiante*, *Intermedio* o *Avanzado*
+   - **Nivel (`level`)**: *Principiante*, *Intermedio* o *Avanzado* (normalizado automáticamente entre claves en inglés y etiquetas en español mediante `lib/constants.ts`)
    - **Duración (`duration_weeks`)**: Número de semanas del bloque (ej. `8` o `12`)
    - **Descripción**: Indicaciones generales del bloque para el asesorado
 3. **Configura cada Día de la Semana**:
-   - Puedes alternar cada día entre **Día de Entrenamiento** o **Día de Descanso Activo / Total** (`is_rest_day`).
-   - Asigna un nombre claro al día (ej. *"Día 1 — Push (Pecho, Hombro, Tríceps)"*).
-4. **Agrega y Ordena Ejercicios**:
-   - Abre el selector conectado al catálogo de **1,324 ejercicios en español** (filtrable por grupo muscular o equipo).
+   - Puedes alternar cada día entre **Día de Entrenamiento** o **Día de Descanso Activo / Total** (`is_rest_day`). El sistema calcula automáticamente `days_per_week` contando únicamente los días efectivos de entrenamiento.
+   - Asigna un **Nombre del día** (ej. *"Día 1 — Torso A"*) y un **Enfoque del día (`focus`)** (ej. *"Empuje: Pecho, Hombros y Tríceps"*).
+   - Visualiza en tiempo real el contador de volumen por día (`X ej. · Y series`) y el volumen semanal total (`Z series / sem`) en la cabecera del plan.
+4. **Agrega, Inspecciona y Ordena Ejercicios**:
+   - Abre el selector conectado al catálogo de **1,324+ ejercicios en español** (filtrable por grupo muscular o equipo).
+   - **Vista previa técnica (`ExerciseDetailDrawer`)**: Haz clic en el ícono de ojo (`Eye`) o en la miniatura de cualquier ejercicio (tanto en el selector como dentro del día) para abrir su ficha técnica con GIF demostrativo, músculos trabajados e instrucciones paso a paso sin salir del Builder.
    - Reordena los ejercicios arrastrándolos desde el ícono lateral (`@dnd-kit`, compatible en desktop y pantallas táctiles móviles).
    - Para cada ejercicio configura:
-     - **Series (`sets`)**: ej. `4`
-     - **Repeticiones (`reps`)**: ej. `8-10` (o segundos si es un ejercicio isométrico/`timed`)
-     - **Peso base sugerido (`base_weight`)**: ej. `60` kg
+     - **Series (`sets`)**: ej. `3` o `4`
+     - **Repeticiones (`reps`)**: por defecto `10-12` (admite rangos como `8-10`, `12-15` o `Fallo`)
      - **Descanso (`rest_seconds`)**: ej. `90` segundos
      - **Grupo de Biserie / Superserie (`superset_group`)**: `A`, `B`, `C`, `D`, `E` o sin agrupar
-     - **Notas técnicas (`notes`)**: Indicaciones de tempo, agarre o rango de movimiento
-5. Haz clic en **"Guardar Rutina"**. El servidor persiste los días y ejercicios en lote (`app/actions/routine-builder.ts`).
+     - **Notas / Indicaciones del ejercicio (`notes`)**: Botón desplegable por ejercicio para agregar indicaciones específicas de ejecución (ej. *"Pausa de 2s en máximo estiramiento, RIR 1"*), visibles para el asesorado en su rutina.
+5. Haz clic en **"Guardar Rutina"**:
+   - **Edición No Destructiva (`updateRoutineFromBuilder`)**: Al editar una rutina existente, el servidor reutiliza los `routine_days.id` existentes por `day_number` y migra los reemplazos activos (`client_exercise_overrides`) a los nuevos IDs de `routine_exercises`. Esto garantiza que los asesorados que ya entrenan con esa rutina **no pierdan la secuencia de su próximo día (`workout_sessions.routine_day_id`) ni sus adaptaciones de ejercicios**.
 
 ---
 
@@ -45,18 +47,25 @@ El constructor soporta agrupación visual y funcional de ejercicios mediante la 
 
 ---
 
-## Asignar Rutinas a Asesorados
+## Asignar y Duplicar Rutinas
 
-Puedes asignar una rutina desde:
-- **El directorio de rutinas (`/admin/routines`)** haciendo clic en **"Asignar"** sobre la tarjeta de la rutina.
+### 1. Asignación Rápida a Asesorados (`AssignRoutineModal`)
+Puedes asignar una rutina desde tres puntos:
+- **El listado de rutinas (`/admin/routines`)** haciendo clic en **"Asignar"** en la barra de acciones rápidas de cualquier tarjeta.
+- **La vista de detalle de la rutina (`/admin/routines/[routineId]`)** haciendo clic en **"Asignar"** en la cabecera (donde también puedes ver la lista de asesorados que entrenan actualmente con ese plan).
 - **El perfil del asesorado (`/admin/clients/[clientId]`)** haciendo clic en **"Cambiar rutina"** (`/admin/clients/[clientId]/assign-routine`).
 
 Al asignar una rutina (`assignRoutineToClient` en [`app/actions/routine-assignment.ts`](../app/actions/routine-assignment.ts)):
-1. Cualquier rutina activa previa del cliente en `client_routines` pasa automáticamente a estado `completed`.
+1. Cualquier rutina activa previa del cliente en `client_routines` pasa automáticamente a `is_active = false` (`status = 'completed'`).
 2. Se crea el nuevo registro activo en `client_routines` y se sincroniza `clients.assigned_routine_id`.
-3. Se envía automáticamente al asesorado:
+3. Se revalidan inmediatamente `/admin/routines`, `/admin/routines/[routineId]`, `/admin/clients/[clientId]`, `/client/routines` y `/client/dashboard`.
+4. Se envía automáticamente al asesorado:
    - Un **correo transaccional** (`NewRoutineEmail.tsx`) vía Resend.
-   - Una **notificación Web Push** inmediata a su teléfono (`lib/push.ts`).
+   - Una **notificación Web Push** inmediata a su dispositivo (`lib/push.ts`).
+
+### 2. Duplicar / Clonar Rutina (`cloneRoutine`)
+- Desde `/admin/routines` o `/admin/routines/[routineId]`, haz clic en **"Duplicar"** (`Copy`).
+- El servidor crea una copia exacta (`"[Nombre] (Copia)"`) con todos sus días, enfoque (`focus`), ejercicios, series, repeticiones, descansos, notas y biseries (`superset_group`), ideal para crear variaciones personalizadas por atleta a partir de una plantilla base.
 
 ---
 
