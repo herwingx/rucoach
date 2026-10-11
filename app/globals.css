@@ -368,3 +368,13 @@ html {
   backdrop-filter: blur(12px);
 }
 
+@media (max-width: 767px) {
+  html[data-chat-keyboard-open="true"] [data-mobile-bottom-nav="true"] {
+    display: none !important;
+  }
+  html[data-chat-keyboard-open="true"] #main-content {
+    padding-bottom: 0px !important;
+  }
+}
+
+

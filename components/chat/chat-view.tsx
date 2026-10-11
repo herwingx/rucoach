@@ -332,9 +332,12 @@ function ThreadPane({
   sending,
   handleSend,
   textareaRef,
+  messagesContainerRef,
   messagesEndRef,
   emojiOpen,
   setEmojiOpen,
+  isKeyboardOpen,
+  onInputFocusChange,
   onBack,
 }: {
   peer: { id: string; name: string; avatarUrl?: string | null }
@@ -349,9 +352,12 @@ function ThreadPane({
   sending: boolean
   handleSend: () => Promise<void>
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
+  messagesContainerRef: React.RefObject<HTMLDivElement | null>
   messagesEndRef: React.RefObject<HTMLDivElement | null>
   emojiOpen: boolean
   setEmojiOpen: (v: boolean) => void
+  isKeyboardOpen: boolean
+  onInputFocusChange: (focused: boolean) => void
   onBack?: () => void
 }) {
   const quickReplies =
@@ -360,12 +366,20 @@ function ThreadPane({
   return (
     <div className="flex w-full min-h-0 flex-1 flex-col relative overflow-hidden">
       {/* ─── Thread header ─── */}
-      {/* Matches AdminPageHeader / ClientStackPageHeader structure:
-          border-b + bg-background/80 + backdrop-blur + safe-area-header-pt
-          Leading icon: back chevron (nested) or logo (top-level)
-          Then avatar + peer info */}
-      <header className="shrink-0 flex items-center gap-3 border-b border-border/50 bg-background/80 backdrop-blur-xl safe-area-header-pt min-h-[76px] sm:min-h-[112px]">
-        <div className="flex items-center gap-4 py-4 sm:py-0 px-4 sm:px-6 md:px-8 h-full w-full">
+      <header
+        className={cn(
+          'shrink-0 flex items-center gap-3 border-b border-border/50 bg-background/90 backdrop-blur-xl safe-area-header-pt transition-all',
+          isKeyboardOpen
+            ? 'min-h-[56px] sm:min-h-[112px]'
+            : 'min-h-[72px] sm:min-h-[112px]',
+        )}
+      >
+        <div
+          className={cn(
+            'flex items-center gap-3 sm:gap-4 px-4 sm:px-6 md:px-8 h-full w-full',
+            isKeyboardOpen ? 'py-2 sm:py-0' : 'py-3 sm:py-0',
+          )}
+        >
           {/* Leading icon (back chevron on admin mobile, or RU Coach logo on client mobile) */}
           {isAdmin && onBack ? (
             <div className="shrink-0 flex items-center h-full md:hidden">
@@ -385,14 +399,16 @@ function ThreadPane({
           ) : null}
 
           {/* Peer info */}
-          <Avatar className="size-10 shrink-0 ring-2 ring-primary/15 sm:size-11">
+          <Avatar className="size-9 shrink-0 ring-2 ring-primary/15 sm:size-11">
             <AvatarImage src={peer.avatarUrl ?? undefined} alt="" />
             <AvatarFallback className="text-sm font-medium">
               {peer.name.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1 flex flex-col justify-center">
-            <h1 className="truncate text-base font-black tracking-tight sm:text-lg lg:text-xl">{peer.name}</h1>
+            <h1 className="truncate text-base font-black tracking-tight sm:text-lg lg:text-xl">
+              {peer.name}
+            </h1>
             <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80 leading-none mt-1">
               {role === 'client' ? 'Tu coach' : 'Asesorado'}
             </p>
@@ -402,32 +418,32 @@ function ThreadPane({
 
       {/* ─── Messages area ─── */}
       <div
-        className={cn(
-          "flex-1 overflow-y-auto overscroll-contain bg-linear-to-b from-muted/15 to-background px-3 py-4 sm:px-4",
-          (messagesLoading || messageRows.length === 0) && "flex flex-col justify-end"
-        )}
+        ref={messagesContainerRef}
+        className="flex flex-1 min-h-0 flex-col overflow-y-auto overscroll-contain bg-linear-to-b from-muted/15 to-background px-3 py-3 sm:px-4 sm:py-4"
         role="log"
         aria-live="polite"
         aria-relevant="additions"
       >
         {messagesLoading ? (
-          <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
+          <div className="mx-auto mt-auto flex w-full max-w-2xl flex-col gap-3">
             {[1, 2, 3, 4].map((i) => (
               <Skeleton
                 key={i}
                 className={cn(
                   'h-14 rounded-2xl',
-                  i % 2 === 0 ? 'ms-8 w-[85%] sm:w-[70%]' : 'me-8 w-[80%] sm:w-[60%]',
+                  i % 2 === 0
+                    ? 'ms-8 w-[85%] sm:w-[70%]'
+                    : 'me-8 w-[80%] sm:w-[60%]',
                 )}
               />
             ))}
           </div>
         ) : messageRows.length === 0 ? (
-          <Empty className="flex-none border-0 bg-transparent py-8">
+          <Empty className="my-auto flex-none border-0 bg-transparent py-6">
             <EmptyInlineHint role={role} />
           </Empty>
         ) : (
-          <div className="mx-auto flex max-w-2xl flex-col gap-3">
+          <div className="mx-auto mt-auto flex w-full max-w-2xl flex-col gap-3">
             {messageRows.map((row) =>
               row.kind === 'sep' ? (
                 <div key={row.key} className="flex items-center gap-3 py-2">
@@ -454,10 +470,13 @@ function ThreadPane({
       {/* ─── Composer footer ─── */}
       <footer className="shrink-0 border-t border-border bg-background md:safe-area-pb">
         <div className="container">
-          <div className="mx-auto flex max-w-2xl flex-col gap-3 py-3">
+          <div className="mx-auto flex max-w-2xl flex-col gap-2 sm:gap-3 py-2 sm:py-3">
             {/* Quick replies */}
             <div
-              className="no-scrollbar flex gap-2 overflow-x-auto md:flex-wrap pb-0.5"
+              className={cn(
+                'no-scrollbar flex gap-2 overflow-x-auto md:flex-wrap pb-0.5',
+                isKeyboardOpen && input.trim().length > 0 && 'hidden md:flex',
+              )}
               aria-label="Respuestas rápidas"
             >
               {quickReplies.map((qr) => (
@@ -466,7 +485,8 @@ function ThreadPane({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 shrink-0 rounded-full px-3 text-xs font-normal"
+                  className="h-8 sm:h-9 shrink-0 rounded-full px-3 text-xs font-normal"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     setInput(qr.text)
                     textareaRef.current?.focus()
@@ -484,6 +504,8 @@ function ThreadPane({
                 <Textarea
                   ref={textareaRef}
                   value={input}
+                  onFocus={() => onInputFocusChange(true)}
+                  onBlur={() => onInputFocusChange(false)}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -493,7 +515,7 @@ function ThreadPane({
                   }}
                   placeholder="Escribe un mensaje…"
                   rows={1}
-                  className="max-h-[120px] min-h-11 w-full resize-none overflow-y-auto rounded-2xl pr-12 text-base scrollbar-hide sm:text-sm"
+                  className="max-h-[110px] min-h-11 w-full resize-none overflow-y-auto rounded-2xl pr-12 text-base scrollbar-hide sm:text-sm"
                   aria-label="Mensaje"
                 />
                 <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
@@ -532,6 +554,7 @@ function ThreadPane({
                 type="button"
                 size="icon"
                 className="mb-0.5 size-11 shrink-0 rounded-2xl shadow-sm active:scale-95 transition-all"
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => void handleSend()}
                 disabled={!input.trim() || sending}
                 aria-label="Enviar"
@@ -591,8 +614,16 @@ export function ChatView({
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
+  const [isInputFocused, setIsInputFocused] = useState(false)
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false)
+  const [mobileViewportHeight, setMobileViewportHeight] = useState<number | null>(
+    null,
+  )
+
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const lastLoadedPeerRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!isAdmin || !validInitialId) return
@@ -635,21 +666,79 @@ export function ChatView({
           }
         : null
 
-  const scrollToEnd = useCallback(() => {
+  const scrollToEnd = useCallback((smooth = true) => {
+    const container = messagesContainerRef.current
+    if (container) {
+      const reduce =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: !smooth || reduce ? 'auto' : 'smooth',
+      })
+      return
+    }
     const el = messagesEndRef.current
     if (!el) return
-    const reduce =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' })
+    el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' })
   }, [])
+
+  // Sincronizar con el teclado virtual móvil (iOS Safari / Android Chrome) para que
+  // nunca empuje el header ni oculte los mensajes enviados
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const vv = window.visualViewport
+    const updateViewport = () => {
+      const isMobile = window.innerWidth < 768
+      if (!isMobile) {
+        setIsKeyboardOpen(false)
+        setMobileViewportHeight(null)
+        delete document.documentElement.dataset.chatKeyboardOpen
+        return
+      }
+
+      const vvHeight = vv ? Math.round(vv.height) : window.innerHeight
+      const heightDiff = window.innerHeight - vvHeight
+      const keyboardActive = heightDiff > 110 || isInputFocused
+
+      setIsKeyboardOpen(keyboardActive)
+      if (keyboardActive) {
+        document.documentElement.dataset.chatKeyboardOpen = 'true'
+        setMobileViewportHeight(vvHeight)
+        if (window.scrollY !== 0) {
+          window.scrollTo(0, 0)
+        }
+        requestAnimationFrame(() => scrollToEnd(false))
+      } else {
+        delete document.documentElement.dataset.chatKeyboardOpen
+        setMobileViewportHeight(null)
+      }
+    }
+
+    updateViewport()
+    vv?.addEventListener('resize', updateViewport)
+    vv?.addEventListener('scroll', updateViewport)
+    window.addEventListener('resize', updateViewport)
+
+    return () => {
+      vv?.removeEventListener('resize', updateViewport)
+      vv?.removeEventListener('scroll', updateViewport)
+      window.removeEventListener('resize', updateViewport)
+      delete document.documentElement.dataset.chatKeyboardOpen
+    }
+  }, [isInputFocused, scrollToEnd])
 
   useEffect(() => {
     if (!selectedUserId) return
 
     let cancelled = false
-    setMessagesLoading(true)
-    setMessages([])
+    const isPeerSwitch = lastLoadedPeerRef.current !== selectedUserId
+    if (isPeerSwitch) {
+      setMessagesLoading(true)
+      setMessages([])
+      lastLoadedPeerRef.current = selectedUserId
+    }
 
     const shouldMarkReadNow = () =>
       !isAdmin ||
@@ -668,7 +757,22 @@ export function ChatView({
       if (cancelled) return
 
       const chronological = [...(rows ?? [])].reverse()
-      setMessages(chronological)
+      setMessages((prev) => {
+        if (prev.length === 0) return chronological
+        const byId = new Map<string, Message>()
+        for (const m of chronological) byId.set(m.id, m)
+        for (const m of prev) {
+          const involvesSelected =
+            (m.from_user_id === currentUserId && m.to_user_id === selectedUserId) ||
+            (m.from_user_id === selectedUserId && m.to_user_id === currentUserId)
+          if (involvesSelected && !byId.has(m.id)) {
+            byId.set(m.id, m)
+          }
+        }
+        return Array.from(byId.values())
+          .sort((a, b) => a.created_at.localeCompare(b.created_at))
+          .slice(-CHAT_THREAD_MESSAGE_LIMIT)
+      })
       setMessagesLoading(false)
       if (shouldMarkReadNow()) {
         setConversationsState((prev) =>
@@ -762,7 +866,7 @@ export function ChatView({
 
   useEffect(() => {
     if (messagesLoading) return
-    const id = requestAnimationFrame(() => scrollToEnd())
+    const id = requestAnimationFrame(() => scrollToEnd(true))
     return () => cancelAnimationFrame(id)
   }, [messages.length, messagesLoading, scrollToEnd])
 
@@ -818,6 +922,17 @@ export function ChatView({
 
   const messageRows = useMemo(() => buildMessageRows(messages), [messages])
 
+  const mobileContainerStyle = useMemo(
+    () =>
+      isKeyboardOpen && mobileViewportHeight
+        ? {
+            height: `${mobileViewportHeight}px`,
+            maxHeight: `${mobileViewportHeight}px`,
+          }
+        : undefined,
+    [isKeyboardOpen, mobileViewportHeight],
+  )
+
   /* ── Client with no coach ── */
   if (role === 'client' && !otherUser) return null
 
@@ -862,7 +977,10 @@ export function ChatView({
   /* ── Client chat (single thread — no inbox) ── */
   if (!isAdmin && peer) {
     return (
-      <div className="flex h-full w-full min-h-0 flex-1 flex-col bg-background">
+      <div
+        style={mobileContainerStyle}
+        className="flex h-full w-full min-h-0 flex-1 flex-col bg-background overflow-hidden"
+      >
         <ThreadPane
           peer={peer}
           currentUserId={currentUserId}
@@ -876,9 +994,12 @@ export function ChatView({
           sending={sending}
           handleSend={handleSend}
           textareaRef={textareaRef}
+          messagesContainerRef={messagesContainerRef}
           messagesEndRef={messagesEndRef}
           emojiOpen={emojiOpen}
           setEmojiOpen={setEmojiOpen}
+          isKeyboardOpen={isKeyboardOpen}
+          onInputFocusChange={setIsInputFocused}
         />
       </div>
     )
@@ -886,7 +1007,10 @@ export function ChatView({
 
   /* ── Admin layout: inbox sidebar + thread pane ── */
   return (
-    <div className="flex h-full w-full min-h-0 flex-1 bg-background">
+    <div
+      style={mobileContainerStyle}
+      className="flex h-full w-full min-h-0 flex-1 bg-background overflow-hidden"
+    >
       {/* ─── Inbox sidebar ─── */}
       <aside
         className={cn(
@@ -964,9 +1088,12 @@ export function ChatView({
             sending={sending}
             handleSend={handleSend}
             textareaRef={textareaRef}
+            messagesContainerRef={messagesContainerRef}
             messagesEndRef={messagesEndRef}
             emojiOpen={emojiOpen}
             setEmojiOpen={setEmojiOpen}
+            isKeyboardOpen={isKeyboardOpen}
+            onInputFocusChange={setIsInputFocused}
             onBack={() => setAdminMobilePane('inbox')}
           />
         ) : (
@@ -978,3 +1105,4 @@ export function ChatView({
     </div>
   )
 }
+
