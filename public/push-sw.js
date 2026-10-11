@@ -16,6 +16,10 @@ self.addEventListener("push", (event) => {
 
   const title = data.title || "RU Coach";
   const targetUrl = (data.data && data.data.url) || data.url || "/";
+  const isChatMessage =
+    Boolean(data.tag && String(data.tag).startsWith("msg-")) ||
+    targetUrl.includes("/messages");
+
   const options = {
     body: data.body || "Tienes una nueva notificación en RU Coach.",
     icon: "/android-chrome-192x192.png",
@@ -25,7 +29,28 @@ self.addEventListener("push", (event) => {
     data: { url: targetUrl },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((windowClients) => {
+        for (let i = 0; i < windowClients.length; i++) {
+          windowClients[i].postMessage({
+            type: "CHAT_NEW_MESSAGE",
+            payload: data,
+          });
+        }
+
+        const hasVisibleClient = windowClients.some(
+          (c) => c.focused || c.visibilityState === "visible",
+        );
+
+        if (hasVisibleClient && isChatMessage) {
+          return;
+        }
+
+        return self.registration.showNotification(title, options);
+      }),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

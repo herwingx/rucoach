@@ -183,8 +183,8 @@ export function RealtimeNotifications({ role }: { role: "client" | "admin" }) {
           ? `/admin/messages?clientId=${newMsg.from_user_id}`
           : "/client/messages";
 
-      // Mostrar toast interactivo si no está dentro de la pantalla de mensajes
-      if (!isOnMessagesRoute) {
+      // 1. Si el usuario tiene la app visible y está fuera de /messages -> mostrar solo el toast dentro de la app
+      if (!isHidden && !isOnMessagesRoute) {
         toast(title, {
           description: bodyText,
           duration: 7000,
@@ -193,11 +193,12 @@ export function RealtimeNotifications({ role }: { role: "client" | "admin" }) {
             onClick: () => router.push(targetUrl),
           },
         });
+        return;
       }
 
-      // Si la pestaña está en segundo plano o está en otra vista y tiene permiso de notificaciones nativas
+      // 2. Solo si la pestaña/app está en segundo plano (isHidden), usar showNotification como respaldo (con el mismo tag para no duplicar con Web Push)
       if (
-        (isHidden || !isOnMessagesRoute) &&
+        isHidden &&
         "Notification" in window &&
         Notification.permission === "granted"
       ) {

@@ -30,7 +30,7 @@ const serwist = new Serwist({
 
 serwist.addEventListeners();
 
-// Web Push Notifications logic (compatible con Android Chrome y iOS 16.4+ Standalone Web Push)
+// Web Push Notifications logic (compatible con Android, iOS 16.4+ PWA, Windows, macOS y Linux)
 self.addEventListener("push", (event) => {
   let data: {
     title?: string;
@@ -48,7 +48,13 @@ self.addEventListener("push", (event) => {
 
   const title = data.title || "RU Coach";
   const targetUrl = data.data?.url || data.url || "/";
-  const options: NotificationOptions & { vibrate?: number[]; renotify?: boolean } = {
+  const isChatMessage =
+    Boolean(data.tag?.startsWith("msg-")) || targetUrl.includes("/messages");
+
+  const options: NotificationOptions & {
+    vibrate?: number[];
+    renotify?: boolean;
+  } = {
     body: data.body || "Tienes una nueva actualización de tu entrenamiento.",
     icon: "/android-chrome-192x192.png",
     badge: "/favicon-32x32.png",
@@ -57,7 +63,33 @@ self.addEventListener("push", (event) => {
     data: { url: targetUrl },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((windowClients) => {
+        for (const client of windowClients) {
+          client.postMessage({
+            type: "CHAT_NEW_MESSAGE",
+            payload: data,
+          });
+        }
+
+        const hasVisibleClient = windowClients.some(
+          (c) =>
+            c.focused ||
+            (c as WindowClient & { visibilityState?: string })
+              .visibilityState === "visible",
+        );
+
+        // Si el usuario tiene la app abierta en primer plano y es un mensaje de chat,
+        // la app ya muestra el mensaje en vivo o el toast interno sin duplicar notificación del SO.
+        if (hasVisibleClient && isChatMessage) {
+          return;
+        }
+
+        return self.registration.showNotification(title, options);
+      }),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {
