@@ -163,7 +163,8 @@ export async function useInvitationCode(
       try {
         await adminClient.from("gym_settings").insert({
           admin_id: userId,
-          gym_name: "Mi Gym",
+          gym_name: "RU Coach",
+          phone: "9612378473",
           setup_completed: false,
         });
       } catch {

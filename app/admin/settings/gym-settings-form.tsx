@@ -56,8 +56,8 @@ const TIMEZONES = [
 export function GymSettingsForm({ initialData }: GymSettingsFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [gymName, setGymName] = useState(initialData?.gym_name ?? "Mi marca");
-  const [phone, setPhone] = useState(initialData?.phone ?? "");
+  const [gymName, setGymName] = useState(initialData?.gym_name ?? "RU Coach");
+  const [phone, setPhone] = useState(initialData?.phone ?? "9612378473");
   const [schedule, setSchedule] = useState(initialData?.schedule ?? "");
   const [currency, setCurrency] = useState(initialData?.currency ?? "MXN");
   const [timezone, setTimezone] = useState(
@@ -67,7 +67,7 @@ export function GymSettingsForm({ initialData }: GymSettingsFormProps) {
   useEffect(() => {
     if (initialData) {
       setGymName(initialData.gym_name);
-      setPhone(initialData.phone ?? "");
+      setPhone(initialData.phone ?? "9612378473");
       setSchedule(initialData.schedule ?? "");
       setCurrency(initialData.currency ?? "MXN");
       setTimezone(initialData.timezone ?? "America/Mexico_City");
@@ -125,7 +125,7 @@ export function GymSettingsForm({ initialData }: GymSettingsFormProps) {
                   </InputGroupAddon>
                   <InputGroupInput
                     id="gym_name"
-                    placeholder="Mi marca / Gimnasio"
+                    placeholder="RU Coach"
                     value={gymName}
                     onChange={(e) => setGymName(e.target.value)}
                     required

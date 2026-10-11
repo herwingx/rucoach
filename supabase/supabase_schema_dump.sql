@@ -585,9 +585,9 @@ CREATE INDEX IF NOT EXISTS idx_exercises_target_muscles_es ON public.exercises U
 CREATE TABLE public.gym_settings (
     id uuid NOT NULL DEFAULT gen_random_uuid(),
     admin_id uuid,
-    gym_name text NOT NULL DEFAULT 'Mi Gym'::text,
+    gym_name text NOT NULL DEFAULT 'RU Coach'::text,
     logo_url text,
-    phone text,
+    phone text DEFAULT '9612378473'::text,
     schedule text,
     currency text DEFAULT 'MXN'::text,
     timezone text DEFAULT 'America/Mexico_City'::text,

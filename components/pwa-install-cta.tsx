@@ -230,6 +230,9 @@ export function PWAInstallCTA() {
     pathname?.startsWith('/auth') ||
     pathname?.startsWith('/offline') ||
     pathname?.startsWith('/welcome') ||
+    pathname?.startsWith('/suspended') ||
+    pathname?.startsWith('/onboarding') ||
+    pathname?.startsWith('/admin/onboarding') ||
     false
 
   const canShowBanner = useMemo(() => {

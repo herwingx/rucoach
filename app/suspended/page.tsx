@@ -9,8 +9,49 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { AlertTriangle, LogOut, MessageCircle, Clock } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  LogOut,
+  MessageCircle,
+  RefreshCw,
+  Sparkles,
+} from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
+
+const DEFAULT_COACH_PHONE = "9612378473";
+
+function normalizeBrandName(rawName?: string | null): string {
+  if (!rawName) return "RU Coach";
+  const trimmed = rawName.trim();
+  if (
+    !trimmed ||
+    trimmed.toLowerCase() === "rodrigo coaching" ||
+    trimmed.toLowerCase() === "mi gym" ||
+    trimmed.toLowerCase() === "mi marca" ||
+    trimmed.toLowerCase() === "mi espacio"
+  ) {
+    return "RU Coach";
+  }
+  return trimmed;
+}
+
+function formatWhatsAppPhone(rawPhone?: string | null): {
+  waNumber: string;
+  displayPhone: string;
+} {
+  const digits = (rawPhone || DEFAULT_COACH_PHONE).replace(/\D/g, "") || DEFAULT_COACH_PHONE;
+  // Si son 10 dígitos nacionales (México), anteponer lada internacional 52 para wa.me
+  const waNumber = digits.length === 10 ? `52${digits}` : digits;
+  const local10 = digits.length === 12 && digits.startsWith("52") ? digits.slice(2) : digits;
+  const displayPhone =
+    local10.length === 10
+      ? `${local10.slice(0, 3)} ${local10.slice(3, 6)} ${local10.slice(6)}`
+      : digits;
+  return { waNumber, displayPhone };
+}
 
 export default async function SuspendedPage({
   searchParams,
@@ -21,159 +62,219 @@ export default async function SuspendedPage({
   const { user, profile } = await getAuthData();
   const supabase = await createClient();
 
-  // Obtener el teléfono del coach (el primer admin registrado)
   const { data: gym } = await supabase
     .from("gym_settings")
     .select("phone, gym_name")
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  const coachPhone = gym?.phone?.replace(/\D/g, ""); // Limpiar para WhatsApp
+  const brandName = normalizeBrandName(gym?.gym_name);
+  const { waNumber, displayPhone } = formatWhatsAppPhone(gym?.phone);
   const userEmail = profile?.email || user?.email || "";
-  
+  const userName = profile?.full_name || "";
+
   const isPaused = status === "pending_payment";
+  const isExpired = status === "expired";
+
   let title = "Acceso Restringido";
+  let badgeText = "Cuenta en revisión";
   let description = (
     <>
-      Tu acceso a <span className="text-foreground font-bold">{gym?.gym_name || "RU Coach"}</span> ha
-      sido temporalmente suspendido
+      Tu acceso a <span className="text-foreground font-bold">{brandName}</span> ha
+      sido temporalmente pausado.
     </>
   );
-  let icon = <AlertTriangle className="size-10 text-destructive animate-pulse" />;
+  let icon = <AlertTriangle className="size-9 sm:size-10 text-destructive" />;
 
-  // Preparar mensaje de WhatsApp
   const waBase = "https://wa.me/";
-  let waText = `Hola Rodrigo, tengo un problema con mi acceso a la app (Estado: ${status || 'suspendido'}). Mi correo es: ${userEmail}`;
-  
+  let waText = `Hola Rodrigo, necesito apoyo con mi acceso a RU Coach${userName ? ` (soy ${userName})` : ""}. Mi correo es: ${userEmail}`;
+
   if (isPaused) {
-    title = "Falta Pago";
+    title = "Activación Pendiente";
+    badgeText = "Paso final · Confirmar membresía";
     description = (
       <>
-        Tu cuenta está casi lista. Falta registrar tu pago de suscripción a{" "}
-        <span className="text-foreground font-bold">{gym?.gym_name || "RU Coach"}</span>.
+        ¡Tu perfil en <span className="text-foreground font-bold">{brandName}</span> ya
+        está listo! Solo falta confirmar el pago de tu membresía con Rodrigo Urbina para
+        habilitar tu panel de entrenamiento.
       </>
     );
-    icon = <Clock className="size-10 text-amber-500 animate-pulse" />;
-    waText = `Hola Rodrigo, acabo de registrar mi cuenta en la app y quería coordinar el pago de mi suscripción para activarla. Mi correo es: ${userEmail}`;
-  } else if (status === "expired") {
-    title = "Suscripción Vencida";
+    icon = <Clock className="size-9 sm:size-10 text-amber-500" />;
+    waText = `Hola Rodrigo, acabo de completar mi registro en RU Coach${userName ? ` (soy ${userName})` : ""} y quiero coordinar el pago de mi membresía para activar mi cuenta. Mi correo es: ${userEmail}`;
+  } else if (isExpired) {
+    title = "Membresía Vencida";
+    badgeText = "Renovación requerida";
     description = (
       <>
-        Tu tiempo de acceso a <span className="text-foreground font-bold">{gym?.gym_name || "RU Coach"}</span>{" "}
-        ha terminado. 
+        Tu periodo de suscripción en{" "}
+        <span className="text-foreground font-bold">{brandName}</span> ha finalizado.
+        Todo tu progreso e historial están intactos para cuando renueves.
       </>
     );
-    waText = `Hola Rodrigo, mi acceso a la app ha vencido y quisiera renovarlo. Mi correo es: ${userEmail}`;
+    waText = `Hola Rodrigo, mi membresía en RU Coach ha vencido${userName ? ` (soy ${userName})` : ""} y me gustaría renovarla. Mi correo es: ${userEmail}`;
   }
 
-  const waLink = coachPhone 
-    ? `${waBase}${coachPhone}?text=${encodeURIComponent(waText)}`
-    : "#"; // Fallback si no hay teléfono configurado
+  const waLink = `${waBase}${waNumber}?text=${encodeURIComponent(waText)}`;
 
   return (
-    <div
-      id="main-content"
-      role="main"
-      className="relative min-h-dvh bg-background flex items-center justify-center p-6 safe-area-inset-top safe-area-inset-bottom"
-      tabIndex={-1}
-    >
-      <div className="fixed top-4 right-4 z-50">
-        <ThemeToggle />
-      </div>
-      <Card
-        className={`w-full max-w-md text-center shadow-2xl ${
-          isPaused
-            ? "border-amber-500/20 shadow-amber-500/10"
-            : "border-destructive/20 shadow-destructive/10"
-        }`}
-      >
-        <CardHeader className="pb-4">
-          <div
-            className={`mx-auto size-20 rounded-full flex items-center justify-center mb-6 ring-1 ${
-              isPaused
-                ? "bg-amber-500/10 ring-amber-500/20"
-                : "bg-destructive/10 ring-destructive/20"
-            }`}
-          >
-            {icon}
-          </div>
-          <CardTitle className="text-3xl font-black uppercase tracking-tighter">
-            {title}
-          </CardTitle>
-          <CardDescription className="text-base font-medium">
-            {description}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-8">
-          <div className="p-5 bg-muted/50 rounded-xl text-left space-y-3 border border-border/50">
-            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-              Estado de la cuenta:
-            </p>
-            <ul className="text-sm text-foreground/80 space-y-2 font-medium">
-              {status === "pending_payment" ? (
-                <>
-                  <li className="flex items-center gap-2">
-                    <div className={`size-1.5 rounded-full bg-primary`} />
-                    Registro de cuenta completado
-                  </li>
-                  <li className="flex items-center gap-2 text-amber-500">
-                    <div className={`size-1.5 rounded-full bg-amber-500`} />
-                    Pago de suscripción pendiente
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className={`size-1.5 rounded-full bg-border`} />
-                    Activación administrativa
-                  </li>
-                </>
-              ) : (
-                <>
-                  <li className="flex items-center gap-2 text-destructive">
-                    <div className={`size-1.5 rounded-full bg-destructive`} />
-                    Acceso restringido / Vencido
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <div className={`size-1.5 rounded-full bg-muted-foreground/30`} />
-                    Revisión administrativa necesaria
-                  </li>
-                </>
-              )}
-            </ul>
-          </div>
+    <div className="min-h-dvh bg-background text-foreground flex flex-col">
+      {/* Header consistente con RU Coach (evita que ThemeToggle flote sobre la tarjeta en móvil) */}
+      <header className="h-16 border-b border-border/50 bg-background/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="container max-w-4xl mx-auto h-full flex items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="size-9 rounded-lg overflow-hidden bg-black flex items-center justify-center shrink-0 border border-border/40">
+              <Image
+                src="/android-chrome-512x512.png"
+                alt="Logo RU Coach"
+                width={36}
+                height={36}
+                className="size-full object-contain"
+              />
+            </div>
+            <div className="flex flex-col leading-none">
+              <span className="font-black tracking-tighter uppercase text-lg">
+                RU Coach
+              </span>
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mt-0.5">
+                Rodrigo Urbina
+              </span>
+            </div>
+          </Link>
 
-          <div className="space-y-3">
-            {coachPhone ? (
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+
+      <main
+        id="main-content"
+        role="main"
+        className="flex-1 flex items-center justify-center px-4 py-6 sm:p-6 safe-area-inset-bottom"
+        tabIndex={-1}
+      >
+        <Card
+          className={`w-full max-w-md text-center rounded-2xl bg-card/85 backdrop-blur-xl shadow-2xl ${
+            isPaused
+              ? "border-amber-500/25 shadow-amber-500/5"
+              : "border-destructive/25 shadow-destructive/5"
+          }`}
+        >
+          <CardHeader className="pb-3 pt-6 px-5 sm:px-6">
+            <div
+              className={`mx-auto size-18 sm:size-20 rounded-full flex items-center justify-center mb-4 ring-1 ${
+                isPaused
+                  ? "bg-amber-500/10 ring-amber-500/25"
+                  : "bg-destructive/10 ring-destructive/25"
+              }`}
+            >
+              {icon}
+            </div>
+
+            <div className="mx-auto mb-2">
+              <span
+                className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider border ${
+                  isPaused
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25"
+                    : "bg-destructive/10 text-destructive border-destructive/25"
+                }`}
+              >
+                {badgeText}
+              </span>
+            </div>
+
+            <CardTitle className="text-2xl sm:text-3xl font-black uppercase tracking-tight">
+              {title}
+            </CardTitle>
+            <CardDescription className="text-sm sm:text-base font-medium leading-relaxed mt-1.5">
+              {description}
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="space-y-6 px-5 pb-6 sm:px-6">
+            <div className="p-4 bg-muted/40 rounded-xl text-left space-y-3 border border-border/60">
+              <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+                Estado de tu cuenta
+              </p>
+              <ul className="text-xs sm:text-sm text-foreground/90 space-y-2.5 font-medium">
+                {isPaused ? (
+                  <>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
+                      <span>Registro y perfil inicial completados</span>
+                    </li>
+                    <li className="flex items-center gap-2.5 text-amber-600 dark:text-amber-400 font-semibold">
+                      <Clock className="size-4 text-amber-500 shrink-0" />
+                      <span>Pago de membresía por confirmar</span>
+                    </li>
+                    <li className="flex items-center gap-2.5 text-muted-foreground">
+                      <Sparkles className="size-4 text-muted-foreground/60 shrink-0" />
+                      <span>Activación inmediata de tu plan y rutinas</span>
+                    </li>
+                  </>
+                ) : (
+                  <>
+                    <li className="flex items-center gap-2.5">
+                      <CheckCircle2 className="size-4 text-emerald-500 shrink-0" />
+                      <span>Historial y progreso resguardados</span>
+                    </li>
+                    <li className="flex items-center gap-2.5 text-destructive font-semibold">
+                      <AlertTriangle className="size-4 text-destructive shrink-0" />
+                      <span>
+                        {isExpired
+                          ? "Periodo de membresía finalizado"
+                          : "Acceso temporalmente pausado"}
+                      </span>
+                    </li>
+                    <li className="flex items-center gap-2.5 text-muted-foreground">
+                      <Sparkles className="size-4 text-muted-foreground/60 shrink-0" />
+                      <span>Contacta a tu coach para reactivar tu acceso</span>
+                    </li>
+                  </>
+                )}
+              </ul>
+            </div>
+
+            <div className="space-y-2.5">
               <Button
-                className="w-full gap-2 h-12 rounded-xl text-base font-bold uppercase tracking-tight bg-[#25D366] hover:bg-[#20ba56] text-white border-0 shadow-lg shadow-[#25D366]/20"
+                className="w-full gap-2.5 h-12 rounded-xl text-sm sm:text-base font-bold bg-[#25D366] hover:bg-[#20ba56] text-white border-0 shadow-lg shadow-[#25D366]/20"
                 asChild
               >
                 <a href={waLink} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="size-5 fill-current" />
-                  Contactar a WhatsApp
+                  <MessageCircle className="size-5 fill-current shrink-0" />
+                  <span>Contactar por WhatsApp ({displayPhone})</span>
                 </a>
               </Button>
-            ) : (
-              <p className="text-xs text-muted-foreground italic">
-                Contacta a tu coach para restaurar el acceso.
-              </p>
-            )}
 
-            <Button
-              variant="outline"
-              className="w-full gap-2 h-12 text-sm font-semibold rounded-xl border-border/60 hover:bg-muted transition-all"
-              asChild
-            >
-              <Link href="/auth/logout" prefetch={false}>
-                <LogOut className="size-4" />
-                Cerrar Sesión
-              </Link>
-            </Button>
-          </div>
+              <Button
+                variant="secondary"
+                className="w-full gap-2 h-11 text-xs sm:text-sm font-semibold rounded-xl"
+                asChild
+              >
+                <Link href="/client/dashboard">
+                  <RefreshCw className="size-4" />
+                  Ya realicé mi pago · Verificar acceso
+                </Link>
+              </Button>
 
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
-            {gym?.gym_name || "RU Coach"} — Coaching de Élite
-          </p>
-        </CardContent>
-      </Card>
+              <Button
+                variant="outline"
+                className="w-full gap-2 h-11 text-xs sm:text-sm font-semibold rounded-xl border-border/60 hover:bg-muted transition-all"
+                asChild
+              >
+                <Link href="/auth/logout" prefetch={false}>
+                  <LogOut className="size-4" />
+                  Cerrar Sesión
+                </Link>
+              </Button>
+            </div>
+
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold pt-1">
+              RU Coach · Rodrigo Urbina — Coaching de Élite
+            </p>
+          </CardContent>
+        </Card>
+      </main>
     </div>
   );
 }

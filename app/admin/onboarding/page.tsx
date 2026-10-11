@@ -24,7 +24,7 @@ export default async function AdminOnboardingPage() {
   return (
     <AdminOnboardingFlow
       userId={user.id}
-      gymName={gymSettings?.gym_name || "Mi espacio"}
+      gymName={gymSettings?.gym_name || "RU Coach"}
     />
   );
 }
