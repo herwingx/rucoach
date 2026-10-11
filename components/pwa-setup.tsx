@@ -2,8 +2,6 @@
 
 import { useEffect } from 'react'
 
-const DISMISS_KEY = 'rucoach-pwa-install-dismissed-v1'
-
 export type DeferredPromptEvent = Event & {
   prompt: () => Promise<void>
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>
@@ -20,28 +18,7 @@ export function PWASetup() {
     try {
       if (typeof window === 'undefined') return
 
-      // Capturar beforeinstallprompt lo antes posible (incluso en /auth/login)
-      // para que esté disponible al entrar al dashboard o abrir el menú lateral.
       const handleBeforeInstall = (e: Event) => {
-        const path = window.location.pathname || ''
-        const isAuthOrPublic =
-          path.startsWith('/auth') ||
-          path === '/login' ||
-          path === '/signup' ||
-          path === '/welcome' ||
-          path === '/offline' ||
-          path === '/suspended'
-
-        try {
-          const wasDismissed = localStorage.getItem(DISMISS_KEY) === '1'
-          if (!wasDismissed && !isAuthOrPublic) {
-            e.preventDefault()
-          }
-        } catch {
-          if (!isAuthOrPublic) {
-            e.preventDefault()
-          }
-        }
         window.__rucoachDeferredPrompt = e as DeferredPromptEvent
         window.dispatchEvent(new CustomEvent('rucoach:pwa-prompt-ready'))
       }

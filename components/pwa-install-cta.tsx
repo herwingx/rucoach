@@ -193,15 +193,6 @@ export function PWAInstallCTA() {
       const onDisplayModeChange = () => setInstalled(isRunningStandalone())
 
       const onBeforeInstall = (e: Event) => {
-        try {
-          const wasDismissed = localStorage.getItem(DISMISS_KEY) === '1'
-          const alreadyInstalled = isRunningStandalone()
-          if (!wasDismissed && !alreadyInstalled) {
-            e.preventDefault()
-          }
-        } catch {
-          e.preventDefault()
-        }
         const promptEv = e as DeferredPromptEvent
         window.__rucoachDeferredPrompt = promptEv
         setDeferred(promptEv)
