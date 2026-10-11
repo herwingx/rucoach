@@ -33,7 +33,7 @@ import {
   completeOnboarding,
   type OnboardingInitialData,
 } from "@/app/actions/onboarding";
-import { savePushSubscription } from "@/app/actions/web-push";
+import { getVapidPublicKey, savePushSubscription } from "@/app/actions/web-push";
 import { openPWAInstallPrompt } from "@/components/pwa-install-cta";
 import { urlBase64ToUint8Array } from "@/lib/utils/web-push";
 import type { FitnessGoal, ExperienceLevel } from "@/lib/types";
@@ -314,8 +314,7 @@ export function OnboardingFlow({
       return;
     }
 
-    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    if (!pushSupported || !vapidKey) {
+    if (!pushSupported) {
       toast.info(
         "Puedes activar las notificaciones más adelante desde tu Perfil.",
       );
@@ -326,6 +325,27 @@ export function OnboardingFlow({
     try {
       const permission = await Notification.requestPermission();
       if (permission === "granted") {
+        const vapidKey =
+          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+          (await getVapidPublicKey());
+        if (!vapidKey) {
+          toast.info(
+            "Puedes activar las notificaciones más adelante desde tu Perfil.",
+          );
+          setNotificationsEnabled(false);
+          return;
+        }
+
+        const existingReg = await navigator.serviceWorker.getRegistration();
+        if (!existingReg) {
+          const swUrl =
+            process.env.NODE_ENV === "development" ? "/push-sw.js" : "/sw.js";
+          await navigator.serviceWorker
+            .register(swUrl, { scope: "/" })
+            .catch(() =>
+              navigator.serviceWorker.register("/push-sw.js", { scope: "/" }),
+            );
+        }
         const registration = await navigator.serviceWorker.ready;
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,

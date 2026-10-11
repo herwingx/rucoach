@@ -733,6 +733,9 @@ export function ChatView({
     if (!selectedUserId) return
 
     let cancelled = false
+    let pgChannel: ReturnType<typeof supabase.channel> | null = null
+    let syncChannel: ReturnType<typeof supabase.channel> | null = null
+
     const isPeerSwitch = lastLoadedPeerRef.current !== selectedUserId
     if (isPeerSwitch) {
       setMessagesLoading(true)
@@ -745,7 +748,7 @@ export function ChatView({
       adminMobilePaneRef.current === 'thread' ||
       (typeof window !== 'undefined' && window.innerWidth >= 768)
 
-    const load = async () => {
+    const load = async (silent = false) => {
       const pairFilter = `and(from_user_id.eq.${currentUserId},to_user_id.eq.${selectedUserId}),and(from_user_id.eq.${selectedUserId},to_user_id.eq.${currentUserId})`
       const { data: rows } = await supabase
         .from('messages')
@@ -757,24 +760,55 @@ export function ChatView({
       if (cancelled) return
 
       const chronological = [...(rows ?? [])].reverse()
+      let hasNewUnreadFromPeer = false
+
       setMessages((prev) => {
-        if (prev.length === 0) return chronological
+        if (prev.length === 0) {
+          hasNewUnreadFromPeer = chronological.some(
+            (m) => m.from_user_id === selectedUserId && !m.is_read,
+          )
+          return chronological
+        }
+        const prevIds = new Set(prev.map((p) => p.id))
         const byId = new Map<string, Message>()
-        for (const m of chronological) byId.set(m.id, m)
+        for (const m of chronological) {
+          byId.set(m.id, m)
+          if (!prevIds.has(m.id) && m.from_user_id === selectedUserId) {
+            hasNewUnreadFromPeer = true
+          }
+        }
         for (const m of prev) {
           const involvesSelected =
-            (m.from_user_id === currentUserId && m.to_user_id === selectedUserId) ||
-            (m.from_user_id === selectedUserId && m.to_user_id === currentUserId)
+            (m.from_user_id === currentUserId &&
+              m.to_user_id === selectedUserId) ||
+            (m.from_user_id === selectedUserId &&
+              m.to_user_id === currentUserId)
           if (involvesSelected && !byId.has(m.id)) {
             byId.set(m.id, m)
           }
         }
-        return Array.from(byId.values())
+        const merged = Array.from(byId.values())
           .sort((a, b) => a.created_at.localeCompare(b.created_at))
           .slice(-CHAT_THREAD_MESSAGE_LIMIT)
+
+        // Evitar re-render si no cambió ningún mensaje ni su estado is_read
+        if (
+          merged.length === prev.length &&
+          merged.every(
+            (m, idx) =>
+              m.id === prev[idx].id && m.is_read === prev[idx].is_read,
+          )
+        ) {
+          return prev
+        }
+        return merged
       })
-      setMessagesLoading(false)
-      if (shouldMarkReadNow()) {
+
+      if (!silent) {
+        setMessagesLoading(false)
+      }
+
+      if ((!silent || hasNewUnreadFromPeer) && shouldMarkReadNow()) {
         setConversationsState((prev) =>
           prev.map((c) => (c.id === selectedUserId ? { ...c, unread: 0 } : c)),
         )
@@ -782,79 +816,122 @@ export function ChatView({
       }
     }
 
-    void load()
+    const handleRealtimeInsert = (m: Message) => {
+      if (!m?.id) return
+      const involvesMe =
+        m.from_user_id === currentUserId || m.to_user_id === currentUserId
+      if (!involvesMe) return
 
-    const chanId = `messages:${currentUserId}:${selectedUserId}`
-    const channel = supabase
-      .channel(chanId)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        (payload) => {
-          const m = payload.new as Message
-          const involvesMe =
-            m.from_user_id === currentUserId || m.to_user_id === currentUserId
-          if (!involvesMe) return
+      const peerId =
+        m.from_user_id === currentUserId ? m.to_user_id : m.from_user_id
+      const isCurrentThread = peerId === selectedUserId
+      const threadVisible = shouldMarkReadNow()
 
-          const peerId =
-            m.from_user_id === currentUserId ? m.to_user_id : m.from_user_id
-          const isCurrentThread = peerId === selectedUserId
-          const threadVisible = shouldMarkReadNow()
-
-          if (isAdmin) {
-            setConversationsState((prev) =>
-              prev
-                .map((c) => {
-                  if (c.id !== peerId) return c
-                  const shouldIncrementUnread =
-                    m.to_user_id === currentUserId &&
-                    (!isCurrentThread || !threadVisible)
-                  return {
-                    ...c,
-                    lastMessage: m.content,
-                    lastAt: m.created_at,
-                    unread: shouldIncrementUnread
-                      ? (c.unread || 0) + 1
-                      : isCurrentThread && threadVisible
-                        ? 0
-                        : c.unread,
-                  }
-                })
-                .sort((a, b) => (b.lastAt || '').localeCompare(a.lastAt || '')),
-            )
-          }
-
-          if (isCurrentThread) {
-            setMessages((prev) => {
-              if (prev.some((x) => x.id === m.id)) return prev
-              const next = [...prev, m]
-              return next.length > CHAT_THREAD_MESSAGE_LIMIT
-                ? next.slice(-CHAT_THREAD_MESSAGE_LIMIT)
-                : next
+      if (isAdmin) {
+        setConversationsState((prev) =>
+          prev
+            .map((c) => {
+              if (c.id !== peerId) return c
+              const shouldIncrementUnread =
+                m.to_user_id === currentUserId &&
+                (!isCurrentThread || !threadVisible)
+              return {
+                ...c,
+                lastMessage: m.content,
+                lastAt: m.created_at,
+                unread: shouldIncrementUnread
+                  ? (c.unread || 0) + 1
+                  : isCurrentThread && threadVisible
+                    ? 0
+                    : c.unread,
+              }
             })
-            if (m.to_user_id === currentUserId && threadVisible) {
-              void markMessagesAsRead(selectedUserId)
-            }
-          }
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages' },
-        (payload) => {
-          const updated = payload.new as Message
-          setMessages((prev) =>
-            prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)),
-          )
-        },
-      )
-      .subscribe()
+            .sort((a, b) => (b.lastAt || '').localeCompare(a.lastAt || '')),
+        )
+      }
+
+      if (isCurrentThread) {
+        setMessages((prev) => {
+          if (prev.some((x) => x.id === m.id)) return prev
+          const next = [...prev, m]
+          return next.length > CHAT_THREAD_MESSAGE_LIMIT
+            ? next.slice(-CHAT_THREAD_MESSAGE_LIMIT)
+            : next
+        })
+        if (m.to_user_id === currentUserId && threadVisible) {
+          void markMessagesAsRead(selectedUserId)
+        }
+      }
+    }
+
+    const initRealtime = async () => {
+      void load(false)
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (cancelled) return
+
+      if (session?.access_token) {
+        supabase.realtime.setAuth(session.access_token)
+      }
+
+      const chanId = `messages:${currentUserId}:${selectedUserId}`
+      pgChannel = supabase
+        .channel(chanId)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages' },
+          (payload) => {
+            handleRealtimeInsert(payload.new as Message)
+          },
+        )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'messages' },
+          (payload) => {
+            const updated = payload.new as Message
+            setMessages((prev) =>
+              prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)),
+            )
+          },
+        )
+        .subscribe()
+
+      syncChannel = supabase
+        .channel(`chat-sync:${currentUserId}`)
+        .on('broadcast', { event: 'new_message' }, ({ payload }) => {
+          handleRealtimeInsert(payload as Message)
+        })
+        .subscribe()
+    }
+
+    void initRealtime()
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        void load(true)
+      }
+    }
+
+    window.addEventListener('focus', handleVisibilityOrFocus)
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus)
+
+    const pollId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void load(true)
+      }
+    }, 3500)
 
     return () => {
       cancelled = true
-      void supabase.removeChannel(channel)
+      window.removeEventListener('focus', handleVisibilityOrFocus)
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus)
+      window.clearInterval(pollId)
+      if (pgChannel) void supabase.removeChannel(pgChannel)
+      if (syncChannel) void supabase.removeChannel(syncChannel)
     }
-  }, [selectedUserId, currentUserId, isAdmin])
+  }, [selectedUserId, currentUserId, isAdmin, supabase])
 
   useEffect(() => {
     if (!isAdmin || adminMobilePane !== 'thread' || !selectedUserId) return
@@ -910,6 +987,16 @@ export function ChatView({
               .sort((a, b) => (b.lastAt || '').localeCompare(a.lastAt || '')),
           )
         }
+
+        // Emitir por Broadcast directo para entrega <50ms en el chat y banner del destinatario
+        void supabase
+          .channel(`chat-sync:${selectedUserId}`)
+          .httpSend('new_message', inserted)
+          .catch(() => {})
+        void supabase
+          .channel(`inbox-notify:${selectedUserId}`)
+          .httpSend('new_message', inserted)
+          .catch(() => {})
       }
     } catch {
       setInput(text)
@@ -918,7 +1005,7 @@ export function ChatView({
       setSending(false)
       textareaRef.current?.focus()
     }
-  }, [input, selectedUserId, sending, isAdmin])
+  }, [input, selectedUserId, sending, isAdmin, supabase])
 
   const messageRows = useMemo(() => buildMessageRows(messages), [messages])
 

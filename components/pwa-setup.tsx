@@ -38,19 +38,11 @@ export function PWASetup() {
         }
       }
 
-      // En dev el SW + HMR provocan updates constantes; el reload automático puede buclear la app.
+      // En desarrollo registramos únicamente el SW ligero de Push (/push-sw.js, sin caché Workbox)
       if (process.env.NODE_ENV === 'development') {
         navigator.serviceWorker
-          .getRegistrations()
-          .then((registrations) => Promise.all(registrations.map((r) => r.unregister())))
+          .register('/push-sw.js', { scope: '/' })
           .catch(() => {})
-
-        if ('caches' in window) {
-          caches
-            .keys()
-            .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
-            .catch(() => {})
-        }
         return () => {
           window.removeEventListener('beforeinstallprompt', handleBeforeInstall)
           window.removeEventListener('appinstalled', handleAppInstalled)
@@ -61,7 +53,11 @@ export function PWASetup() {
 
       navigator.serviceWorker
         .register('/sw.js', { scope: '/' })
+        .catch(() =>
+          navigator.serviceWorker.register('/push-sw.js', { scope: '/' }),
+        )
         .then((registration) => {
+          if (!registration) return
           updateInterval = setInterval(() => {
             registration.update().catch(() => {})
           }, 60_000)

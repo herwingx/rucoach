@@ -20,7 +20,11 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { calculateLevel } from "@/lib/types";
 import { Textarea } from "@/components/ui/textarea";
-import { savePushSubscription, removePushSubscription } from "@/app/actions/web-push";
+import {
+  getVapidPublicKey,
+  savePushSubscription,
+  removePushSubscription,
+} from "@/app/actions/web-push";
 import {
   reportClientPain,
   resolveClientPainReport,
@@ -336,16 +340,24 @@ export function UserProfileContent({
           return;
         }
 
-        const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+        const vapidKey =
+          process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+          (await getVapidPublicKey());
         if (!vapidKey) {
           toast.error("Falta configurar la clave pública VAPID.");
           setPushSubscribed(false);
           return;
         }
 
+        const swUrl =
+          process.env.NODE_ENV === "development" ? "/push-sw.js" : "/sw.js";
         const reg =
           (await navigator.serviceWorker.getRegistration()) ||
-          (await navigator.serviceWorker.register("/sw.js", { scope: "/" }));
+          (await navigator.serviceWorker
+            .register(swUrl, { scope: "/" })
+            .catch(() =>
+              navigator.serviceWorker.register("/push-sw.js", { scope: "/" }),
+            ));
         const readyReg = reg.active ? reg : await navigator.serviceWorker.ready;
 
         const subscription = await readyReg.pushManager.subscribe({

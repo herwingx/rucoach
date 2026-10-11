@@ -1,16 +1,43 @@
 "use client";
 
-import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { savePushSubscription } from "@/app/actions/web-push";
+import { getVapidPublicKey, savePushSubscription } from "@/app/actions/web-push";
 import { urlBase64ToUint8Array } from "@/lib/utils/web-push";
 import { toast } from "sonner";
 
-const PUSH_SYNC_SESSION_KEY = "rucoach-push-synced-v1";
+const PUSH_SYNC_SESSION_KEY = "rucoach-push-synced-v2";
 const PUSH_PROMPT_DISMISSED_KEY = "rucoach-push-prompt-dismissed-v1";
 
-async function syncCurrentPushSubscription(): Promise<boolean> {
+async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
+    return null;
+  }
+  try {
+    const existing = await navigator.serviceWorker.getRegistration();
+    if (existing?.active) return existing;
+
+    const swUrl =
+      process.env.NODE_ENV === "development" ? "/push-sw.js" : "/sw.js";
+    try {
+      const reg = await navigator.serviceWorker.register(swUrl, { scope: "/" });
+      if (reg.active) return reg;
+    } catch {
+      const fallbackReg = await navigator.serviceWorker.register(
+        "/push-sw.js",
+        { scope: "/" },
+      );
+      if (fallbackReg.active) return fallbackReg;
+    }
+
+    return await navigator.serviceWorker.ready;
+  } catch {
+    return null;
+  }
+}
+
+export async function syncCurrentPushSubscription(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   if (
     !("Notification" in window) ||
@@ -20,11 +47,14 @@ async function syncCurrentPushSubscription(): Promise<boolean> {
     return false;
   }
 
-  const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  if (!vapidKey) return false;
-
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const vapidKey =
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || (await getVapidPublicKey());
+    if (!vapidKey) return false;
+
+    const registration = await ensureServiceWorkerRegistration();
+    if (!registration) return false;
+
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription && Notification.permission === "granted") {
       subscription = await registration.pushManager.subscribe({
@@ -32,6 +62,7 @@ async function syncCurrentPushSubscription(): Promise<boolean> {
         applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
     }
+
     if (subscription) {
       const res = await savePushSubscription(subscription.toJSON());
       if (res.success) {
@@ -42,16 +73,17 @@ async function syncCurrentPushSubscription(): Promise<boolean> {
       }
     }
   } catch {
-    // Silencioso en desarrollo o si el SW aún no está activo
+    // Silencioso si el navegador no soporta Push en este contexto
   }
   return false;
 }
 
 export function RealtimeNotifications({ role }: { role: "client" | "admin" }) {
-  const pathname = usePathname();
   const router = useRouter();
+  const notifiedIdsRef = useRef<Set<string>>(new Set());
+  const mountedAtIsoRef = useRef<string>(new Date().toISOString());
 
-  // 1. Auto-sincronizar suscripción Web Push (Android + iOS 16.4+ PWA) y sugerir activación si está en "default"
+  // 1. Auto-sincronizar suscripción Web Push (Android + iOS 16.4+ PWA + Desktop)
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (
@@ -61,9 +93,6 @@ export function RealtimeNotifications({ role }: { role: "client" | "admin" }) {
     ) {
       return;
     }
-
-    const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    if (!vapidKey) return;
 
     if (Notification.permission === "granted") {
       const alreadySynced = sessionStorage.getItem(PUSH_SYNC_SESSION_KEY);
@@ -120,17 +149,89 @@ export function RealtimeNotifications({ role }: { role: "client" | "admin" }) {
     }
   }, [role]);
 
-  // 2. Canal Supabase Realtime global para avisos instantáneos dentro de la app (iOS / Android / Desktop)
+  // 2. Canal Supabase Realtime autenticado + Broadcast + Sondeo ligero de respaldo
   useEffect(() => {
     const supabase = createClient();
-    let activeChannel: ReturnType<typeof supabase.channel> | null = null;
+    let pgChannel: ReturnType<typeof supabase.channel> | null = null;
+    let broadcastChannel: ReturnType<typeof supabase.channel> | null = null;
+    let pollInterval: number | null = null;
     let isMounted = true;
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    const handleIncomingMessage = (newMsg: {
+      id?: string;
+      from_user_id?: string;
+      to_user_id?: string;
+      content?: string;
+      created_at?: string;
+    }) => {
+      if (!newMsg?.id || notifiedIdsRef.current.has(newMsg.id)) return;
+      notifiedIdsRef.current.add(newMsg.id);
+
+      const isOnMessagesRoute = window.location.pathname.includes("/messages");
+      const isHidden = document.visibilityState !== "visible";
+
+      const title =
+        role === "admin"
+          ? "Nuevo mensaje de asesorado"
+          : "Nuevo mensaje de Rodrigo Urbina";
+      const bodyText =
+        newMsg.content && newMsg.content.length > 90
+          ? `${newMsg.content.slice(0, 90)}…`
+          : newMsg.content || "Tienes un nuevo mensaje en el chat.";
+      const targetUrl =
+        role === "admin"
+          ? `/admin/messages?clientId=${newMsg.from_user_id}`
+          : "/client/messages";
+
+      // Mostrar toast interactivo si no está dentro de la pantalla de mensajes
+      if (!isOnMessagesRoute) {
+        toast(title, {
+          description: bodyText,
+          duration: 7000,
+          action: {
+            label: "Responder",
+            onClick: () => router.push(targetUrl),
+          },
+        });
+      }
+
+      // Si la pestaña está en segundo plano o está en otra vista y tiene permiso de notificaciones nativas
+      if (
+        (isHidden || !isOnMessagesRoute) &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
+        navigator.serviceWorker
+          ?.getRegistration()
+          .then((reg) => {
+            if (reg?.showNotification) {
+              return reg.showNotification(title, {
+                body: bodyText,
+                icon: "/android-chrome-192x192.png",
+                badge: "/favicon-32x32.png",
+                tag: `msg-${newMsg.from_user_id || "chat"}`,
+                data: { url: targetUrl },
+              });
+            }
+          })
+          .catch(() => {});
+      }
+    };
+
+    const setup = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const user = session?.user;
       if (!isMounted || !user) return;
 
-      const channel = supabase
-        .channel(`global-notifications-${user.id}`)
+      // CRÍTICO: autenticar el socket de Supabase Realtime antes de suscribirse a tablas con RLS
+      if (session?.access_token) {
+        supabase.realtime.setAuth(session.access_token);
+      }
+
+      pgChannel = supabase
+        .channel(`global-pg-messages:${user.id}`)
         .on(
           "postgres_changes",
           {
@@ -140,51 +241,78 @@ export function RealtimeNotifications({ role }: { role: "client" | "admin" }) {
             filter: `to_user_id=eq.${user.id}`,
           },
           (payload) => {
-            const newMsg = payload.new as {
+            const m = payload.new as {
               id?: string;
               from_user_id?: string;
+              to_user_id?: string;
               content?: string;
+              created_at?: string;
             };
-            if (!newMsg || newMsg.from_user_id === user.id) return;
-
-            // Si el usuario no está en la vista de mensajes, mostrar aviso interactivo inmediato
-            if (! window.location.pathname.includes("/messages")) {
-              const targetUrl =
-                role === "admin"
-                  ? `/admin/messages?clientId=${newMsg.from_user_id}`
-                  : "/client/messages";
-
-              toast(
-                role === "admin"
-                  ? "Nuevo mensaje de asesorado"
-                  : "Nuevo mensaje de Rodrigo Urbina",
-                {
-                  description:
-                    newMsg.content && newMsg.content.length > 90
-                      ? `${newMsg.content.slice(0, 90)}…`
-                      : newMsg.content || "Tienes un nuevo mensaje en el chat.",
-                  action: {
-                    label: "Responder",
-                    onClick: () => router.push(targetUrl),
-                  },
-                },
-              );
-            }
+            if (!m || m.from_user_id === user.id) return;
+            handleIncomingMessage(m);
           },
         )
         .subscribe();
 
-      activeChannel = channel;
+      broadcastChannel = supabase
+        .channel(`inbox-notify:${user.id}`)
+        .on("broadcast", { event: "new_message" }, ({ payload }) => {
+          const m = payload as {
+            id?: string;
+            from_user_id?: string;
+            to_user_id?: string;
+            content?: string;
+            created_at?: string;
+          };
+          if (!m || m.from_user_id === user.id) return;
+          handleIncomingMessage(m);
+        })
+        .subscribe();
+
+      // Respaldo de sondeo cada 5s para redes móviles que bloquean WebSockets
+      const checkRecentUnread = async () => {
+        if (!isMounted) return;
+        const { data: rows } = await supabase
+          .from("messages")
+          .select("id, from_user_id, to_user_id, content, created_at")
+          .eq("to_user_id", user.id)
+          .eq("is_read", false)
+          .gt("created_at", mountedAtIsoRef.current)
+          .order("created_at", { ascending: true })
+          .limit(5);
+
+        if (!rows?.length) return;
+        for (const r of rows) {
+          if (r.created_at && r.created_at > mountedAtIsoRef.current) {
+            mountedAtIsoRef.current = r.created_at;
+          }
+          handleIncomingMessage(r);
+        }
+      };
+
+      pollInterval = window.setInterval(() => {
+        void checkRecentUnread();
+      }, 5000);
+    };
+
+    void setup();
+
+    const {
+      data: { subscription: authSub },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) {
+        supabase.realtime.setAuth(session.access_token);
+      }
     });
 
     return () => {
       isMounted = false;
-      if (activeChannel) {
-        void supabase.removeChannel(activeChannel);
-      }
+      authSub.unsubscribe();
+      if (pollInterval) window.clearInterval(pollInterval);
+      if (pgChannel) void supabase.removeChannel(pgChannel);
+      if (broadcastChannel) void supabase.removeChannel(broadcastChannel);
     };
-  }, [role, router, pathname]);
+  }, [role, router]);
 
   return null;
 }
-

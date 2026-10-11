@@ -23,16 +23,39 @@ export interface PushPayload {
 }
 
 const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:soporte@rucoach.app";
-const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY;
 
 let vapidReady = false;
 
-function ensureVapid(): boolean {
+async function ensureVapid(
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<boolean> {
   if (vapidReady) return true;
-  if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) return false;
+
+  let publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  let privateKey = process.env.VAPID_PRIVATE_KEY;
+
+  if (!publicKey || !privateKey) {
+    try {
+      const { data } = await admin
+        .from("admin_setup")
+        .select("admin_email")
+        .eq("setup_code", "VAPID_KEYS_V1")
+        .maybeSingle();
+
+      if (data?.admin_email && data.admin_email.includes(":")) {
+        const [dbPub, dbPriv] = data.admin_email.split(":");
+        if (!publicKey && dbPub) publicKey = dbPub.trim();
+        if (!privateKey && dbPriv) privateKey = dbPriv.trim();
+      }
+    } catch {
+      // Continuar si falla la lectura de respaldo
+    }
+  }
+
+  if (!publicKey || !privateKey) return false;
+
   try {
-    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+    webpush.setVapidDetails(VAPID_SUBJECT, publicKey, privateKey);
     vapidReady = true;
   } catch (err) {
     console.warn("[push] Configuración VAPID inválida", err);
@@ -49,10 +72,13 @@ export async function notifyUser(
   userId: string | null | undefined,
   payload: PushPayload,
 ): Promise<{ success: boolean; delivered: number }> {
-  if (!userId || !ensureVapid()) return { success: false, delivered: 0 };
+  if (!userId) return { success: false, delivered: 0 };
 
   try {
     const admin = createAdminClient();
+    const isReady = await ensureVapid(admin);
+    if (!isReady) return { success: false, delivered: 0 };
+
     const { data: subscriptions, error } = await admin
       .from("push_subscriptions")
       .select("id, endpoint, p256dh, auth")
