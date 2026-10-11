@@ -106,9 +106,9 @@ No necesitas instalar nada extra: si ejecutas `npx vercel login` en tu terminal,
 ### 3.2 Ejecutar el Esquema Completo y Datos Semilla
 Una vez que el proyecto termine de aprovisionarse (2 minutos):
 1. En el menú lateral izquierdo de Supabase, abre **SQL Editor** → **New query**.
-2. Abre el archivo [`supabase/supabase_schema_dump.sql`](file:///home/herwingx/Development/gym-coaching/supabase/supabase_schema_dump.sql) de este repositorio, copia **todo su contenido**, pégalo en el SQL Editor y presiona **Run**.
+2. Abre el archivo [`supabase/supabase_schema_dump.sql`](../supabase/supabase_schema_dump.sql) de este repositorio, copia **todo su contenido**, pégalo en el SQL Editor y presiona **Run**.
    - *Esto crea las 17 tablas, vistas, funciones RPC (`use_invitation_code_atomic`, `handle_new_user`, `sync_client_last_session_from_workout`, etc.), triggers en `auth.users`, índices optimizados, políticas RLS completas, buckets de Storage (`avatars` y `progress-photos`) y la publicación de Supabase Realtime para el chat.*
-3. Crea una segunda pestaña en **SQL Editor**, pega el contenido de [`supabase/seed.sql`](file:///home/herwingx/Development/gym-coaching/supabase/seed.sql) y presiona **Run**.
+3. Crea una segunda pestaña en **SQL Editor**, pega el contenido de [`supabase/seed.sql`](../supabase/seed.sql) y presiona **Run**.
    - *Esto poblará el catálogo oficial de logros (`public.achievements`) y los planes base (`public.membership_plans`).*
 
 ### 3.3 Poblar el Catálogo de Ejercicios (`public.exercises`)
@@ -148,12 +148,12 @@ Por defecto, el servidor de correo gratuito de Supabase solo permite enviar **2 
 3. Haz clic en **Save**.
 
 ### 3.6 Pegar las Plantillas HTML de Correo en Supabase
-En tu nueva cuenta de Supabase, ve a **Authentication** → **Email Templates** y pega el HTML de cada plantilla ubicada en la carpeta [`emails/supabase/`](file:///home/herwingx/Development/gym-coaching/emails/supabase/supabase-confirm-signup.html) *(ya actualizadas con el logo apuntando a `https://rucoach.app/android-chrome-512x512.png`)*:
-- **Confirm signup**: pega [`emails/supabase/supabase-confirm-signup.html`](file:///home/herwingx/Development/gym-coaching/emails/supabase/supabase-confirm-signup.html)
-- **Reset password**: pega [`emails/supabase/supabase-reset-password.html`](file:///home/herwingx/Development/gym-coaching/emails/supabase/supabase-reset-password.html)
-- **Magic Link**: pega [`emails/supabase/supabase-magic-link.html`](file:///home/herwingx/Development/gym-coaching/emails/supabase/supabase-magic-link.html)
-- **Change Email Address**: pega [`emails/supabase/supabase-change-email.html`](file:///home/herwingx/Development/gym-coaching/emails/supabase/supabase-change-email.html)
-- **Invite user**: pega [`emails/supabase/supabase-invite-user.html`](file:///home/herwingx/Development/gym-coaching/emails/supabase/supabase-invite-user.html)
+En tu nueva cuenta de Supabase, ve a **Authentication** → **Email Templates** y pega el HTML de cada plantilla ubicada en la carpeta [`emails/supabase/`](../emails/supabase/supabase-confirm-signup.html) *(ya actualizadas con el logo apuntando a `https://rucoach.app/android-chrome-512x512.png`)*:
+- **Confirm signup**: pega [`emails/supabase/supabase-confirm-signup.html`](../emails/supabase/supabase-confirm-signup.html)
+- **Reset password**: pega [`emails/supabase/supabase-reset-password.html`](../emails/supabase/supabase-reset-password.html)
+- **Magic Link**: pega [`emails/supabase/supabase-magic-link.html`](../emails/supabase/supabase-magic-link.html)
+- **Change Email Address**: pega [`emails/supabase/supabase-change-email.html`](../emails/supabase/supabase-change-email.html)
+- **Invite user**: pega [`emails/supabase/supabase-invite-user.html`](../emails/supabase/supabase-invite-user.html)
 
 ---
 

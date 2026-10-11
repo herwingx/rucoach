@@ -14,9 +14,9 @@
 
 ### A. Ejecutar el Esquema Maestro y Semillas
 1. Crea un nuevo proyecto en Supabase.
-2. Abre el **SQL Editor** en Supabase y ejecuta el contenido completo de [`supabase/supabase_schema_dump.sql`](file:///home/herwingx/Development/gym-coaching/supabase/supabase_schema_dump.sql).
+2. Abre el **SQL Editor** en Supabase y ejecuta el contenido completo de [`supabase/supabase_schema_dump.sql`](../supabase/supabase_schema_dump.sql).
    - Esto crea las **19 tablas**, funciones, triggers (`on_auth_user_created`, sincronización de avatares y última sesión), políticas RLS optimizadas, los buckets de Storage (`progress-photos` privado y `avatars` público) y habilita Realtime en `public.messages`.
-3. En el mismo **SQL Editor**, ejecuta [`supabase/seed.sql`](file:///home/herwingx/Development/gym-coaching/supabase/seed.sql) para poblar el catálogo oficial de logros (`public.achievements`) y los planes base (`public.membership_plans`).
+3. En el mismo **SQL Editor**, ejecuta [`supabase/seed.sql`](../supabase/seed.sql) para poblar el catálogo oficial de logros (`public.achievements`) y los planes base (`public.membership_plans`).
 
 ### B. Cargar los 1,324 Ejercicios (Bilingües EN/ES)
 Agrega temporalmente en tu `.env.local`:
@@ -38,7 +38,7 @@ npx tsx scripts/migrate-exercises.ts
      - `https://tu-dominio.com/auth/confirm`
      - `https://tu-dominio.com/auth/reset-password`
      - `http://localhost:3000/auth/callback` (para desarrollo local)
-2. Ve a **Authentication → Email Templates** y pega las plantillas HTML personalizadas ubicadas en [`emails/supabase/`](file:///home/herwingx/Development/gym-coaching/emails/supabase):
+2. Ve a **Authentication → Email Templates** y pega las plantillas HTML personalizadas ubicadas en [`emails/supabase/`](../emails/supabase):
    - `supabase-confirm-signup.html` (Confirm signup — incluye enlace y código OTP `{{ .Token }}`)
    - `supabase-reset-password.html` (Reset password — incluye botón y código OTP `{{ .Token }}`)
    - `supabase-magic-link.html` (Magic Link)

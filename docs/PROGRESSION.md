@@ -41,7 +41,7 @@
 
 ## Registro en Vivo durante el Entrenamiento (`/client/workout/start`)
 
-La pantalla de sesión activa ([`workout-active-session.tsx`](file:///home/herwingx/Development/gym-coaching/app/client/workout/start/workout-active-session.tsx)) está optimizada para uso con una sola mano en el gimnasio:
+La pantalla de sesión activa ([`workout-active-session.tsx`](../app/client/workout/start/workout-active-session.tsx)) está optimizada para uso con una sola mano en el gimnasio:
 - **Historial del Ejercicio en Pantalla**: Consulta los `exercise_logs` de la última sesión completada donde se realizó ese mismo ejercicio (incluso si fue hace varios días) para mostrar qué peso y repeticiones se usaron en cada serie.
 - **Adaptación según Tipo de Ejercicio**:
   - **Con carga externa (`uses_external_load = true`)**: Muestra controles `+` / `-` para Peso (`kg`) y Repeticiones, además de selector rápido de RPE (`6`, `7`, `8`, `9`, `10`).
@@ -69,7 +69,7 @@ Tanto `feeling_score` como `feeling_note` se guardan en `public.workout_sessions
 
 ## Detección Automática de Récords Personales (PRs)
 
-Al finalizar la sesión (`completeWorkoutSession` en [`app/actions/workout.ts`](file:///home/herwingx/Development/gym-coaching/app/actions/workout.ts)):
+Al finalizar la sesión (`completeWorkoutSession` en [`app/actions/workout.ts`](../app/actions/workout.ts)):
 - Se filtran las series efectivas completadas (`completed = true`, `is_warmup = false`) en ejercicios que utilizan carga externa (`exerciseUsesExternalLoad`).
 - Se calcula el **1RM estimado** mediante la fórmula de Epley:
   $$\text{1RM Estimado} = \text{Peso} \times \left(1 + \frac{\text{Reps}}{30}\right)$$
@@ -98,9 +98,9 @@ Cuando el asesorado concluye su entrenamiento y llega a `/client/workout/summary
 La salud articular y muscular del asesorado tiene prioridad sobre cualquier algoritmo de carga:
 
 1. **Reporte por el Asesorado (`/client/profile`)**:
-   - El cliente puede registrar en cualquier momento una molestia o dolor físico (`reportClientPain` en [`app/actions/routine-overrides.ts`](file:///home/herwingx/Development/gym-coaching/app/actions/routine-overrides.ts)) indicando la zona corporal (Hombro, Rodilla, Espalda baja, Codo, etc.), severidad del `1` al `10` y notas.
+   - El cliente puede registrar en cualquier momento una molestia o dolor físico (`reportClientPain` en [`app/actions/routine-overrides.ts`](../app/actions/routine-overrides.ts)) indicando la zona corporal (Hombro, Rodilla, Espalda baja, Codo, etc.), severidad del `1` al `10` y notas.
 2. **Bloqueo Automático de Incremento de Peso**:
-   - En [`lib/auto-progression.ts`](file:///home/herwingx/Development/gym-coaching/lib/auto-progression.ts), si el cliente tiene un reporte activo en `public.client_pain_reports` con `severity >= 4`, el motor bloquea cualquier incremento automático de peso en el tren afectado (tren superior o tren inferior) y muestra la explicación clínica en el resumen de la sesión.
+   - En [`lib/auto-progression.ts`](../lib/auto-progression.ts), si el cliente tiene un reporte activo en `public.client_pain_reports` con `severity >= 4`, el motor bloquea cualquier incremento automático de peso en el tren afectado (tren superior o tren inferior) y muestra la explicación clínica en el resumen de la sesión.
 3. **Resolución por el Coach (`/admin/clients/[clientId]`)**:
    - El coach recibe una notificación Push en el momento del reporte y ve un **Banner Clínico Rojo** en la cabecera del expediente del cliente.
    - Una vez que el coach evalúa al cliente o ajusta su rutina, puede hacer clic en **"Resuelto"** (`resolveClientPainReport`), reactivando la progresión normal.

@@ -51,7 +51,7 @@ Puedes asignar una rutina desde:
 - **El directorio de rutinas (`/admin/routines`)** haciendo clic en **"Asignar"** sobre la tarjeta de la rutina.
 - **El perfil del asesorado (`/admin/clients/[clientId]`)** haciendo clic en **"Cambiar rutina"** (`/admin/clients/[clientId]/assign-routine`).
 
-Al asignar una rutina (`assignRoutineToClient` en [`app/actions/routine-assignment.ts`](file:///home/herwingx/Development/gym-coaching/app/actions/routine-assignment.ts)):
+Al asignar una rutina (`assignRoutineToClient` en [`app/actions/routine-assignment.ts`](../app/actions/routine-assignment.ts)):
 1. Cualquier rutina activa previa del cliente en `client_routines` pasa automáticamente a estado `completed`.
 2. Se crea el nuevo registro activo en `client_routines` y se sincroniza `clients.assigned_routine_id`.
 3. Se envía automáticamente al asesorado:

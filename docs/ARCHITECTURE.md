@@ -102,7 +102,7 @@ gym-coaching/
 
 ## Modelo de Base de Datos (19 Tablas en `public`)
 
-Definido íntegramente en [`supabase/supabase_schema_dump.sql`](file:///home/herwingx/Development/gym-coaching/supabase/supabase_schema_dump.sql):
+Definido íntegramente en [`supabase/supabase_schema_dump.sql`](../supabase/supabase_schema_dump.sql):
 
 ### 1. Identidad, Administración y Pagos
 - **`profiles`**: Extiende `auth.users` (`id`, `email`, `full_name`, `role` [`admin` | `client` | `receptionist`], `avatar_url`, `phone`, `birth_date`, `gender`, `bio`, `specialties`, `certifications`, `onboarding_completed`).
@@ -147,9 +147,9 @@ Definido íntegramente en [`supabase/supabase_schema_dump.sql`](file:///home/her
 4. **Protección Clínica por Dolor**: Si el cliente registra una molestia en `/client/profile` (`reportClientPain`), el motor de auto-progresión (`lib/auto-progression.ts`) bloquea aumentos automáticos de peso en los grupos musculares afectados cuando `severity >= 4`, y el coach visualiza una alerta roja en la parte superior de `/admin/clients/[clientId]` hasta marcarla como resuelta (`resolveClientPainReport`).
 
 ### 2. Seguridad y Almacenamiento en Cloudflare R2
-- Todas las operaciones sobre Cloudflare R2 pasan por [`app/actions/r2-storage.ts`](file:///home/herwingx/Development/gym-coaching/app/actions/r2-storage.ts).
+- Todas las operaciones sobre Cloudflare R2 pasan por [`app/actions/r2-storage.ts`](../app/actions/r2-storage.ts).
 - Antes de firmar una URL de subida/lectura (`getR2PresignedUrl`) o eliminar un objeto (`deleteR2Object`), el servidor verifica que el usuario sea `admin` o que el prefijo del archivo (`clients/{clientId}/`, `progress-photos/{clientId}/` o `avatars/{userId}/`) pertenezca estrictamente al usuario autenticado, bloqueando cualquier intento de *path traversal* (`..`).
 
 ### 3. Notificaciones Web Push (`lib/push.ts` + `app/sw.ts`)
-- [`lib/push.ts`](file:///home/herwingx/Development/gym-coaching/lib/push.ts) está protegido con `import "server-only"` y expone `notifyUser(userId, payload)` para ser invocado exclusivamente desde Server Actions autenticadas.
+- [`lib/push.ts`](../lib/push.ts) está protegido con `import "server-only"` y expone `notifyUser(userId, payload)` para ser invocado exclusivamente desde Server Actions autenticadas.
 - Si un endpoint devuelve HTTP `404` o `410` (suscripción expirada o revocada en el navegador), se elimina automáticamente de `public.push_subscriptions`.
