@@ -49,14 +49,14 @@ describe('computeSymmetryStandards & computeCareerTonnageComparison', () => {
   it('computes relative strength tiers and next kg targets accurately', () => {
     const overview = computeSymmetryStandards({
       totalSessions: 40,
-      streak: 7,
       level: 12,
       prCount: 8,
       maxVolumeKg: 11200,
       lifetimeVolumeKg: 120000,
-      earlyWorkoutsCount: 3,
+      earlyWorkouts: 3,
       measurementMonthStreak: 2,
-      messagesSentCount: 15,
+      streakDays: 14,
+      messagesSent: 15,
       bodyWeightKg: 80,
       bench1RmKg: 84,
       squat1RmKg: 120,
