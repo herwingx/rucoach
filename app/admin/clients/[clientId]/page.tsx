@@ -99,6 +99,7 @@ export default async function ClientProfilePage({
     prsRes,
     achievementsRes,
     painReportsRes,
+    pendingInviteRes,
   ] = await Promise.all([
     planPromise,
     profilePromise,
@@ -143,12 +144,25 @@ export default async function ClientProfilePage({
       .eq("client_id", clientId)
       .eq("is_active", true)
       .order("reported_at", { ascending: false }),
+    !client.user_id
+      ? supabase
+          .from("invitation_codes")
+          .select("id, code")
+          .eq("client_id", clientId)
+          .eq("is_active", true)
+          .eq("times_used", 0)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null as { id: string; code: string } | null }),
   ]);
 
   const bodyMeasurements = bodyMeasurementsRes.data ?? [];
   const personalRecords = prsRes.data ?? [];
   const userAchievements = (achievementsRes.data as any[]) ?? [];
   const activePainReports = painReportsRes.data ?? [];
+  const pendingInvite = pendingInviteRes.data ?? null;
+  const effectiveAccessCode = accessCode || pendingInvite?.code || null;
 
   const activeClientRoutineId = activeClientRoutineRes.data?.id ?? null;
 
@@ -262,10 +276,13 @@ export default async function ClientProfilePage({
       />
 
       <div className={cn(ADMIN_DATA_PAGE_SHELL, "flex flex-col gap-8")}>
-        {accessCode && (
+        {effectiveAccessCode && !client.user_id && (
           <AccessCodeBanner
-            code={accessCode}
+            code={effectiveAccessCode}
+            codeId={pendingInvite?.id ?? null}
+            clientName={client.full_name}
             clientEmail={client.email}
+            clientPhone={client.phone}
             emailSent={emailSent === "1"}
             emailFailed={emailSent === "0"}
           />

@@ -1,12 +1,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Copy, Power, Trash2, MoreVertical, Mail, Calendar, Key, UserPlus } from "lucide-react";
+import {
+  Copy,
+  Power,
+  Trash2,
+  MoreVertical,
+  Mail,
+  Calendar,
+  Key,
+  UserPlus,
+  MessageCircle,
+  Link2,
+  RotateCcw,
+  Send,
+  User,
+} from "lucide-react";
 import {
   deactivateInvitationCode,
   deleteInvitationCode,
+  reactivateInvitationCode,
+  resendInvitationCodeEmail,
 } from "@/app/actions/invitations";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -39,6 +56,10 @@ export type InvitationCodeItem = {
   times_used: number;
   max_uses: number;
   is_active: boolean;
+  used_at?: string | null;
+  linked_client_id?: string | null;
+  linked_name?: string | null;
+  linked_phone?: string | null;
 };
 
 interface InvitationCardsClientProps {
@@ -51,24 +72,57 @@ export function InvitationCardsClient({
   const [codes, setCodes] = useState(initialCodes);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   useEffect(() => {
     setCodes(initialCodes);
   }, [initialCodes]);
 
-  const handleCopy = (code: string) => {
-    const url =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/sign-up?code=${code}`
-        : "";
+  const getSignUpUrl = (code: string) =>
+    typeof window !== "undefined"
+      ? `${window.location.origin}/auth/sign-up?code=${code}`
+      : "";
+
+  const handleCopyLink = (code: string) => {
+    const url = getSignUpUrl(code);
     navigator.clipboard
       .writeText(url)
       .then(() => {
-        toast.success("Enlace copiado.");
+        toast.success("Enlace de registro copiado al portapapeles.");
       })
       .catch(() => {
         toast.error("No pudimos copiar el enlace.");
       });
+  };
+
+  const handleCopyCodeOnly = (code: string) => {
+    navigator.clipboard
+      .writeText(code)
+      .then(() => {
+        toast.success(`Código ${code} copiado.`);
+      })
+      .catch(() => {
+        toast.error("No pudimos copiar el código.");
+      });
+  };
+
+  const handleShareWhatsApp = (item: InvitationCodeItem) => {
+    const url = getSignUpUrl(item.code);
+    const greeting = item.linked_name ? `¡Hola ${item.linked_name}! ` : "¡Hola! ";
+    const roleLabel =
+      item.for_role === "admin" ? "como Coach en RU Coach" : "a RU Coach";
+    const text = `${greeting}Te comparto tu código de invitación para unirte ${roleLabel}:\n\n🔑 Código: *${item.code}*\n👉 Regístrate directo aquí: ${url}`;
+    const digits = (item.linked_phone || "").replace(/\D/g, "");
+    const phoneParam =
+      digits.length === 10
+        ? `52${digits}`
+        : digits.length > 10
+          ? digits
+          : "";
+    const waUrl = phoneParam
+      ? `https://wa.me/${phoneParam}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(waUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleDeactivate = async (codeId: string) => {
@@ -85,6 +139,46 @@ export function InvitationCardsClient({
     }
   };
 
+  const handleReactivate = async (codeId: string) => {
+    const result = await reactivateInvitationCode(codeId);
+    if (result && "success" in result && result.success) {
+      setCodes((prev) =>
+        prev.map((c) =>
+          c.id === codeId
+            ? {
+                ...c,
+                is_active: true,
+                expires_at: result.expires_at ?? c.expires_at,
+              }
+            : c,
+        ),
+      );
+      toast.success("Código reactivado correctamente");
+    } else {
+      toast.error(
+        result && "error" in result ? String(result.error) : "Error al reactivar",
+      );
+    }
+  };
+
+  const handleResendEmail = async (codeId: string) => {
+    setResendingId(codeId);
+    try {
+      const result = await resendInvitationCodeEmail(codeId);
+      if (result && "success" in result && result.success) {
+        toast.success("Invitación reenviada por correo electrónico.");
+      } else {
+        toast.error(
+          result && "error" in result
+            ? String(result.error)
+            : "No se pudo reenviar el correo",
+        );
+      }
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteId) return;
     setIsDeleting(true);
@@ -92,7 +186,7 @@ export function InvitationCardsClient({
     const result = await deleteInvitationCode(deleteId);
     if (result && "success" in result && result.success) {
       setCodes((prev) => prev.filter((c) => c.id !== deleteId));
-      toast.success("Código eliminado de tu historial");
+      toast.success("Código eliminado permanentemente");
       setDeleteId(null);
     } else {
       toast.error(
@@ -120,90 +214,177 @@ export function InvitationCardsClient({
     return (
       <div className="flex flex-col gap-3">
         {list.map((code) => {
-          const isExpired = code.expires_at && new Date(code.expires_at) < new Date();
+          const isExpired = Boolean(
+            code.expires_at && new Date(code.expires_at) < new Date(),
+          );
           const isUsed = code.times_used >= code.max_uses;
           const isInactive = !code.is_active;
-          const canDeactivate = !isInactive && !isUsed;
-          
-          // Allow deletion except if the user specifically blocked it.
-          // Now that we allowed deleting used codes or inactive codes from the server,
-          // we can just enable the delete button constantly for any code.
-          const canDelete = isInactive || isUsed || canDeactivate; 
+          const canDeactivate = !isInactive && !isExpired && !isUsed;
+          const canReactivate = (isInactive || isExpired) && !isUsed;
 
           return (
             <div
               key={code.id}
-              className={`group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl border transition-all hover:bg-muted/30 ${
-                isInactive || isExpired || isUsed ? "opacity-75 bg-muted/10" : "bg-card shadow-sm border-border/50 hover:shadow-md hover:border-primary/20"
+              className={`group flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-2xl border transition-all hover:bg-muted/30 ${
+                isInactive || isExpired || isUsed
+                  ? "opacity-80 bg-muted/10"
+                  : "bg-card shadow-sm border-border/50 hover:shadow-md hover:border-primary/20"
               }`}
             >
               {/* Left Details */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center flex-1 overflow-hidden">
-                <div className="flex flex-col gap-1 min-w-[140px]">
+                <div className="flex flex-col gap-1 min-w-[165px]">
                   <div className="flex items-center gap-2">
-                    <Key className="size-4 text-primary" />
-                    <code className="text-xl font-mono font-black text-primary tracking-widest uppercase">
+                    <Key className="size-4 text-primary shrink-0" />
+                    <button
+                      type="button"
+                      onClick={() => handleCopyCodeOnly(code.code)}
+                      title="Clic para copiar solo el código"
+                      className="text-xl font-mono font-black text-primary tracking-widest uppercase hover:opacity-80 transition-opacity cursor-pointer"
+                    >
                       {code.code}
-                    </code>
+                    </button>
                   </div>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1">
                     {isUsed ? (
-                      <Badge variant="outline" className="bg-success/10 text-success border-success/20 text-[10px] uppercase">
-                        Usado
+                      <Badge
+                        variant="outline"
+                        className="bg-success/10 text-success border-success/20 text-[10px] uppercase"
+                      >
+                        Completado
                       </Badge>
                     ) : isExpired ? (
-                      <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] uppercase">
+                      <Badge
+                        variant="outline"
+                        className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] uppercase"
+                      >
                         Expirado
                       </Badge>
                     ) : isInactive ? (
-                      <Badge variant="outline" className="bg-muted-foreground/10 text-muted-foreground border-muted-foreground/20 text-[10px] uppercase">
+                      <Badge
+                        variant="outline"
+                        className="bg-muted-foreground/10 text-muted-foreground border-muted-foreground/20 text-[10px] uppercase"
+                      >
                         Inactivo
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-[10px] uppercase">
+                      <Badge
+                        variant="outline"
+                        className="bg-primary/10 text-primary border-primary/20 text-[10px] uppercase"
+                      >
                         Activo
                       </Badge>
                     )}
-                    
+
                     {code.for_role === "admin" ? (
-                      <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/5 text-[10px] uppercase">
+                      <Badge
+                        variant="outline"
+                        className="text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/5 text-[10px] uppercase"
+                      >
                         Coach
                       </Badge>
                     ) : (
-                      <Badge variant="secondary" className="font-normal text-[10px] uppercase bg-secondary/50">
+                      <Badge
+                        variant="secondary"
+                        className="font-normal text-[10px] uppercase bg-secondary/50"
+                      >
                         Cliente
                       </Badge>
                     )}
+
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] font-bold tabular-nums text-muted-foreground border-border/60"
+                    >
+                      {code.times_used}/{code.max_uses}{" "}
+                      {code.max_uses === 1 ? "uso" : "usos"}
+                    </Badge>
                   </div>
                 </div>
 
                 {/* Metadata Column */}
-                <div className="flex flex-col gap-1.5 sm:ml-4 flex-1">
-                  <div className="flex items-center gap-2 text-sm text-foreground font-medium truncate">
-                    <Mail className="size-3.5 text-muted-foreground" />
-                    <span className="truncate">{code.email || "Cualquier persona"}</span>
+                <div className="flex flex-col gap-1.5 sm:ml-4 flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-foreground font-medium">
+                    <span className="inline-flex items-center gap-1.5 truncate">
+                      <Mail className="size-3.5 text-muted-foreground shrink-0" />
+                      <span className="truncate">
+                        {code.email ||
+                          (code.max_uses > 1
+                            ? `Código grupal (${code.max_uses} lugares)`
+                            : "Abierto (cualquier correo)")}
+                      </span>
+                    </span>
+                    {code.linked_name && (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                        <User className="size-3.5 shrink-0" />
+                        {code.linked_client_id ? (
+                          <Link
+                            href={`/admin/clients/${code.linked_client_id}`}
+                            className="hover:underline underline-offset-2"
+                          >
+                            {code.linked_name}
+                          </Link>
+                        ) : (
+                          <span>{code.linked_name}</span>
+                        )}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Calendar className="size-3.5 opacity-70" />
-                    <span>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1.5">
+                      <Calendar className="size-3.5 opacity-70 shrink-0" />
                       {code.expires_at
                         ? `Expira: ${format(new Date(code.expires_at), "d MMM yyyy", { locale: es })}`
                         : "Sin fecha de expiración"}
                     </span>
+                    {code.used_at && (
+                      <span className="text-success font-medium">
+                        · Reclamado el{" "}
+                        {format(new Date(code.used_at), "d MMM yyyy", {
+                          locale: es,
+                        })}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
 
               {/* Actions Right */}
-              <div className="flex items-center gap-2 sm:ml-auto border-t sm:border-0 pt-3 sm:pt-0 border-border/50 justify-between sm:justify-start">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 lg:ml-auto border-t lg:border-0 pt-3 lg:pt-0 border-border/50 justify-between lg:justify-end">
+                <div className="flex flex-wrap items-center gap-1.5">
                   {canDeactivate && (
-                    <Button variant="secondary" size="sm" onClick={() => handleCopy(code.code)} className="h-9 px-3 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20">
-                      <Copy className="size-3.5 mr-1.5" /> Copiar
-                    </Button>
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleShareWhatsApp(code)}
+                        className="h-9 px-3 text-xs font-semibold rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/25"
+                      >
+                        <MessageCircle className="size-3.5 mr-1.5" />
+                        WhatsApp
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleCopyCodeOnly(code.code)}
+                        className="h-9 px-2.5 text-xs font-semibold rounded-lg bg-muted/60 text-foreground hover:bg-muted"
+                      >
+                        <Copy className="size-3.5 mr-1.5" />
+                        Código
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleCopyLink(code.code)}
+                        className="h-9 px-2.5 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20"
+                      >
+                        <Link2 className="size-3.5 mr-1.5" />
+                        Enlace
+                      </Button>
+                    </>
                   )}
                   {isUsed && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1.5 px-2 bg-muted rounded-full py-1">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1.5 px-2.5 bg-muted rounded-full py-1">
                       <UserPlus className="size-3" /> Reclamado
                     </span>
                   )}
@@ -211,28 +392,57 @@ export function InvitationCardsClient({
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" aria-label="Más opciones" className="size-9 rounded-full sm:rounded-lg">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Más opciones"
+                      className="size-9 rounded-full sm:rounded-lg"
+                    >
                       <MoreVertical className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-[160px] rounded-xl">
-                    <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider">Acciones</DropdownMenuLabel>
+                  <DropdownMenuContent align="end" className="w-[195px] rounded-xl">
+                    <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wider">
+                      Acciones
+                    </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    {canDeactivate && code.email && (
+                      <DropdownMenuItem
+                        disabled={resendingId === code.id}
+                        onClick={() => handleResendEmail(code.id)}
+                        className="gap-2 cursor-pointer font-medium"
+                      >
+                        <Send className="size-4 text-primary" />
+                        {resendingId === code.id
+                          ? "Reenviando..."
+                          : "Reenviar correo"}
+                      </DropdownMenuItem>
+                    )}
                     {canDeactivate && (
-                      <DropdownMenuItem onClick={() => handleDeactivate(code.id)} className="gap-2 cursor-pointer font-medium">
+                      <DropdownMenuItem
+                        onClick={() => handleDeactivate(code.id)}
+                        className="gap-2 cursor-pointer font-medium"
+                      >
                         <Power className="size-4 text-muted-foreground" />
                         Desactivar
                       </DropdownMenuItem>
                     )}
-                    {canDelete && (
+                    {canReactivate && (
                       <DropdownMenuItem
-                        onClick={() => setDeleteId(code.id)}
-                        className="text-destructive gap-2 focus:text-destructive focus:bg-destructive/10 cursor-pointer font-medium"
+                        onClick={() => handleReactivate(code.id)}
+                        className="gap-2 cursor-pointer font-medium text-primary"
                       >
-                        <Trash2 className="size-4" />
-                        Eliminar
+                        <RotateCcw className="size-4" />
+                        Reactivar
                       </DropdownMenuItem>
                     )}
+                    <DropdownMenuItem
+                      onClick={() => setDeleteId(code.id)}
+                      className="text-destructive gap-2 focus:text-destructive focus:bg-destructive/10 cursor-pointer font-medium"
+                    >
+                      <Trash2 className="size-4" />
+                      Eliminar
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

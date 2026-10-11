@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { sendManualInvitationEmail } from "@/lib/email";
+import { sendClientInvitationEmail, sendManualInvitationEmail } from "@/lib/email";
 
 // Generate a random invitation code
 function generateCode(): string {
@@ -34,12 +34,14 @@ export async function createInvitationCode(formData: FormData) {
     .single();
 
   if (profile?.role !== "admin") {
-    return { error: "Solo administradores pueden crear codigos" };
+    return { error: "Solo administradores pueden crear códigos" };
   }
 
   const email = formData.get("email") as string | null;
   const expiresInDays =
     parseInt(formData.get("expires_in_days") as string) || 30;
+  const rawMaxUses = parseInt(formData.get("max_uses") as string) || 1;
+  const maxUses = email?.trim() ? 1 : Math.min(100, Math.max(1, rawMaxUses));
   const forRole = (formData.get("for_role") as string) || "client";
   const roleToCreate = forRole === "admin" ? "admin" : "client";
 
@@ -84,7 +86,7 @@ export async function createInvitationCode(formData: FormData) {
     created_by: user.id,
     email: email?.trim() || null,
     expires_at: expiresAt.toISOString(),
-    max_uses: 1,
+    max_uses: maxUses,
     times_used: 0,
     is_active: true,
     for_role: roleToCreate,
@@ -123,17 +125,17 @@ export async function validateInvitationCode(code: string) {
     .single();
 
   if (error || !invitation) {
-    return { valid: false, error: "Codigo de invitacion invalido" };
+    return { valid: false, error: "Código de invitación inválido" };
   }
 
   // Check if expired
   if (invitation.expires_at && new Date(invitation.expires_at) < new Date()) {
-    return { valid: false, error: "Codigo de invitacion expirado" };
+    return { valid: false, error: "Código de invitación expirado" };
   }
 
   // Check if max uses reached
   if (invitation.times_used >= invitation.max_uses) {
-    return { valid: false, error: "Codigo de invitacion ya fue usado" };
+    return { valid: false, error: "Código de invitación ya fue usado" };
   }
 
   return { valid: true, invitation };
@@ -208,13 +210,8 @@ export async function useInvitationCode(
     }
   }
 
-  // 3. Vincular el perfil con el coach que lo invitó
-  // Nota: La columna 'invited_by' no existe en 'profiles',
-  // la vinculación principal es a través de la tabla 'clients'.
-
   // 4. Gestión del registro en la tabla 'clients'
   if (clientId) {
-    // Escenario A: El código ya estaba vinculado a un cliente pre-creado (ej. Eduardo)
     const { data: existingClient } = await admin
       .from("clients")
       .select("status")
@@ -237,14 +234,13 @@ export async function useInvitationCode(
       console.error("[useInvitationCode] Error vinculando cliente:", error);
     }
   } else if (forRole === "client") {
-    // Escenario B: Código genérico -> Crear registro automático en 'clients'
     const { data: profile } = await admin
       .from("profiles")
       .select("full_name, email")
       .eq("id", userId)
       .single();
     await admin.from("clients").insert({
-      id: crypto.randomUUID(), // <--- FIX: Missing ID
+      id: crypto.randomUUID(),
       user_id: userId,
       coach_id: coachId,
       full_name: profile?.full_name || "Nuevo Asesorado",
@@ -277,7 +273,127 @@ export async function deactivateInvitationCode(codeId: string) {
   return { success: true };
 }
 
-// Delete an invitation code (admin only, only if unused and inactive)
+// Reactivate an inactive or expired invitation code (+30 days if expired)
+export async function reactivateInvitationCode(codeId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "admin") {
+    return { error: "Solo administradores pueden reactivar códigos" };
+  }
+
+  const { data: invitation, error: fetchError } = await supabase
+    .from("invitation_codes")
+    .select("id, times_used, max_uses, expires_at")
+    .eq("id", codeId)
+    .single();
+
+  if (fetchError || !invitation) {
+    return { error: "Código no encontrado" };
+  }
+
+  if ((invitation.times_used ?? 0) >= (invitation.max_uses ?? 1)) {
+    return { error: "Este código ya alcanzó su límite de usos" };
+  }
+
+  const isExpired =
+    invitation.expires_at && new Date(invitation.expires_at) < new Date();
+  const nextExpiresAt = isExpired
+    ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    : invitation.expires_at;
+
+  const { error } = await supabase
+    .from("invitation_codes")
+    .update({
+      is_active: true,
+      expires_at: nextExpiresAt,
+    })
+    .eq("id", codeId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/admin/invitations");
+  return { success: true, expires_at: nextExpiresAt };
+}
+
+// Resend invitation email for an existing invitation code
+export async function resendInvitationCodeEmail(codeId: string) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "No autorizado" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "admin") {
+    return { error: "Solo administradores pueden reenviar invitaciones" };
+  }
+
+  const { data: invitation, error: fetchError } = await supabase
+    .from("invitation_codes")
+    .select("id, code, email, for_role, client_id")
+    .eq("id", codeId)
+    .single();
+
+  if (fetchError || !invitation) {
+    return { error: "Código de invitación no encontrado" };
+  }
+
+  if (!invitation.email?.trim()) {
+    return { error: "Este código no tiene un correo electrónico asociado" };
+  }
+
+  const targetEmail = invitation.email.trim();
+
+  if (invitation.client_id) {
+    const { data: client } = await supabase
+      .from("clients")
+      .select("full_name")
+      .eq("id", invitation.client_id)
+      .maybeSingle();
+
+    const res = await sendClientInvitationEmail({
+      to: targetEmail,
+      clientName: client?.full_name || "Atleta",
+      code: invitation.code,
+    });
+
+    if (!res.success) {
+      return { error: "No se pudo reenviar el correo. Verifica la configuración de Resend." };
+    }
+    return { success: true };
+  }
+
+  const res = await sendManualInvitationEmail({
+    to: targetEmail,
+    code: invitation.code,
+    forRole: invitation.for_role === "admin" ? "admin" : "client",
+  });
+
+  if (!res.success) {
+    return { error: "No se pudo reenviar el correo. Verifica la configuración de Resend." };
+  }
+
+  return { success: true };
+}
+
+// Delete an invitation code (admin only, 1-step delete)
 export async function deleteInvitationCode(codeId: string) {
   const supabase = await createClient();
 
@@ -294,21 +410,7 @@ export async function deleteInvitationCode(codeId: string) {
     .single();
 
   if (profile?.role !== "admin") {
-    return { error: "Solo administradores pueden eliminar codigos" };
-  }
-
-  const { data: invitation, error: invitationError } = await supabase
-    .from("invitation_codes")
-    .select("times_used, is_active")
-    .eq("id", codeId)
-    .single();
-
-  if (invitationError || !invitation) {
-    return { error: "Código no encontrado" };
-  }
-
-  if (invitation.is_active && invitation.times_used === 0) {
-    return { error: "Primero desactiva el código antes de eliminarlo" };
+    return { error: "Solo administradores pueden eliminar códigos" };
   }
 
   const { error } = await supabase

@@ -20,7 +20,11 @@ import { toast } from "sonner";
 
 export function NewInvitationForm() {
   const [forRole, setForRole] = React.useState("client");
+  const [emailValue, setEmailValue] = React.useState("");
+  const [maxUses, setMaxUses] = React.useState("1");
   const [isPending, setIsPending] = React.useState(false);
+
+  const hasSpecificEmail = emailValue.trim().length > 0;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -29,18 +33,27 @@ export function NewInvitationForm() {
 
     const formData = new FormData(form);
     formData.set("for_role", forRole);
+    formData.set("max_uses", hasSpecificEmail ? "1" : maxUses || "1");
 
     try {
       const result = await createInvitationCode(formData);
       if (result && result.success) {
-        toast.success(
-          `¡Código ${result.code} generado! Cópialo y compártelo cuando quieras.`,
-        );
-        // The action revalidates the path, so the list below will update if this was in the same page
-        // But since we want to clear the form:
+        if (result.emailSent) {
+          toast.success(
+            `¡Código ${result.code} generado y enviado por correo!`,
+          );
+        } else {
+          toast.success(
+            `¡Código ${result.code} generado! Cópialo o envíalo por WhatsApp.`,
+          );
+        }
         form.reset();
+        setEmailValue("");
+        setMaxUses("1");
       } else {
-        toast.error(result?.error || "No pudimos generar el código. Intenta de nuevo.");
+        toast.error(
+          result?.error || "No pudimos generar el código. Intenta de nuevo.",
+        );
       }
     } catch (error) {
       toast.error("No pudimos generar el código. Revisa tu conexión.");
@@ -97,29 +110,44 @@ export function NewInvitationForm() {
               <p className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground bg-muted/20 p-2.5 rounded-lg border border-dashed border-border/60">
                 {forRole === "admin" ? (
                   <>
-                    <ShieldCheck className="size-4 shrink-0 text-primary mt-0.5" aria-hidden />
-                    <span>El código de coach crea otro administrador con acceso completo al panel. Úsalo con cuidado.</span>
+                    <ShieldCheck
+                      className="size-4 shrink-0 text-primary mt-0.5"
+                      aria-hidden
+                    />
+                    <span>
+                      El código de coach crea otro administrador con acceso
+                      completo al panel. Úsalo con cuidado.
+                    </span>
                   </>
                 ) : (
                   <>
-                    <User className="size-4 shrink-0 text-primary mt-0.5" aria-hidden />
-                    <span>El código de cliente permite el registro de un nuevo asesorado en tu base de datos.</span>
+                    <User
+                      className="size-4 shrink-0 text-primary mt-0.5"
+                      aria-hidden
+                    />
+                    <span>
+                      El código de cliente permite el registro de un nuevo
+                      asesorado vinculado automáticamente a tu cuenta de coach.
+                    </span>
                   </>
                 )}
               </p>
             </Field>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field className="sm:col-span-1">
                 <FieldLabel htmlFor="email">Email (opcional)</FieldLabel>
                 <Input
                   id="email"
                   name="email"
                   type="email"
                   placeholder="cliente@ejemplo.com"
+                  value={emailValue}
+                  onChange={(e) => setEmailValue(e.target.value)}
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Opcional. Si lo pones, enviamos el enlace por correo.
+                  Si lo pones, enviamos el código por correo y queda reservado a
+                  ese email.
                 </p>
               </Field>
               <Field>
@@ -134,6 +162,27 @@ export function NewInvitationForm() {
                   min={1}
                   max={365}
                 />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Vigencia antes de caducar (1 a 365 días).
+                </p>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="max_uses">Límite de usos</FieldLabel>
+                <Input
+                  id="max_uses"
+                  name="max_uses"
+                  type="number"
+                  value={hasSpecificEmail ? "1" : maxUses}
+                  onChange={(e) => setMaxUses(e.target.value)}
+                  disabled={hasSpecificEmail}
+                  min={1}
+                  max={100}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {hasSpecificEmail
+                    ? "1 uso individual (reservado al email)."
+                    : "Usa >1 para grupos o promos abiertas."}
+                </p>
               </Field>
             </div>
           </FieldGroup>
@@ -142,7 +191,8 @@ export function NewInvitationForm() {
             <div className="flex flex-col gap-1">
               <p className="text-sm font-medium">Acción rápida</p>
               <p className="text-xs text-muted-foreground">
-                Revisa los datos y genera el código de invitación.
+                Genera el código para compartir por WhatsApp, enlace directo o
+                correo.
               </p>
             </div>
             <Separator />
