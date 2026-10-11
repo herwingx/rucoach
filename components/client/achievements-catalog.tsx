@@ -16,10 +16,12 @@ import {
 import { AchievementBadge } from '@/components/client/achievement-badge'
 import type { Achievement, UserAchievement } from '@/lib/types'
 import {
+  DIFFICULTY_TIERS,
+  type DifficultyTierId,
   achievementActionMeta,
   achievementCategoryLabel,
+  achievementDifficultyMeta,
   achievementLucideIcon,
-  achievementMilestoneBadgeLabel,
   achievementRarityColor,
   formatAchievementProgress,
   sortAchievementsForDisplay,
@@ -38,6 +40,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Lock,
+  Shield,
 } from 'lucide-react'
 
 const TAB_DEFS: {
@@ -53,6 +56,17 @@ const TAB_DEFS: {
   { id: 'special', label: achievementCategoryLabel('special'), icon: Award },
 ]
 
+const DIFFICULTY_FILTERS: {
+  id: 'all' | DifficultyTierId
+  label: string
+}[] = [
+  { id: 'all', label: 'Todos los niveles' },
+  { id: 'common', label: DIFFICULTY_TIERS.common.shortLabel },
+  { id: 'rare', label: DIFFICULTY_TIERS.rare.shortLabel },
+  { id: 'epic', label: DIFFICULTY_TIERS.epic.shortLabel },
+  { id: 'legendary', label: DIFFICULTY_TIERS.legendary.shortLabel },
+]
+
 type ProgressRecord = Record<string, number>
 type StatusFilter = 'all' | 'unlocked' | 'locked'
 
@@ -66,6 +80,7 @@ export function AchievementsCatalog({
   progressById: ProgressRecord
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [difficultyFilter, setDifficultyFilter] = useState<'all' | DifficultyTierId>('all')
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null)
 
   const unlockedMap = useMemo(() => {
@@ -116,68 +131,114 @@ export function AchievementsCatalog({
       )
     : { line: '', percent: 0 }
   const selectedAction = selectedAchievement ? achievementActionMeta(selectedAchievement) : null
+  const selectedDifficulty = selectedAchievement
+    ? achievementDifficultyMeta(selectedAchievement.rarity)
+    : null
 
   return (
     <>
       <Tabs defaultValue="all" className="flex w-full min-w-0 flex-col gap-5 p-2 sm:p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="w-full min-w-0 overflow-x-auto no-scrollbar pb-1 lg:pb-0">
-            <TabsList className="inline-flex sm:flex sm:flex-wrap h-auto min-h-11 w-max sm:w-full items-center justify-start gap-1.5 bg-muted/25 p-1.5 rounded-2xl border border-border/50">
-              {TAB_DEFS.map((tab) => {
-                const categoryItems =
-                  tab.id === 'all'
-                    ? achievements
-                    : achievements.filter((a) => a.category === tab.id)
-                const unlockedInCat = categoryItems.filter((a) => unlockedIds.has(a.id)).length
-                return (
-                  <TabsTrigger
-                    key={tab.id}
-                    value={tab.id}
-                    className="rounded-xl px-3.5 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all gap-2 text-xs font-black uppercase tracking-wider active:scale-95 shrink-0"
-                  >
-                    <tab.icon className="size-3.5 shrink-0" />
-                    <span>{tab.label}</span>
-                    <span className="rounded-md bg-background/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums opacity-85">
-                      {unlockedInCat}/{categoryItems.length}
-                    </span>
-                  </TabsTrigger>
-                )
-              })}
-            </TabsList>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="w-full min-w-0 overflow-x-auto no-scrollbar pb-1 lg:pb-0">
+              <TabsList className="inline-flex sm:flex sm:flex-wrap h-auto min-h-11 w-max sm:w-full items-center justify-start gap-1.5 bg-muted/25 p-1.5 rounded-2xl border border-border/50">
+                {TAB_DEFS.map((tab) => {
+                  const categoryItems =
+                    tab.id === 'all'
+                      ? achievements
+                      : achievements.filter((a) => a.category === tab.id)
+                  const unlockedInCat = categoryItems.filter((a) => unlockedIds.has(a.id)).length
+                  return (
+                    <TabsTrigger
+                      key={tab.id}
+                      value={tab.id}
+                      className="rounded-xl px-3.5 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all gap-2 text-xs font-black uppercase tracking-wider active:scale-95 shrink-0"
+                    >
+                      <tab.icon className="size-3.5 shrink-0" />
+                      <span>{tab.label}</span>
+                      <span className="rounded-md bg-background/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums opacity-85">
+                        {unlockedInCat}/{categoryItems.length}
+                      </span>
+                    </TabsTrigger>
+                  )
+                })}
+              </TabsList>
+            </div>
+
+            <div
+              role="group"
+              aria-label="Filtrar por estado de desbloqueo"
+              className="inline-flex shrink-0 self-start rounded-xl border border-border/50 bg-muted/20 p-1"
+            >
+              {(
+                [
+                  { id: 'all', label: 'Todos' },
+                  { id: 'unlocked', label: 'Completados' },
+                  { id: 'locked', label: 'Por lograr' },
+                ] as const
+              ).map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setStatusFilter(f.id)}
+                  className={cn(
+                    'rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all',
+                    statusFilter === f.id
+                      ? 'bg-card text-foreground shadow-sm ring-1 ring-border/60'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div
-            role="group"
-            aria-label="Filtrar por estado de desbloqueo"
-            className="inline-flex shrink-0 self-start rounded-xl border border-border/50 bg-muted/20 p-1"
-          >
-            {(
-              [
-                { id: 'all', label: 'Todos' },
-                { id: 'unlocked', label: 'Completados' },
-                { id: 'locked', label: 'Por lograr' },
-              ] as const
-            ).map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setStatusFilter(f.id)}
-                className={cn(
-                  'rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all',
-                  statusFilter === f.id
-                    ? 'bg-card text-foreground shadow-sm ring-1 ring-border/60'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
+          {/* Filtro por Nivel de Dificultad (Bronce, Plata, Oro, Élite) */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span className="mr-1 inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              <Shield className="size-3 text-primary" />
+              Dificultad:
+            </span>
+            {DIFFICULTY_FILTERS.map((df) => {
+              const tierItems =
+                df.id === 'all'
+                  ? achievements
+                  : achievements.filter((a) => (a.rarity ?? 'common') === df.id)
+              const unlockedInTier = tierItems.filter((a) => unlockedIds.has(a.id)).length
+              const isSelected = difficultyFilter === df.id
+              const tierMeta = df.id !== 'all' ? DIFFICULTY_TIERS[df.id] : null
+
+              return (
+                <button
+                  key={df.id}
+                  type="button"
+                  onClick={() => setDifficultyFilter(df.id)}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] font-bold transition-all',
+                    isSelected
+                      ? tierMeta
+                        ? cn(tierMeta.badgeClass, 'ring-1 ring-current/30 shadow-xs')
+                        : 'border-primary/40 bg-primary/15 text-primary shadow-xs'
+                      : 'border-border/50 bg-muted/15 text-muted-foreground hover:bg-muted/35 hover:text-foreground',
+                  )}
+                >
+                  <span>{df.label}</span>
+                  <span className="rounded-md bg-background/40 px-1.5 py-0.2 text-[10px] font-black tabular-nums opacity-85">
+                    {unlockedInTier}/{tierItems.length}
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
         {TAB_DEFS.map((tab) => {
           const items = sorted.filter((a) => {
             if (tab.id !== 'all' && a.category !== tab.id) return false
+            if (difficultyFilter !== 'all' && (a.rarity ?? 'common') !== difficultyFilter) {
+              return false
+            }
             const isUnlocked = unlockedIds.has(a.id)
             if (statusFilter === 'unlocked') return isUnlocked
             if (statusFilter === 'locked') return !isUnlocked
@@ -193,7 +254,7 @@ export function AchievementsCatalog({
                     No hay hitos en este filtro
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground max-w-xs">
-                    Cambia el filtro de estado o explora otra categoría para ver más desafíos.
+                    Cambia el nivel de dificultad, el estado o explora otra categoría para ver más desafíos.
                   </p>
                 </div>
               ) : (
@@ -208,7 +269,7 @@ export function AchievementsCatalog({
                     )
                     const CategoryIcon = achievementLucideIcon(achievement)
                     const rarityColor = achievementRarityColor(achievement.rarity)
-                    const tierLabel = achievementMilestoneBadgeLabel(achievement.rarity)
+                    const difficultyMeta = achievementDifficultyMeta(achievement.rarity)
                     const isAlmostThere = !unlocked && percent >= 65
 
                     return (
@@ -257,9 +318,12 @@ export function AchievementsCatalog({
                               </Badge>
                               <Badge
                                 variant="outline"
-                                className="text-[10px] font-semibold text-muted-foreground border-border/60"
+                                className={cn(
+                                  'text-[10px] font-bold',
+                                  difficultyMeta.badgeClass,
+                                )}
                               >
-                                {tierLabel}
+                                {difficultyMeta.fullLabel}
                               </Badge>
                               {unlocked ? (
                                 <Badge
@@ -364,6 +428,14 @@ export function AchievementsCatalog({
                 <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider">
                   {achievementCategoryLabel(selectedAchievement.category)}
                 </Badge>
+                {selectedDifficulty && (
+                  <Badge
+                    variant="outline"
+                    className={cn('text-[10px] font-bold', selectedDifficulty.badgeClass)}
+                  >
+                    {selectedDifficulty.fullLabel}
+                  </Badge>
+                )}
                 <Badge className="text-[10px] font-black bg-primary/15 text-primary border border-primary/30">
                   +{selectedAchievement.xp_reward} XP
                 </Badge>
@@ -374,6 +446,11 @@ export function AchievementsCatalog({
               <DialogDescription className="text-sm text-muted-foreground text-balance">
                 {selectedAchievement.description}
               </DialogDescription>
+              {selectedDifficulty && (
+                <p className="text-[11px] font-medium text-muted-foreground/80">
+                  {selectedDifficulty.description}
+                </p>
+              )}
             </DialogHeader>
 
             <div className="flex flex-col gap-4 py-2">

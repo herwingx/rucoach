@@ -30,9 +30,14 @@ export type ClientAchievementMetrics = {
   measurementMonthStreak: number
   lifetimeVolumeKg: number
   bodyWeightKg: number
+  bench1RmKg: number
+  squat1RmKg: number
+  deadlift1RmKg: number
+  ohp1RmKg: number
   benchBwPercent: number
   squatBwPercent: number
   deadliftBwPercent: number
+  ohpBwPercent: number
 }
 
 type SessionRollups = {
@@ -119,9 +124,14 @@ async function fetchClientAchievementMetrics(
     measurementMonthStreak: 0,
     lifetimeVolumeKg: 0,
     bodyWeightKg: 0,
+    bench1RmKg: 0,
+    squat1RmKg: 0,
+    deadlift1RmKg: 0,
+    ohp1RmKg: 0,
     benchBwPercent: 0,
     squatBwPercent: 0,
     deadliftBwPercent: 0,
+    ohpBwPercent: 0,
   }
   if (!clientId) return empty
 
@@ -131,7 +141,7 @@ async function fetchClientAchievementMetrics(
     supabase
       .from('personal_records')
       .select(
-        'exercise_id, exercise_name, estimated_1rm, exercises(name, exercise_type, uses_external_load, equipment)',
+        'exercise_id, exercise_name, estimated_1rm, exercises(name, name_es, exercise_type, uses_external_load, equipment)',
       )
       .eq('client_id', clientId),
     supabase
@@ -220,19 +230,26 @@ async function fetchClientAchievementMetrics(
   let maxBench = 0
   let maxSquat = 0
   let maxDl = 0
+  let maxOhp = 0
   for (const row of loadAwarePrRows) {
-    const ex = row.exercises as { name?: string } | null
-    const joinedName = ex && typeof ex === 'object' && !Array.isArray(ex) ? ex.name : undefined
+    const ex = row.exercises as { name?: string; name_es?: string } | null
+    const joinedName =
+      ex && typeof ex === 'object' && !Array.isArray(ex)
+        ? ex.name || ex.name_es
+        : undefined
     const name =
       (typeof row.exercise_name === 'string' && row.exercise_name.trim() !== ''
         ? row.exercise_name
         : joinedName) ?? ''
     const e1 = Number(row.estimated_1rm ?? 0)
     if (!e1 || !row.exercise_id) continue
-    const kind = liftBenchmarkKind(String(row.exercise_id), name)
+    const kind =
+      liftBenchmarkKind(String(row.exercise_id), name) ??
+      liftBenchmarkKind(String(row.exercise_id), ex?.name_es)
     if (kind === 'bench') maxBench = Math.max(maxBench, e1)
     else if (kind === 'squat') maxSquat = Math.max(maxSquat, e1)
     else if (kind === 'deadlift') maxDl = Math.max(maxDl, e1)
+    else if (kind === 'ohp') maxOhp = Math.max(maxOhp, e1)
   }
 
   const bw = bodyWeightKg > 0 ? bodyWeightKg : 0
@@ -246,9 +263,14 @@ async function fetchClientAchievementMetrics(
     measurementMonthStreak,
     lifetimeVolumeKg,
     bodyWeightKg: bw,
+    bench1RmKg: Math.round(maxBench * 10) / 10,
+    squat1RmKg: Math.round(maxSquat * 10) / 10,
+    deadlift1RmKg: Math.round(maxDl * 10) / 10,
+    ohp1RmKg: Math.round(maxOhp * 10) / 10,
     benchBwPercent: ratio(maxBench),
     squatBwPercent: ratio(maxSquat),
     deadliftBwPercent: ratio(maxDl),
+    ohpBwPercent: ratio(maxOhp),
   }
 }
 
@@ -544,6 +566,7 @@ export async function getUserAchievements(userId: string): Promise<{
   unlocked: UserAchievement[]
   locked: Achievement[]
   progress: Map<string, number>
+  metrics: ClientAchievementMetrics
 }> {
   const supabase = await createClient()
 
@@ -581,6 +604,7 @@ export async function getUserAchievements(userId: string): Promise<{
     unlocked: userAchievements,
     locked: allAchievements.filter((a) => !unlockedIds.has(a.id)),
     progress,
+    metrics,
   }
 }
 

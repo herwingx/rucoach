@@ -6,8 +6,8 @@ import type { Achievement } from '@/lib/types'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import {
+  achievementDifficultyMeta,
   achievementLucideIcon,
-  achievementMilestoneBadgeLabel,
   achievementRarityColor,
   formatAchievementProgress,
 } from '@/lib/achievements-ui'
@@ -49,7 +49,7 @@ export function AchievementBadge({
 }: AchievementBadgeProps) {
   const Icon = achievementLucideIcon(achievement)
   const { percent } = formatAchievementProgress(achievement, progress, unlocked)
-  const tierLabel = achievementMilestoneBadgeLabel(achievement.rarity)
+  const difficultyMeta = achievementDifficultyMeta(achievement.rarity)
   const rarityColor = achievementRarityColor(achievement.rarity)
 
   return (
@@ -71,12 +71,15 @@ export function AchievementBadge({
           />
         )}
 
-        {showMilestoneBadge && unlocked && (
+        {showMilestoneBadge && (
           <Badge
             variant="outline"
-            className="absolute -top-2.5 z-20 max-w-28 truncate border-primary/30 bg-background/95 px-2 py-0 text-[9px] font-black uppercase tracking-wider text-primary shadow-sm"
+            className={cn(
+              'absolute -top-2.5 z-20 max-w-36 truncate bg-background/95 px-2.5 py-0 text-[9px] font-black uppercase tracking-wider shadow-sm',
+              difficultyMeta.badgeClass,
+            )}
           >
-            {tierLabel}
+            {difficultyMeta.fullLabel}
           </Badge>
         )}
 
@@ -85,7 +88,7 @@ export function AchievementBadge({
             'relative z-10 flex items-center justify-center overflow-hidden rounded-2xl border transition-all duration-300 group-hover/badge:scale-105',
             sizeClasses[size],
             unlocked
-              ? 'border-primary/40 bg-gradient-to-br from-primary/20 via-primary/10 to-background text-primary shadow-md shadow-primary/15 ring-1 ring-primary/20'
+              ? difficultyMeta.medalSurfaceClass
               : 'border-dashed border-muted-foreground/35 bg-muted/40 text-muted-foreground',
           )}
           aria-hidden={!showDetails}

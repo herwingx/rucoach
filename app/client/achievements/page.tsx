@@ -16,9 +16,14 @@ import {
   Activity,
   ArrowRight,
   CalendarDays,
+  CheckCircle2,
+  Dumbbell,
   Flame,
   Info,
   Medal,
+  Ruler,
+  Scale,
+  Shield,
   Sparkles,
   Target,
   TrendingUp,
@@ -33,9 +38,15 @@ import {
   resolveClientTotalSessions,
 } from "@/lib/gamification";
 import {
+  DIFFICULTY_TIERS,
+  type DifficultyTierId,
   achievementActionMeta,
   achievementCategoryLabel,
+  achievementDifficultyMeta,
+  computeCareerTonnageComparison,
+  computeSymmetryStandards,
   formatAchievementProgress,
+  formatKg,
 } from "@/lib/achievements-ui";
 import { cn } from "@/lib/utils";
 import {
@@ -51,7 +62,7 @@ export default async function ClientAchievementsPage() {
 
   const [
     { data: profile },
-    { unlocked: userAchievements, locked: lockedAchievements, progress },
+    { unlocked: userAchievements, locked: lockedAchievements, progress, metrics },
     totalSessions,
   ] = await Promise.all([
     supabase
@@ -101,6 +112,25 @@ export default async function ClientAchievementsPage() {
   const streakDays = profile?.streak_days ?? 0;
   const progressById = Object.fromEntries(progress);
 
+  // Symmetry Strength Standards & Career Tonnage
+  const symmetry = computeSymmetryStandards(metrics);
+  const tonnageInfo = computeCareerTonnageComparison(metrics.lifetimeVolumeKg);
+
+  // Breakdown by Difficulty Tier (Bronce, Plata, Oro, Élite)
+  const difficultyBreakdown = (
+    ["common", "rare", "epic", "legendary"] as DifficultyTierId[]
+  ).map((tierId) => {
+    const meta = DIFFICULTY_TIERS[tierId];
+    const items = allAchievements.filter((a) => (a.rarity ?? "common") === tierId);
+    const unlockedInTier = items.filter((a) => unlockedAchievementIds.has(a.id)).length;
+    return {
+      meta,
+      total: items.length,
+      unlocked: unlockedInTier,
+      percent: items.length > 0 ? Math.round((unlockedInTier / items.length) * 100) : 0,
+    };
+  });
+
   // Top 3 locked achievements closest to completion
   const nextUpAchievements = lockedAchievements
     .filter((a) => !unlockedAchievementIds.has(a.id))
@@ -108,7 +138,8 @@ export default async function ClientAchievementsPage() {
       const current = progressById[a.id] ?? 0;
       const { line, percent } = formatAchievementProgress(a, current, false);
       const action = achievementActionMeta(a);
-      return { achievement: a, current, line, percent, action };
+      const difficulty = achievementDifficultyMeta(a.rarity);
+      return { achievement: a, current, line, percent, action, difficulty };
     })
     .sort((a, b) => {
       if (b.percent !== a.percent) return b.percent - a.percent;
@@ -128,108 +159,461 @@ export default async function ClientAchievementsPage() {
         <section aria-label="Resumen de progreso" className="flex flex-col gap-6">
           {/* XP Hub Header Card */}
           <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-gradient-to-br from-primary/10 via-background to-background relative">
-             <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-                <Medal className="size-32 text-primary animate-float" />
-             </div>
-             
-             <CardHeader className="pb-6 pt-8 px-5 sm:pb-8 sm:pt-10 sm:px-8">
-               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-                 <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="size-2 rounded-full bg-primary animate-pulse" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Rango del Atleta</span>
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+              <Medal className="size-32 text-primary animate-float" />
+            </div>
+
+            <CardHeader className="pb-6 pt-8 px-5 sm:pb-8 sm:pt-10 sm:px-8">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="size-2 rounded-full bg-primary animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                      Rango del Atleta
+                    </span>
+                  </div>
+                  <CardTitle className="text-3xl sm:text-4xl font-black tracking-tighter text-foreground">
+                    Nivel {levelInfo.level}
+                  </CardTitle>
+                  <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest leading-none">
+                    {levelName}
+                  </p>
+                </div>
+                <div className="flex flex-col items-start sm:items-end gap-1">
+                  <Badge
+                    variant="secondary"
+                    className="font-black text-xs px-3 py-1.5 bg-primary text-primary-foreground border-none rounded-xl shadow-sm"
+                  >
+                    {levelInfo.currentXP.toLocaleString()} XP
+                  </Badge>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
+                    Acumulado Total
+                  </span>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="px-5 pb-8 sm:px-8 sm:pb-10">
+              <div className="flex flex-col gap-6">
+                {/* Thick Stylized Progress Bar */}
+                <div className="space-y-4 relative">
+                  <div className="flex items-end justify-between gap-4 h-5 px-1 font-black text-[10px] uppercase tracking-widest">
+                    <span className="text-primary/80">Nivel {levelInfo.level}</span>
+                    <span className="text-muted-foreground/60">
+                      Nivel {levelInfo.level + 1}
+                    </span>
+                  </div>
+                  <div className="relative h-6 w-full bg-muted/20 rounded-full overflow-hidden border border-muted/30 p-1">
+                    <div
+                      className="h-full bg-primary rounded-full transition-all duration-1000 ease-out shadow-md shadow-primary/30"
+                      style={{ width: `${Math.max(4, levelInfo.progress)}%` }}
+                    >
+                      <div className="size-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.28)_50%,transparent_100%)] animate-shimmer" />
                     </div>
-                    <CardTitle className="text-3xl sm:text-4xl font-black tracking-tighter text-foreground">
-                      Nivel {levelInfo.level}
-                    </CardTitle>
-                    <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest leading-none">
-                      {levelName}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-2">
+                    <p className="text-[11px] font-bold text-muted-foreground">
+                      <span className="text-foreground font-black tabular-nums">
+                        {levelInfo.currentXP}
+                      </span>{" "}
+                      / {levelInfo.xpForNextLevel} XP
                     </p>
-                 </div>
-                 <div className="flex flex-col items-start sm:items-end gap-1">
-                   <Badge variant="secondary" className="font-black text-xs px-3 py-1.5 bg-primary text-primary-foreground border-none rounded-xl shadow-sm">
-                     {levelInfo.currentXP.toLocaleString()} XP
-                   </Badge>
-                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Acumulado Total</span>
-                 </div>
-               </div>
-             </CardHeader>
-             
-             <CardContent className="px-5 pb-8 sm:px-8 sm:pb-10">
-               <div className="flex flex-col gap-6">
-                 {/* Thick Stylized Progress Bar */}
-                 <div className="space-y-4 relative">
-                   <div className="flex items-end justify-between gap-4 h-5 px-1 font-black text-[10px] uppercase tracking-widest">
-                     <span className="text-primary/80">Nivel {levelInfo.level}</span>
-                     <span className="text-muted-foreground/60">Nivel {levelInfo.level + 1}</span>
-                   </div>
-                   <div className="relative h-6 w-full bg-muted/20 rounded-full overflow-hidden border border-muted/30 p-1">
-                      <div 
-                        className="h-full bg-primary rounded-full transition-all duration-1000 ease-out shadow-md shadow-primary/30"
-                        style={{ width: `${Math.max(4, levelInfo.progress)}%` }}
-                      >
-                         <div className="size-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.28)_50%,transparent_100%)] animate-shimmer" />
+                    <p className="text-[11px] font-medium text-muted-foreground italic">
+                      Faltan{" "}
+                      <span className="text-primary font-black tabular-nums">
+                        {(
+                          levelInfo.xpForNextLevel - levelInfo.currentXP
+                        ).toLocaleString()}{" "}
+                        XP
+                      </span>{" "}
+                      para Nivel {levelInfo.level + 1}
+                    </p>
+                  </div>
+                </div>
+
+                {/* High Density Stats Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
+                  <div className="group flex flex-col gap-4 rounded-3xl border border-border/50 p-6 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 border border-primary/15 text-primary group-hover:scale-110 transition-transform">
+                        <Trophy className="size-5" />
                       </div>
-                   </div>
-                   <div className="flex flex-wrap items-center justify-between gap-2 px-2">
-                     <p className="text-[11px] font-bold text-muted-foreground">
-                       <span className="text-foreground font-black tabular-nums">{levelInfo.currentXP}</span> / {levelInfo.xpForNextLevel} XP
-                     </p>
-                     <p className="text-[11px] font-medium text-muted-foreground italic">
-                       Faltan <span className="text-primary font-black tabular-nums">{(levelInfo.xpForNextLevel - levelInfo.currentXP).toLocaleString()} XP</span> para Nivel {levelInfo.level + 1}
-                     </p>
-                   </div>
-                 </div>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-bold tabular-nums border-border/60"
+                      >
+                        {unlockedCount}/{totalCount}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-3xl font-black tabular-nums tracking-tighter">
+                        {unlockedPercentage}%
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+                        Hitos Completados
+                      </span>
+                    </div>
+                  </div>
 
-                 {/* High Density Stats Grid */}
-                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
-                    <div className="group flex flex-col gap-4 rounded-3xl border border-border/50 p-6 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card hover:-translate-y-0.5 hover:shadow-md">
-                       <div className="flex items-center justify-between">
-                         <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 border border-primary/15 text-primary group-hover:scale-110 transition-transform">
-                           <Trophy className="size-5" />
-                         </div>
-                         <Badge variant="outline" className="text-[10px] font-bold tabular-nums border-border/60">
-                           {unlockedCount}/{totalCount}
-                         </Badge>
-                       </div>
-                       <div className="flex flex-col">
-                          <span className="text-3xl font-black tabular-nums tracking-tighter">{unlockedPercentage}%</span>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">Hitos Completados</span>
-                       </div>
+                  <div className="group flex flex-col gap-4 rounded-3xl border border-border/50 p-6 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 border border-primary/15 text-primary group-hover:scale-110 transition-transform">
+                        <CalendarDays className="size-5" />
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-bold border-border/60"
+                      >
+                        +50 XP / sesión
+                      </Badge>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-3xl font-black tabular-nums tracking-tighter">
+                        {totalSessions}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+                        Sesiones Completadas
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="group flex flex-col gap-4 rounded-3xl border border-border/50 p-6 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card hover:-translate-y-0.5 hover:shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 border border-primary/15 text-primary group-hover:scale-110 transition-transform">
+                        <Flame className="size-5" />
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-bold border-border/60"
+                      >
+                        Constancia
+                      </Badge>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-3xl font-black tabular-nums tracking-tighter">
+                        {streakDays}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
+                        Días de Racha
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Escalafón de Medallas por Nivel de Dificultad */}
+                <div className="rounded-3xl border border-border/60 bg-card/40 p-4 sm:p-5">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-foreground">
+                      <Shield className="size-3.5 text-primary" />
+                      Medallero por Nivel de Dificultad
+                    </span>
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      Progresión escalonada de Bronce a Élite
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    {difficultyBreakdown.map(({ meta, unlocked, total, percent }) => (
+                      <div
+                        key={meta.id}
+                        className="flex flex-col gap-2 rounded-2xl border border-border/50 bg-background/60 p-3.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <Badge
+                            variant="outline"
+                            className={cn("text-[10px] font-black", meta.badgeClass)}
+                          >
+                            {meta.fullLabel}
+                          </Badge>
+                          <span className="text-xs font-black tabular-nums text-foreground">
+                            {unlocked}/{total}
+                          </span>
+                        </div>
+                        <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className={cn(
+                              "h-full rounded-full bg-gradient-to-r transition-all duration-500",
+                              meta.gradientClass,
+                            )}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-snug">
+                          {meta.description}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* SYMMETRY STRENGTH STANDARDS & CAREER TONNAGE */}
+        <section
+          className="flex flex-col gap-5"
+          aria-label="Estándares de fuerza relativa y simetría"
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-lg font-black tracking-tight flex items-center gap-2">
+                <Dumbbell className="size-5 text-primary" aria-hidden />
+                Estándares de Fuerza y Simetría
+              </h2>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70 leading-none">
+                Fuerza relativa real (1RM estimado vs. peso corporal) en los 4 patrones básicos
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {symmetry.bodyWeightKg ? (
+                <>
+                  <Badge
+                    variant="outline"
+                    className="rounded-xl border-border/60 bg-card/60 px-3 py-1 text-[11px] font-bold"
+                  >
+                    Peso ref:{" "}
+                    <span className="ml-1 font-black text-foreground tabular-nums">
+                      {symmetry.bodyWeightKg} kg
+                    </span>
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "rounded-xl px-3 py-1 text-[11px] font-black",
+                      symmetry.overallTier
+                        ? DIFFICULTY_TIERS[symmetry.overallTier].badgeClass
+                        : "border-primary/30 bg-primary/10 text-primary",
+                    )}
+                  >
+                    {symmetry.overallRankLabel} · {symmetry.overallScore}/100
+                  </Badge>
+                  {symmetry.balanceScore !== null && (
+                    <Badge
+                      variant="outline"
+                      className="rounded-xl border-border/60 bg-card/60 px-3 py-1 text-[11px] font-bold text-muted-foreground"
+                    >
+                      Simetría:{" "}
+                      <span className="ml-1 font-black text-foreground tabular-nums">
+                        {symmetry.balanceScore}%
+                      </span>
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="h-8 rounded-xl border-primary/30 bg-primary/10 text-xs font-bold text-primary hover:bg-primary/20"
+                >
+                  <Link href="/client/measurements">
+                    <Ruler className="mr-1.5 size-3.5" />
+                    Registrar peso corporal para activar estándares
+                  </Link>
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {symmetry.lifts.map((lift) => {
+              const tierMeta = lift.currentTier
+                ? DIFFICULTY_TIERS[lift.currentTier]
+                : null;
+              return (
+                <Card
+                  key={lift.key}
+                  className="overflow-hidden rounded-3xl border-border/80 bg-card/60 shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-primary/35 hover:bg-card"
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          {lift.patternLabel}
+                        </span>
+                        <CardTitle className="mt-0.5 text-base font-black tracking-tight text-foreground">
+                          {lift.name}
+                        </CardTitle>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] font-black uppercase tracking-wider",
+                          tierMeta
+                            ? tierMeta.badgeClass
+                            : "border-border/60 bg-muted/30 text-muted-foreground",
+                        )}
+                      >
+                        {tierMeta ? tierMeta.fullLabel : lift.currentTierLabel}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="flex flex-col gap-4 pt-0">
+                    <div className="flex items-baseline justify-between rounded-2xl border border-border/50 bg-muted/20 px-4 py-3">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Mejor 1RM Estimado
+                        </p>
+                        <p className="mt-0.5 text-2xl font-black tabular-nums tracking-tight text-foreground">
+                          {lift.estimated1RmKg > 0
+                            ? `${lift.estimated1RmKg} kg`
+                            : "Sin registro"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          Fuerza Relativa
+                        </p>
+                        <p className="mt-0.5 text-xl font-black tabular-nums text-primary">
+                          {lift.bwRatio > 0
+                            ? `${lift.bwRatio.toFixed(2)}x PC`
+                            : "—"}
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="group flex flex-col gap-4 rounded-3xl border border-border/50 p-6 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card hover:-translate-y-0.5 hover:shadow-md">
-                       <div className="flex items-center justify-between">
-                         <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 border border-primary/15 text-primary group-hover:scale-110 transition-transform">
-                           <CalendarDays className="size-5" />
-                         </div>
-                         <Badge variant="outline" className="text-[10px] font-bold border-border/60">
-                           +50 XP / sesión
-                         </Badge>
-                       </div>
-                       <div className="flex flex-col">
-                          <span className="text-3xl font-black tabular-nums tracking-tighter">{totalSessions}</span>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">Sesiones Completadas</span>
-                       </div>
+                    {/* 4-Step Symmetry Ladder (Bronce -> Plata -> Oro -> Élite) */}
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {lift.steps.map((step) => {
+                        const stepMeta = DIFFICULTY_TIERS[step.tier];
+                        return (
+                          <div
+                            key={step.tier}
+                            className={cn(
+                              "flex flex-col items-center justify-center rounded-xl border px-2 py-2 text-center transition-all",
+                              step.achieved
+                                ? stepMeta.badgeClass
+                                : "border-border/50 bg-muted/15 text-muted-foreground opacity-75",
+                            )}
+                          >
+                            <div className="flex items-center gap-1 text-[10px] font-black uppercase">
+                              {step.achieved && (
+                                <CheckCircle2 className="size-3 shrink-0" />
+                              )}
+                              <span>{step.shortLabel}</span>
+                            </div>
+                            <span className="mt-0.5 text-xs font-black tabular-nums">
+                              {step.ratio}x
+                            </span>
+                            {step.targetKg !== null && (
+                              <span className="text-[10px] font-semibold tabular-nums opacity-85">
+                                {step.targetKg} kg
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
 
-                    <div className="group flex flex-col gap-4 rounded-3xl border border-border/50 p-6 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card hover:-translate-y-0.5 hover:shadow-md">
-                       <div className="flex items-center justify-between">
-                         <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 border border-primary/15 text-primary group-hover:scale-110 transition-transform">
-                           <Flame className="size-5" />
-                         </div>
-                         <Badge variant="outline" className="text-[10px] font-bold border-border/60">
-                           Constancia
-                         </Badge>
-                       </div>
-                       <div className="flex flex-col">
-                          <span className="text-3xl font-black tabular-nums tracking-tighter">{streakDays}</span>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">Días de Racha</span>
-                       </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-0.5">
+                      {!symmetry.bodyWeightKg ? (
+                        <span>
+                          Registra tu peso corporal en{" "}
+                          <Link
+                            href="/client/measurements"
+                            className="font-bold text-primary underline underline-offset-2"
+                          >
+                            Medidas
+                          </Link>{" "}
+                          para calcular tus metas en kg.
+                        </span>
+                      ) : lift.nextTierLabel && lift.nextTargetKg ? (
+                        <span>
+                          Próximo estándar ({lift.nextTierLabel}):{" "}
+                          <strong className="font-black text-foreground tabular-nums">
+                            {lift.nextTargetKg} kg
+                          </strong>{" "}
+                          {lift.kgNeededForNext ? (
+                            <span className="font-bold text-primary tabular-nums">
+                              (+{lift.kgNeededForNext} kg en 1RM)
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : (
+                        <span className="font-bold text-primary">
+                          ¡Estándar Élite superado en {lift.name}!
+                        </span>
+                      )}
                     </div>
-                 </div>
-               </div>
-             </CardContent>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Tarjeta de Tonelaje de Carrera y Balance Muscular */}
+          <Card className="overflow-hidden rounded-3xl border-border/80 bg-gradient-to-r from-card via-card to-primary/[0.05] shadow-sm">
+            <CardContent className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-2 max-w-xl">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="bg-primary/15 text-primary border border-primary/30 text-[10px] font-black uppercase tracking-wider">
+                    <Scale className="mr-1 size-3" />
+                    Tonelaje de Carrera
+                  </Badge>
+                  {symmetry.strongestLift && symmetry.focusLift && (
+                    <span className="text-[11px] font-semibold text-muted-foreground">
+                      Dominante:{" "}
+                      <strong className="text-foreground">
+                        {symmetry.strongestLift.name}
+                      </strong>{" "}
+                      · Foco sugerido:{" "}
+                      <strong className="text-primary">
+                        {symmetry.focusLift.name}
+                      </strong>
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-lg sm:text-xl font-black tracking-tight text-foreground">
+                  {tonnageInfo.currentHeadline}
+                </h3>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {tonnageInfo.currentDetail}
+                </p>
+                <div className="mt-1 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    <span>Meta: {tonnageInfo.nextMilestoneLabel}</span>
+                    <span className="tabular-nums text-primary font-black">
+                      {tonnageInfo.progressPercent}%
+                    </span>
+                  </div>
+                  <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-700"
+                      style={{ width: `${Math.max(3, tonnageInfo.progressPercent)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 shrink-0 lg:w-auto">
+                <div className="flex flex-col justify-center rounded-2xl border border-border/60 bg-background/70 px-3.5 py-3 text-center">
+                  <span className="text-lg sm:text-xl font-black tabular-nums text-foreground">
+                    {formatKg(metrics.lifetimeVolumeKg)}
+                  </span>
+                  <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Total Carrera
+                  </span>
+                </div>
+                <div className="flex flex-col justify-center rounded-2xl border border-border/60 bg-background/70 px-3.5 py-3 text-center">
+                  <span className="text-lg sm:text-xl font-black tabular-nums text-foreground">
+                    {formatKg(metrics.maxVolumeKg)}
+                  </span>
+                  <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Mejor Sesión
+                  </span>
+                </div>
+                <div className="flex flex-col justify-center rounded-2xl border border-border/60 bg-background/70 px-3.5 py-3 text-center">
+                  <span className="text-lg sm:text-xl font-black tabular-nums text-primary">
+                    {metrics.prCount}
+                  </span>
+                  <span className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Marcas PR
+                  </span>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </section>
 
@@ -248,68 +632,80 @@ export default async function ClientAchievementsPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              {nextUpAchievements.map(({ achievement, line, percent, action }) => (
-                <Card
-                  key={achievement.id}
-                  className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border-border/80 bg-card/60 shadow-sm ring-1 ring-primary/10 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:bg-card hover:shadow-md"
-                >
-                  <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-primary/10 blur-2xl transition-opacity group-hover:opacity-100 opacity-50" />
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <AchievementBadge
-                        achievement={achievement}
-                        unlocked={false}
-                        size="md"
-                      />
-                      <Badge className="bg-primary/15 text-primary border border-primary/25 font-black text-[10px] tabular-nums">
-                        <Sparkles className="mr-1 size-3" />+{achievement.xp_reward} XP
-                      </Badge>
-                    </div>
-                    <div className="mt-3">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        {achievementCategoryLabel(achievement.category)}
-                      </span>
-                      <CardTitle className="mt-0.5 text-base font-black leading-snug tracking-tight group-hover:text-primary transition-colors">
-                        {achievement.name}
-                      </CardTitle>
-                      {achievement.description && (
-                        <p className="mt-1 text-xs text-muted-foreground leading-relaxed line-clamp-2">
-                          {achievement.description}
-                        </p>
-                      )}
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="flex flex-col gap-3.5 pt-0">
-                    <div className="flex flex-col gap-1.5 rounded-2xl border border-border/50 bg-muted/20 p-3">
-                      <div className="flex items-center justify-between text-[11px] font-bold">
-                        <span className="text-muted-foreground truncate pr-2">{line}</span>
-                        <span className="tabular-nums font-black text-primary shrink-0">{percent}%</span>
-                      </div>
-                      <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
-                          style={{ width: `${Math.max(5, percent)}%` }}
-                        >
-                          <div className="size-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.35)_50%,transparent_100%)] animate-shimmer" />
+              {nextUpAchievements.map(
+                ({ achievement, line, percent, action, difficulty }) => (
+                  <Card
+                    key={achievement.id}
+                    className="group relative flex flex-col justify-between overflow-hidden rounded-3xl border-border/80 bg-card/60 shadow-sm ring-1 ring-primary/10 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:bg-card hover:shadow-md"
+                  >
+                    <div className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-primary/10 blur-2xl transition-opacity group-hover:opacity-100 opacity-50" />
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <AchievementBadge
+                          achievement={achievement}
+                          unlocked={false}
+                          size="md"
+                        />
+                        <div className="flex flex-col items-end gap-1.5">
+                          <Badge className="bg-primary/15 text-primary border border-primary/25 font-black text-[10px] tabular-nums">
+                            <Sparkles className="mr-1 size-3" />+{achievement.xp_reward} XP
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={cn("text-[10px] font-bold", difficulty.badgeClass)}
+                          >
+                            {difficulty.fullLabel}
+                          </Badge>
                         </div>
                       </div>
-                    </div>
+                      <div className="mt-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          {achievementCategoryLabel(achievement.category)}
+                        </span>
+                        <CardTitle className="mt-0.5 text-base font-black leading-snug tracking-tight group-hover:text-primary transition-colors">
+                          {achievement.name}
+                        </CardTitle>
+                        {achievement.description && (
+                          <p className="mt-1 text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                            {achievement.description}
+                          </p>
+                        )}
+                      </div>
+                    </CardHeader>
 
-                    <Button
-                      asChild
-                      variant="secondary"
-                      size="sm"
-                      className="w-full justify-between rounded-xl font-bold text-xs group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
-                    >
-                      <Link href={action.href}>
-                        <span>{action.label}</span>
-                        <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+                    <CardContent className="flex flex-col gap-3.5 pt-0">
+                      <div className="flex flex-col gap-1.5 rounded-2xl border border-border/50 bg-muted/20 p-3">
+                        <div className="flex items-center justify-between text-[11px] font-bold">
+                          <span className="text-muted-foreground truncate pr-2">{line}</span>
+                          <span className="tabular-nums font-black text-primary shrink-0">
+                            {percent}%
+                          </span>
+                        </div>
+                        <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+                            style={{ width: `${Math.max(5, percent)}%` }}
+                          >
+                            <div className="size-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.35)_50%,transparent_100%)] animate-shimmer" />
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button
+                        asChild
+                        variant="secondary"
+                        size="sm"
+                        className="w-full justify-between rounded-xl font-bold text-xs group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                      >
+                        <Link href={action.href}>
+                          <span>{action.label}</span>
+                          <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                        </Link>
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ),
+              )}
             </div>
           </section>
         )}
