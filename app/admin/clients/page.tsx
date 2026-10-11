@@ -54,6 +54,24 @@ export default async function AdminClientsPage() {
   if (clientsError) throw clientsError;
   const clientsList = clientsData || [];
 
+  const now = new Date();
+  const staleExpiredIds: string[] = [];
+  for (const c of clientsList) {
+    if (c.status === "active" && c.membership_end) {
+      const endDay = c.membership_end.slice(0, 10);
+      if (new Date(`${endDay}T23:59:59`) < now) {
+        staleExpiredIds.push(c.id);
+        c.status = "expired";
+      }
+    }
+  }
+  if (staleExpiredIds.length > 0) {
+    await supabase
+      .from("clients")
+      .update({ status: "expired" })
+      .in("id", staleExpiredIds);
+  }
+
   const clientIds = clientsList.map((c) => c.id);
 
   const [latestCompletedByClient, latestPaidByClient] = await Promise.all([

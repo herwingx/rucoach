@@ -20,7 +20,7 @@ const ClientWorkoutChart = dynamic(
 );
 import { NextWorkoutCard } from "@/components/client/next-workout-card";
 import { AchievementBadge } from "@/components/client/achievement-badge";
-import { Award, ChevronRight } from "lucide-react";
+import { Award, CalendarClock, ChevronRight, CreditCard } from "lucide-react";
 import type {
   Profile,
   Routine,
@@ -45,6 +45,7 @@ interface ClientDashboardContentProps {
   isRoutineCompleted?: boolean;
   userAchievements: UserAchievement[];
   chartData: { date: string; sessions: number }[];
+  membershipEnd?: string | null;
 }
 
 export function ClientDashboardContent({
@@ -58,9 +59,30 @@ export function ClientDashboardContent({
   isRoutineCompleted,
   userAchievements,
   chartData,
+  membershipEnd,
 }: ClientDashboardContentProps) {
   const userLabel =
     profile?.full_name?.split(/\s+/).filter(Boolean)[0] || "Asesorado";
+
+  const daysUntilExpiry = (() => {
+    if (!membershipEnd) return null;
+    const endDay = membershipEnd.slice(0, 10);
+    const endDate = new Date(`${endDay}T23:59:59`);
+    if (Number.isNaN(endDate.getTime())) return null;
+    return Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  })();
+
+  const formattedExpiry = (() => {
+    if (!membershipEnd) return null;
+    const endDay = membershipEnd.slice(0, 10);
+    const d = new Date(`${endDay}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString("es-MX", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  })();
 
   return (
     <>
@@ -71,6 +93,45 @@ export function ClientDashboardContent({
         backHref={null}
       />
       <div className={`${CLIENT_DATA_PAGE_SHELL} grid gap-8 lg:grid-cols-12`}>
+        {daysUntilExpiry !== null && daysUntilExpiry <= 5 && (
+          <div className="lg:col-span-12">
+            <Card className="overflow-hidden rounded-2xl border-warning/40 bg-warning/10 shadow-sm">
+              <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning/20 text-warning-foreground">
+                    <CalendarClock className="size-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">
+                      {daysUntilExpiry < 0
+                        ? "Tu membresía ha vencido"
+                        : daysUntilExpiry === 0
+                          ? "Tu membresía vence hoy"
+                          : `Tu membresía vence en ${daysUntilExpiry} día${daysUntilExpiry === 1 ? "" : "s"}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formattedExpiry
+                        ? `Fecha de corte: ${formattedExpiry}. Coordina tu renovación con tu coach para mantener acceso continuo.`
+                        : "Coordina tu renovación con tu coach para mantener acceso continuo."}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button asChild variant="outline" size="sm" className="h-9 rounded-xl text-xs font-bold">
+                    <Link href="/client/profile#membership">
+                      <CreditCard className="mr-1.5 size-3.5" />
+                      Ver mi membresía
+                    </Link>
+                  </Button>
+                  <Button asChild size="sm" className="h-9 rounded-xl text-xs font-bold">
+                    <Link href="/client/messages">Contactar coach</Link>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         <aside className="flex flex-col gap-8 lg:col-span-12 xl:col-span-4 xl:sticky xl:top-[calc(112px+1.5rem)] xl:self-start">
           <LevelProgress
             levelInfo={levelInfo}

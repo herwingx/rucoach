@@ -2,11 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Bell, Download, Lock, ShieldAlert } from "lucide-react";
+import {
+  Bell,
+  CalendarClock,
+  CheckCircle2,
+  CreditCard,
+  Download,
+  Lock,
+  Receipt,
+  ShieldAlert,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { calculateLevel } from "@/lib/types";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +58,34 @@ function formatLocalDateYmd(date?: Date): string | undefined {
   return `${y}-${m}-${d}`;
 }
 
+const CLIENT_PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cash: "Efectivo",
+  transfer: "Transferencia",
+  card: "Tarjeta",
+  other: "Otro",
+};
+
+export interface ClientMembershipSummary {
+  status: string;
+  membershipStart: string | null;
+  membershipEnd: string | null;
+  planName: string | null;
+  planPrice: number | null;
+  planDurationDays: number | null;
+  planDescription: string | null;
+}
+
+export interface ClientPaymentHistoryItem {
+  id: string;
+  amount: number;
+  paid_at: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  payment_method: string | null;
+  reference: string | null;
+  plan_name: string | null;
+}
+
 interface Profile {
   id: string;
   username?: string;
@@ -69,11 +107,15 @@ export function UserProfileContent({
   userId,
   userEmail,
   clientId,
+  membershipInfo,
+  paymentHistory = [],
 }: {
   initialProfile: Profile;
   userId: string;
   userEmail: string;
   clientId?: string;
+  membershipInfo?: ClientMembershipSummary | null;
+  paymentHistory?: ClientPaymentHistoryItem[];
 }) {
   const [profile, setProfile] = useState<Profile>(initialProfile || {});
   const [saving, setSaving] = useState(false);
@@ -631,6 +673,232 @@ export function UserProfileContent({
             </FieldGroup>
           </CardContent>
         </Card>
+
+        {/* Mi Membresía e Historial de Pagos */}
+        {membershipInfo && (
+          <Card
+            id="membership"
+            className="rounded-3xl border-border/80 shadow-md ring-1 ring-primary/5 scroll-mt-24"
+          >
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="size-4 text-primary" aria-hidden />
+                    Mi Membresía y Pagos
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    Estado actual de tu plan de asesoría y recibos registrados.
+                  </CardDescription>
+                </div>
+                {(() => {
+                  const endStr = membershipInfo.membershipEnd?.slice(0, 10);
+                  const endDate = endStr ? new Date(`${endStr}T23:59:59`) : null;
+                  const daysLeft =
+                    endDate && !Number.isNaN(endDate.getTime())
+                      ? Math.ceil(
+                          (endDate.getTime() - Date.now()) /
+                            (1000 * 60 * 60 * 24),
+                        )
+                      : null;
+
+                  if (
+                    membershipInfo.status === "expired" ||
+                    (daysLeft !== null && daysLeft < 0)
+                  ) {
+                    return (
+                      <Badge
+                        variant="outline"
+                        className="border-destructive/40 bg-destructive/15 text-destructive font-bold"
+                      >
+                        Membresía vencida
+                      </Badge>
+                    );
+                  }
+                  if (daysLeft !== null && daysLeft <= 5) {
+                    return (
+                      <Badge
+                        variant="outline"
+                        className="border-warning/40 bg-warning/15 text-warning-foreground font-bold"
+                      >
+                        <CalendarClock className="mr-1 size-3.5" />
+                        Por vencer · {daysLeft}d
+                      </Badge>
+                    );
+                  }
+                  return (
+                    <Badge
+                      variant="outline"
+                      className="border-success/35 bg-success/15 text-success font-bold"
+                    >
+                      <CheckCircle2 className="mr-1 size-3.5" />
+                      Activa
+                      {daysLeft !== null ? ` · ${daysLeft}d restantes` : ""}
+                    </Badge>
+                  );
+                })()}
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-5">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-border/60 bg-muted/20 p-3.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Plan contratado
+                  </p>
+                  <p className="mt-1 text-base font-black text-foreground">
+                    {membershipInfo.planName || "Plan Personalizado"}
+                  </p>
+                  {membershipInfo.planPrice != null && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      $
+                      {membershipInfo.planPrice.toLocaleString("es-MX", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      MXN
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-border/60 bg-muted/20 p-3.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Inicio de ciclo
+                  </p>
+                  <p className="mt-1 text-base font-bold text-foreground">
+                    {membershipInfo.membershipStart
+                      ? parseLocalDateYmd(
+                          membershipInfo.membershipStart,
+                        )?.toLocaleDateString("es-MX", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "—"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-border/60 bg-muted/20 p-3.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Fecha de corte
+                  </p>
+                  <p className="mt-1 text-base font-bold text-foreground">
+                    {membershipInfo.membershipEnd
+                      ? parseLocalDateYmd(
+                          membershipInfo.membershipEnd,
+                        )?.toLocaleDateString("es-MX", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Receipt className="size-3.5 text-primary" />
+                    Historial de Pagos ({paymentHistory.length})
+                  </h4>
+                </div>
+
+                {paymentHistory.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 p-4 text-center text-xs text-muted-foreground">
+                    Aún no hay recibos de pago registrados en tu historial.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {paymentHistory.map((p) => {
+                      const isPending = !p.paid_at;
+                      const paidDate = p.paid_at
+                        ? parseLocalDateYmd(p.paid_at)?.toLocaleDateString(
+                            "es-MX",
+                            {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            },
+                          )
+                        : null;
+                      const startStr = p.period_start
+                        ? parseLocalDateYmd(p.period_start)?.toLocaleDateString(
+                            "es-MX",
+                            {
+                              day: "numeric",
+                              month: "short",
+                            },
+                          )
+                        : null;
+                      const endStr = p.period_end
+                        ? parseLocalDateYmd(p.period_end)?.toLocaleDateString(
+                            "es-MX",
+                            {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            },
+                          )
+                        : null;
+                      const methodLabel = p.payment_method
+                        ? (CLIENT_PAYMENT_METHOD_LABELS[p.payment_method] ??
+                          p.payment_method)
+                        : null;
+
+                      return (
+                        <div
+                          key={p.id}
+                          className="flex flex-col gap-2 rounded-2xl border border-border/60 bg-muted/15 p-3.5 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold text-foreground">
+                                {p.plan_name || "Mensualidad de Asesoría"}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  !isPending
+                                    ? "border-success/30 bg-success/12 text-success text-[10px] font-bold"
+                                    : "border-warning/35 bg-warning/12 text-warning-foreground text-[10px] font-bold"
+                                }
+                              >
+                                {!isPending ? "Liquidado" : "Pendiente"}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {paidDate
+                                ? `Pagado el ${paidDate}`
+                                : "Pago pendiente de confirmación"}
+                              {methodLabel ? ` • ${methodLabel}` : ""}
+                              {startStr && endStr
+                                ? ` • Vigencia: ${startStr} – ${endStr}`
+                                : ""}
+                            </p>
+                            {p.reference && (
+                              <p className="text-[11px] text-muted-foreground/75 italic mt-0.5">
+                                Ref: {p.reference}
+                              </p>
+                            )}
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <span className="text-base font-black tabular-nums text-foreground">
+                              $
+                              {(p.amount ?? 0).toLocaleString("es-MX", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Pain / Injury Intake */}
         {clientId ? (

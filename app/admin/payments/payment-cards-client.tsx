@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -20,11 +22,22 @@ import {
   AdminCardHeaderWithActions,
   type AdminCardMenuSection,
 } from "@/components/admin/admin-card-with-actions";
-import { CheckCircle2, Eye, Edit2, Trash2, Search, CreditCard } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  Edit2,
+  Trash2,
+  Search,
+  CreditCard,
+  RefreshCw,
+  CalendarClock,
+  AlertCircle,
+} from "lucide-react";
 import { deletePayment, markPaymentAsPaid } from "@/app/actions/payments";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cash: "Efectivo",
@@ -35,6 +48,80 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 function parseLocalDate(dateStr: string): Date {
   return new Date(dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`);
+}
+
+function getPeriodValidityInfo(
+  periodEnd?: string | null,
+  isLatestForClient?: boolean,
+): {
+  state: "active" | "expiring_soon" | "expired" | "historical" | "unknown";
+  daysDiff: number | null;
+  label: string;
+  badgeClassName: string;
+} {
+  if (!periodEnd) {
+    return {
+      state: "unknown",
+      daysDiff: null,
+      label: "Sin fecha de corte",
+      badgeClassName:
+        "border-border bg-muted/50 text-muted-foreground text-[10px] font-semibold",
+    };
+  }
+
+  const datePart = periodEnd.slice(0, 10);
+  const endDate = new Date(`${datePart}T23:59:59`);
+  if (Number.isNaN(endDate.getTime())) {
+    return {
+      state: "unknown",
+      daysDiff: null,
+      label: "Sin fecha de corte",
+      badgeClassName:
+        "border-border bg-muted/50 text-muted-foreground text-[10px] font-semibold",
+    };
+  }
+
+  const diffDays = Math.ceil(
+    (endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (diffDays < 0) {
+    if (isLatestForClient === false) {
+      return {
+        state: "historical",
+        daysDiff: diffDays,
+        label: "Ciclo anterior",
+        badgeClassName:
+          "border-border/60 bg-muted/40 text-muted-foreground text-[10px] font-semibold",
+      };
+    }
+    const elapsed = Math.abs(diffDays);
+    return {
+      state: "expired",
+      daysDiff: diffDays,
+      label: elapsed === 1 ? "Vencido hace 1d" : `Vencido hace ${elapsed}d`,
+      badgeClassName:
+        "border-destructive/35 bg-destructive/12 text-destructive text-[10px] font-bold",
+    };
+  }
+
+  if (diffDays <= 5) {
+    return {
+      state: "expiring_soon",
+      daysDiff: diffDays,
+      label: diffDays === 0 ? "Vence hoy" : `Por vencer · ${diffDays}d`,
+      badgeClassName:
+        "border-warning/40 bg-warning/15 text-warning-foreground text-[10px] font-bold",
+    };
+  }
+
+  return {
+    state: "active",
+    daysDiff: diffDays,
+    label: `Vigente · ${diffDays}d restantes`,
+    badgeClassName:
+      "border-success/30 bg-success/12 text-success text-[10px] font-bold",
+  };
 }
 
 export type PaymentCardItem = {
@@ -48,7 +135,14 @@ export type PaymentCardItem = {
   payment_method?: string | null;
   reference?: string | null;
   plan_name?: string | null;
-  clients: { full_name: string; email?: string | null; avatar_url?: string | null } | null;
+  is_latest_for_client?: boolean;
+  clients: {
+    full_name: string;
+    email?: string | null;
+    avatar_url?: string | null;
+    membership_end?: string | null;
+    status?: string | null;
+  } | null;
 };
 
 interface PaymentCardsClientProps {
@@ -68,6 +162,35 @@ export function PaymentCardsClient({
     setPayments(initialPayments);
   }, [initialPayments]);
 
+  const counts = useMemo(() => {
+    let activePeriod = 0;
+    let expiredPeriod = 0;
+    let pendingCharge = 0;
+
+    for (const p of payments) {
+      const isPending = !p.paid_at || p.status === "pending";
+      if (isPending) {
+        pendingCharge++;
+      }
+      const validity = getPeriodValidityInfo(
+        p.period_end,
+        p.is_latest_for_client,
+      );
+      if (validity.state === "active" || validity.state === "expiring_soon") {
+        activePeriod++;
+      } else if (validity.state === "expired") {
+        expiredPeriod++;
+      }
+    }
+
+    return {
+      all: payments.length,
+      activePeriod,
+      expiredPeriod,
+      pendingCharge,
+    };
+  }, [payments]);
+
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
       const q = search.trim().toLowerCase();
@@ -76,7 +199,9 @@ export function PaymentCardsClient({
       const reference = p.reference?.toLowerCase() ?? "";
       const planName = p.plan_name?.toLowerCase() ?? "";
       const methodLabel = p.payment_method
-        ? (PAYMENT_METHOD_LABELS[p.payment_method] ?? p.payment_method).toLowerCase()
+        ? (
+            PAYMENT_METHOD_LABELS[p.payment_method] ?? p.payment_method
+          ).toLowerCase()
         : "";
       const matchesSearch =
         !q ||
@@ -88,8 +213,23 @@ export function PaymentCardsClient({
       if (!matchesSearch) return false;
 
       const isPending = !p.paid_at || p.status === "pending";
-      if (statusFilter === "paid") return !isPending;
-      if (statusFilter === "pending") return isPending;
+      const validity = getPeriodValidityInfo(
+        p.period_end,
+        p.is_latest_for_client,
+      );
+
+      if (statusFilter === "active") {
+        return (
+          !isPending &&
+          (validity.state === "active" || validity.state === "expiring_soon")
+        );
+      }
+      if (statusFilter === "expired") {
+        return validity.state === "expired";
+      }
+      if (statusFilter === "pending") {
+        return isPending;
+      }
       return true;
     });
   }, [payments, search, statusFilter]);
@@ -146,15 +286,30 @@ export function PaymentCardsClient({
             onValueChange={setStatusFilter}
             className="w-full sm:w-auto"
           >
-            <TabsList className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto bg-muted/50 p-1 h-11 rounded-xl border border-border/40 shadow-sm">
-              <TabsTrigger value="all" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">
-                Todos ({payments.length})
+            <TabsList className="grid w-full grid-cols-4 sm:inline-flex sm:w-auto bg-muted/50 p-1 h-11 rounded-xl border border-border/40 shadow-sm">
+              <TabsTrigger
+                value="all"
+                className="rounded-lg px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm"
+              >
+                Todos ({counts.all})
               </TabsTrigger>
-              <TabsTrigger value="paid" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">
-                Pagados ({payments.filter((p) => !!p.paid_at).length})
+              <TabsTrigger
+                value="active"
+                className="rounded-lg px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm"
+              >
+                Vigentes ({counts.activePeriod})
               </TabsTrigger>
-              <TabsTrigger value="pending" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">
-                Pendientes ({payments.filter((p) => !p.paid_at).length})
+              <TabsTrigger
+                value="expired"
+                className="rounded-lg px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm"
+              >
+                Vencidos ({counts.expiredPeriod})
+              </TabsTrigger>
+              <TabsTrigger
+                value="pending"
+                className="rounded-lg px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm"
+              >
+                Por cobrar ({counts.pendingCharge})
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -185,6 +340,14 @@ export function PaymentCardsClient({
                   payment.payment_method)
                 : null;
 
+              const validity = getPeriodValidityInfo(
+                payment.period_end,
+                payment.is_latest_for_client,
+              );
+              const needsRenewal =
+                validity.state === "expired" ||
+                validity.state === "expiring_soon";
+
               const menuSections: AdminCardMenuSection[] = [
                 {
                   items: [
@@ -200,14 +363,16 @@ export function PaymentCardsClient({
                     ...(payment.client_id
                       ? [
                           {
+                            label: needsRenewal
+                              ? "Renovar membresía"
+                              : "Registrar nuevo pago",
+                            icon: <RefreshCw className="mr-2 size-4" />,
+                            href: `/admin/payments/new?clientId=${payment.client_id}`,
+                          },
+                          {
                             label: "Ver ficha del asesorado",
                             icon: <Eye className="mr-2 size-4" />,
                             href: `/admin/clients/${payment.client_id}`,
-                          },
-                          {
-                            label: "Registrar nuevo pago",
-                            icon: <CreditCard className="mr-2 size-4" />,
-                            href: `/admin/payments/new?clientId=${payment.client_id}`,
                           },
                         ]
                       : []),
@@ -236,7 +401,14 @@ export function PaymentCardsClient({
                   key={payment.id}
                   menuSections={menuSections}
                   className="h-full"
-                  cardClassName="flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-border/50 bg-card/60 backdrop-blur-xl shadow-sm transition-all hover:shadow-md hover:border-primary/20"
+                  cardClassName={cn(
+                    "flex h-full flex-col overflow-hidden rounded-[1.5rem] border bg-card/60 backdrop-blur-xl shadow-sm transition-all hover:shadow-md",
+                    validity.state === "expired"
+                      ? "border-destructive/30 hover:border-destructive/50"
+                      : validity.state === "expiring_soon"
+                        ? "border-warning/35 hover:border-warning/50"
+                        : "border-border/50 hover:border-primary/20",
+                  )}
                 >
                   <AdminCardHeaderWithActions menuSections={menuSections}>
                     <div className="flex items-start gap-3">
@@ -253,28 +425,56 @@ export function PaymentCardsClient({
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 pr-4 flex-1">
-                        <p className="text-sm font-bold tracking-tight truncate text-foreground leading-tight">
-                          {clientName}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-bold tracking-tight truncate text-foreground leading-tight">
+                            {clientName}
+                          </p>
+                        </div>
                         <p className="text-[11px] text-muted-foreground truncate mt-0.5 font-medium">
                           {payment.paid_at
-                            ? `Cobrado el ${format(parseLocalDate(payment.paid_at), "d MMM yyyy", {
-                                locale: es,
-                              })}`
+                            ? `Cobrado el ${format(
+                                parseLocalDate(payment.paid_at),
+                                "d MMM yyyy",
+                                {
+                                  locale: es,
+                                },
+                              )}`
                             : "Cobro pendiente"}
                           {methodLabel && ` • ${methodLabel}`}
                         </p>
-                        {payment.plan_name && (
-                          <p className="text-[11px] font-semibold text-primary truncate mt-1">
-                            {payment.plan_name}
-                          </p>
-                        )}
+                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                          {payment.plan_name && (
+                            <span className="text-[11px] font-bold text-primary">
+                              {payment.plan_name}
+                            </span>
+                          )}
+                          {validity.state !== "unknown" && (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "rounded-md py-0 px-1.5",
+                                validity.badgeClassName,
+                              )}
+                            >
+                              {validity.state === "expired" ? (
+                                <AlertCircle className="mr-1 size-2.5" />
+                              ) : (
+                                <CalendarClock className="mr-1 size-2.5" />
+                              )}
+                              {validity.label}
+                            </Badge>
+                          )}
+                        </div>
                         {payment.period_start && payment.period_end && (
-                          <p className="text-[11px] text-muted-foreground/80 truncate mt-0.5">
-                            Vigencia:{" "}
-                            {format(parseLocalDate(payment.period_start), "d MMM", {
-                              locale: es,
-                            })}{" "}
+                          <p className="text-[11px] text-muted-foreground/80 truncate mt-1">
+                            Periodo:{" "}
+                            {format(
+                              parseLocalDate(payment.period_start),
+                              "d MMM",
+                              {
+                                locale: es,
+                              },
+                            )}{" "}
                             –{" "}
                             {format(
                               parseLocalDate(payment.period_end),
@@ -291,18 +491,20 @@ export function PaymentCardsClient({
                       </div>
                     </div>
                   </AdminCardHeaderWithActions>
-                  <div className="mt-auto px-4 pb-4">
+                  <div className="mt-auto px-4 pb-4 flex flex-col gap-2">
                     <div className="flex flex-row items-center justify-between bg-muted/30 border border-border/50 rounded-xl p-2.5 px-3">
-                      <Badge
-                        variant="outline"
-                        className={
-                          !isPendingPayment
-                            ? "border-success/30 bg-success/15 text-success text-[10px] uppercase font-bold tracking-wider rounded-md py-0.5 px-2"
-                            : "border-warning/35 bg-warning/12 text-warning-foreground text-[10px] uppercase font-bold tracking-wider rounded-md py-0.5 px-2"
-                        }
-                      >
-                        {!isPendingPayment ? "Pagado" : "Pendiente"}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge
+                          variant="outline"
+                          className={
+                            !isPendingPayment
+                              ? "border-success/30 bg-success/15 text-success text-[10px] uppercase font-bold tracking-wider rounded-md py-0.5 px-2"
+                              : "border-warning/35 bg-warning/12 text-warning-foreground text-[10px] uppercase font-bold tracking-wider rounded-md py-0.5 px-2"
+                          }
+                        >
+                          {!isPendingPayment ? "Cobro liquidado" : "Por cobrar"}
+                        </Badge>
+                      </div>
                       <div className="flex flex-row items-baseline gap-1.5">
                         <span className="text-base font-black tabular-nums tracking-tight text-foreground">
                           $
@@ -313,6 +515,24 @@ export function PaymentCardsClient({
                         </span>
                       </div>
                     </div>
+
+                    {needsRenewal && payment.client_id && (
+                      <Button
+                        asChild
+                        size="sm"
+                        variant={
+                          validity.state === "expired" ? "default" : "secondary"
+                        }
+                        className="w-full h-9 rounded-xl text-xs font-bold"
+                      >
+                        <Link
+                          href={`/admin/payments/new?clientId=${payment.client_id}`}
+                        >
+                          <RefreshCw className="mr-1.5 size-3.5" />
+                          Renovar membresía de {clientName.split(" ")[0]}
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </AdminCardWithActions>
               );

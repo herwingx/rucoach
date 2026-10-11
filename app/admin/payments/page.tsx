@@ -2,6 +2,7 @@ import { getAuthData } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import {
   Plus,
@@ -9,6 +10,9 @@ import {
   Hourglass,
   TrendingUp,
   UserCheck,
+  AlertTriangle,
+  RefreshCw,
+  Clock,
 } from "lucide-react";
 import { AdminKpiStatCard } from "@/components/admin/admin-kpi-stat-card";
 import { createClient } from "@/lib/supabase/server";
@@ -31,8 +35,8 @@ type PaymentQueryRow = {
   payment_method: string | null;
   reference: string | null;
   clients:
-    | { full_name: string; email?: string | null; avatar_url?: string | null }
-    | { full_name: string; email?: string | null; avatar_url?: string | null }[]
+    | { full_name: string; email?: string | null; avatar_url?: string | null; membership_end?: string | null; status?: string | null }
+    | { full_name: string; email?: string | null; avatar_url?: string | null; membership_end?: string | null; status?: string | null }[]
     | null;
   membership_plans:
     | { name: string }
@@ -40,7 +44,10 @@ type PaymentQueryRow = {
     | null;
 };
 
-function toPaymentCardItem(row: PaymentQueryRow): PaymentCardItem {
+function toPaymentCardItem(
+  row: PaymentQueryRow,
+  isLatestForClient: boolean,
+): PaymentCardItem {
   const rel = row.clients;
   const clients =
     rel == null ? null : Array.isArray(rel) ? (rel[0] ?? null) : rel;
@@ -61,6 +68,7 @@ function toPaymentCardItem(row: PaymentQueryRow): PaymentCardItem {
     payment_method: row.payment_method,
     reference: row.reference,
     plan_name: planObj?.name ?? null,
+    is_latest_for_client: isLatestForClient,
     clients,
   };
 }
@@ -70,6 +78,15 @@ function formatMoney(amount: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function getDaysUntilDate(dateStr?: string | null): number | null {
+  if (!dateStr) return null;
+  const datePart = dateStr.slice(0, 10);
+  const endDate = new Date(`${datePart}T23:59:59`);
+  if (Number.isNaN(endDate.getTime())) return null;
+  const diffMs = endDate.getTime() - Date.now();
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 }
 
 export default async function AdminPaymentsPage() {
@@ -83,11 +100,33 @@ export default async function AdminPaymentsPage() {
 
   const { data: coachClients } = await supabase
     .from("clients")
-    .select("id, status, membership_end")
+    .select("id, full_name, status, membership_start, membership_end, current_plan_id")
     .eq("coach_id", user.id);
 
   const clientRows = coachClients ?? [];
   const clientIds = clientRows.map((c) => c.id).filter(Boolean);
+
+  // Auto-sincronizar en BD los clientes cuyo membership_end ya venció pero siguen con status='active'
+  const staleActiveClientIds = clientRows
+    .filter((c) => {
+      if (c.status !== "active" || !c.membership_end) return false;
+      const daysLeft = getDaysUntilDate(c.membership_end);
+      return daysLeft !== null && daysLeft < 0;
+    })
+    .map((c) => c.id);
+
+  if (staleActiveClientIds.length > 0) {
+    await supabase
+      .from("clients")
+      .update({ status: "expired" })
+      .in("id", staleActiveClientIds);
+
+    for (const c of clientRows) {
+      if (staleActiveClientIds.includes(c.id)) {
+        c.status = "expired";
+      }
+    }
+  }
 
   let payments: PaymentCardItem[] = [];
   if (clientIds.length > 0) {
@@ -103,16 +142,22 @@ export default async function AdminPaymentsPage() {
         period_end,
         payment_method,
         reference,
-        clients (full_name, email, avatar_url),
+        clients (full_name, email, avatar_url, membership_end, status),
         membership_plans (name)
       `,
       )
       .in("client_id", clientIds)
       .order("created_at", { ascending: false });
 
-    payments = (data ?? []).map((row) =>
-      toPaymentCardItem(row as unknown as PaymentQueryRow),
-    );
+    const seenLatestByClient = new Set<string>();
+    payments = (data ?? []).map((raw) => {
+      const row = raw as unknown as PaymentQueryRow;
+      const isLatest = !seenLatestByClient.has(row.client_id);
+      if (row.client_id) {
+        seenLatestByClient.add(row.client_id);
+      }
+      return toPaymentCardItem(row, isLatest);
+    });
   }
 
   const now = new Date();
@@ -141,12 +186,36 @@ export default async function AdminPaymentsPage() {
   );
   const pendingCount = payments.filter((p) => !p.paid_at).length;
 
-  const activeClientsCount = clientRows.filter(
-    (c) => c.status === "active",
+  // Evaluar estado efectivo de membresía por cliente usando fecha de corte real
+  const clientsWithEffectiveStatus = clientRows.map((c) => {
+    const daysLeft = getDaysUntilDate(c.membership_end);
+    const isExpired =
+      c.status === "expired" || (daysLeft !== null && daysLeft < 0);
+    const isExpiringSoon =
+      !isExpired && daysLeft !== null && daysLeft >= 0 && daysLeft <= 5;
+    const isActive = !isExpired && c.status === "active";
+    return {
+      ...c,
+      daysLeft,
+      isExpired,
+      isExpiringSoon,
+      isActive,
+    };
+  });
+
+  const activeClientsCount = clientsWithEffectiveStatus.filter(
+    (c) => c.isActive,
   ).length;
-  const expiredClientsCount = clientRows.filter(
-    (c) => c.status === "expired",
-  ).length;
+  const expiredClients = clientsWithEffectiveStatus.filter((c) => c.isExpired);
+  const expiringSoonClients = clientsWithEffectiveStatus.filter(
+    (c) => c.isExpiringSoon,
+  );
+  const expiredClientsCount = expiredClients.length;
+
+  const clientsNeedingAttention = [
+    ...expiredClients,
+    ...expiringSoonClients,
+  ];
 
   return (
     <div className="min-h-dvh bg-background">
@@ -196,15 +265,89 @@ export default async function AdminPaymentsPage() {
             <AdminKpiStatCard
               icon={UserCheck}
               value={`${activeClientsCount}/${clientRows.length}`}
-              label="Membresías Activas"
+              label="Membresías Vigentes"
               description={
                 expiredClientsCount > 0
                   ? `${expiredClientsCount} vencida${expiredClientsCount === 1 ? "" : "s"} por renovar`
-                  : "Todas al corriente"
+                  : expiringSoonClients.length > 0
+                    ? `${expiringSoonClients.length} por vencer pronto`
+                    : "Todas al corriente"
               }
-              tone="neutral"
+              tone={expiredClientsCount > 0 ? "destructive" : "neutral"}
             />
           </div>
+
+          {/* Alerta Operativa de Membresías Vencidas o Próximas a Vencer */}
+          {clientsNeedingAttention.length > 0 && (
+            <Card className="overflow-hidden rounded-2xl border-destructive/30 bg-destructive/5 shadow-sm">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex size-8 items-center justify-center rounded-lg bg-destructive/15 text-destructive shrink-0">
+                        <AlertTriangle className="size-4" />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-bold text-foreground">
+                          Renovaciones de Membresía Requeridas ({clientsNeedingAttention.length})
+                        </h2>
+                        <p className="text-xs text-muted-foreground">
+                          Asesorados cuya vigencia ya terminó o vence en los próximos 5 días.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {clientsNeedingAttention.map((client) => {
+                      const days = client.daysLeft ?? 0;
+                      return (
+                        <div
+                          key={client.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-border/60 bg-card/80 px-3.5 py-2.5 shadow-xs"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-foreground truncate">
+                              {client.full_name}
+                            </p>
+                            <div className="mt-0.5 flex items-center gap-1.5">
+                              {client.isExpired ? (
+                                <Badge
+                                  variant="outline"
+                                  className="border-destructive/35 bg-destructive/10 text-destructive text-[10px] font-bold px-1.5 py-0"
+                                >
+                                  Vencida
+                                  {days < 0 ? ` hace ${Math.abs(days)}d` : ""}
+                                </Badge>
+                              ) : (
+                                <Badge
+                                  variant="outline"
+                                  className="border-warning/40 bg-warning/15 text-warning-foreground text-[10px] font-bold px-1.5 py-0"
+                                >
+                                  <Clock className="mr-1 size-2.5" />
+                                  Vence en {days}d
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            asChild
+                            size="sm"
+                            className="h-8 rounded-lg px-2.5 text-xs font-bold shrink-0"
+                          >
+                            <Link href={`/admin/payments/new?clientId=${client.id}`}>
+                              <RefreshCw className="mr-1.5 size-3" />
+                              Renovar
+                            </Link>
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Payments List */}
           <div className="flex flex-col gap-4">

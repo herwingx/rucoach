@@ -49,6 +49,7 @@ import {
   Calendar,
   AlertTriangle,
   AlertCircle,
+  CreditCard,
 } from "lucide-react";
 import { deleteClient, updateClientStatus } from "@/app/actions/clients";
 import { toast } from "sonner";
@@ -381,6 +382,11 @@ export function ClientManagementContent({
                       label: "Editar",
                       icon: <Edit2 className="mr-2 size-4" />,
                       href: `/admin/clients/${client.id}/edit`,
+                    },
+                    {
+                      label: "Registrar pago / Renovar",
+                      icon: <CreditCard className="mr-2 size-4" />,
+                      href: `/admin/payments/new?clientId=${client.id}`,
                     },
                   ],
                 },

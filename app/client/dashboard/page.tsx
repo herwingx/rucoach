@@ -231,6 +231,7 @@ export default async function ClientDashboard() {
       isRoutineCompleted={isRoutineCompleted}
       userAchievements={userAchievements || []}
       chartData={chartData}
+      membershipEnd={client?.membership_end ?? null}
     />
   );
 }
