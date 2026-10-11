@@ -251,7 +251,12 @@ export function RoutineCardsClient({
                         cloningId === routine.id
                           ? "Duplicando..."
                           : "Duplicar rutina",
-                      icon: <Copy className="mr-2 size-4" />,
+                      icon:
+                        cloningId === routine.id ? (
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                        ) : (
+                          <Copy className="mr-2 size-4" />
+                        ),
                       onClick: () => handleClone(routine.id),
                     },
                   ],
@@ -375,64 +380,6 @@ export function RoutineCardsClient({
                           Carga estimada por frecuencia para planificación
                           semanal.
                         </p>
-                      </div>
-
-                      {/* Quick Action Bar */}
-                      <div className="flex items-center gap-2 pt-1">
-                        <Button
-                          asChild
-                          variant="outline"
-                          size="sm"
-                          className="h-9 flex-1 rounded-xl text-xs font-semibold"
-                        >
-                          <Link href={`/admin/routines/${routine.id}`}>
-                            <Eye className="mr-1.5 size-3.5" />
-                            Ver plan
-                          </Link>
-                        </Button>
-                        <Button
-                          asChild
-                          variant="outline"
-                          size="sm"
-                          className="h-9 flex-1 rounded-xl text-xs font-semibold"
-                        >
-                          <Link href={`/admin/routines/${routine.id}/edit`}>
-                            <Edit2 className="mr-1.5 size-3.5" />
-                            Editar
-                          </Link>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="h-9 rounded-xl px-3 text-xs font-semibold"
-                          onClick={() =>
-                            setAssignTarget({
-                              id: routine.id,
-                              name: routine.name,
-                            })
-                          }
-                          title="Asignar rutina a asesorado"
-                        >
-                          <UserPlus className="mr-1.5 size-3.5" />
-                          Asignar
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="size-9 shrink-0 rounded-xl border border-border/50"
-                          onClick={() => handleClone(routine.id)}
-                          disabled={cloningId === routine.id}
-                          aria-label={`Duplicar rutina ${routine.name}`}
-                          title="Duplicar rutina"
-                        >
-                          {cloningId === routine.id ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <Copy className="size-3.5" />
-                          )}
-                        </Button>
                       </div>
                     </div>
                   </CardContent>

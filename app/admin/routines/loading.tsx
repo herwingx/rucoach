@@ -54,11 +54,7 @@ export default function AdminRoutinesLoading() {
                   <Skeleton className="h-6 w-20 rounded-full" />
                   <Skeleton className="h-6 w-24 rounded-full" />
                 </div>
-                <Skeleton className="h-2 w-full rounded-full" />
-                <div className="flex gap-2">
-                  <Skeleton className="h-9 flex-1 rounded-xl" />
-                  <Skeleton className="h-9 w-24 rounded-xl" />
-                </div>
+                <Skeleton className="h-16 w-full rounded-xl" />
               </CardContent>
             </Card>
           ))}
