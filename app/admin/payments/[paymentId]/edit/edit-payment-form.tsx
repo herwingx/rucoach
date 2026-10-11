@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -18,6 +18,11 @@ import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import { updatePayment } from "@/app/actions/payments";
 import { toast } from "sonner";
 import { format } from "date-fns";
+
+function parseLocalDate(dateStr?: string | null): Date | undefined {
+  if (!dateStr) return undefined;
+  return new Date(dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`);
+}
 
 type PaymentWithClient = {
   id: string;
@@ -38,13 +43,13 @@ export function EditPaymentForm({ payment }: { payment: PaymentWithClient }) {
     payment.payment_method ?? "cash",
   );
   const [paidAt, setPaidAt] = useState<Date | undefined>(
-    payment.paid_at ? new Date(payment.paid_at) : undefined,
+    parseLocalDate(payment.paid_at),
   );
   const [periodStart, setPeriodStart] = useState<Date | undefined>(
-    payment.period_start ? new Date(payment.period_start) : undefined,
+    parseLocalDate(payment.period_start),
   );
   const [periodEnd, setPeriodEnd] = useState<Date | undefined>(
-    payment.period_end ? new Date(payment.period_end) : undefined,
+    parseLocalDate(payment.period_end),
   );
   const [reference, setReference] = useState(payment.reference ?? "");
 
@@ -105,7 +110,7 @@ export function EditPaymentForm({ payment }: { payment: PaymentWithClient }) {
             <Field>
               <FieldLabel htmlFor="paymentMethod">Método de pago</FieldLabel>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger id="paymentMethod">
+                <SelectTrigger id="paymentMethod" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -145,7 +150,7 @@ export function EditPaymentForm({ payment }: { payment: PaymentWithClient }) {
               {isPending ? "Guardando..." : "Guardar cambios"}
             </Button>
             <Button type="button" variant="outline" asChild>
-              <a href="/admin/payments">Cancelar</a>
+              <Link href="/admin/payments">Cancelar</Link>
             </Button>
           </div>
         </form>

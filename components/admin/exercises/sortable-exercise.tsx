@@ -94,22 +94,22 @@ export function SortableExercise({
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-4">
         <button
           type="button"
           className={cn(
-            'hidden shrink-0 cursor-grab touch-none rounded-xl p-2 text-muted-foreground/40 transition-colors',
-            'hover:bg-primary/5 hover:text-primary active:cursor-grabbing sm:flex sm:items-center sm:justify-center',
-            'size-10',
+            'flex items-center justify-center shrink-0 cursor-grab touch-none rounded-xl p-1.5 sm:p-2 text-muted-foreground/40 transition-colors',
+            'hover:bg-primary/5 hover:text-primary active:cursor-grabbing',
+            'min-h-10 min-w-7 sm:min-w-8 size-9 sm:size-10',
           )}
-          aria-label="Arrastrar para reordenar"
+          aria-label="Reordenar ejercicio"
           {...attributes}
           {...listeners}
         >
           <GripVertical className="size-5" />
         </button>
 
-        <div className="relative size-16 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-muted/20 shadow-inner">
+        <div className="relative size-14 sm:size-16 shrink-0 overflow-hidden rounded-xl border border-border/50 bg-muted/20 shadow-inner">
           {exerciseInfo?.gif_url && !imgFailed ? (
             <img
               src={exerciseInfo.gif_url}
@@ -142,48 +142,91 @@ export function SortableExercise({
             )}
           </div>
         </div>
+
+        {/* Acciones en móvil (esquina superior derecha) */}
+        <div className="flex items-center gap-1 shrink-0 sm:hidden">
+          {supersetGroup ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0 rounded-xl text-muted-foreground/60 hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
+              onClick={onRemoveSuperset}
+              aria-label="Quitar de biserie"
+              title="Quitar de biserie"
+            >
+              <Unlink className="size-4" />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-8 shrink-0 rounded-xl text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-500 transition-colors"
+              onClick={onToggleSuperset}
+              aria-label="Añadir a biserie"
+              title="Añadir a biserie (unir con ejercicio anterior)"
+            >
+              <Link2 className="size-4" />
+            </Button>
+          )}
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0 rounded-xl text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive transition-colors"
+            onClick={onRemove}
+            aria-label="Quitar ejercicio"
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
       </div>
 
-      <div className="flex w-full items-end justify-between gap-4 border-t border-border/40 pt-4 sm:w-auto sm:border-0 sm:pt-0">
-        <div className="flex flex-1 items-end gap-2 sm:flex-initial sm:gap-3">
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Series</span>
+      <div className="flex w-full items-end justify-between gap-3 border-t border-border/40 pt-3 sm:w-auto sm:border-0 sm:pt-0">
+        <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:w-auto sm:items-end sm:gap-3">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Series</span>
             <Input
               type="number"
               inputMode="numeric"
               value={sets}
               min={1}
+              aria-label="Series"
               onChange={(e) => onUpdate('sets', Number(e.target.value))}
-              className="h-10 w-14 rounded-xl border-border/80 bg-background text-center font-bold tabular-nums ring-primary/10 focus-visible:ring-4"
+              className="h-10 w-full sm:w-14 rounded-xl border-border/80 bg-background px-2 text-center font-bold tabular-nums ring-primary/10 focus-visible:ring-4"
             />
           </div>
           
-          <div className="flex flex-1 flex-col gap-1.5 sm:flex-initial">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Objetivo / Reps</span>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Objetivo</span>
             <Input
               value={reps}
+              aria-label="Objetivo o repeticiones"
               onChange={(e) => onUpdate('reps', e.target.value)}
-              placeholder="10-12 / RPE 8..."
-              className="h-10 min-w-24 rounded-xl border-border/80 bg-background px-3 text-sm font-medium ring-primary/10 focus-visible:ring-4 sm:w-36"
+              placeholder="10-12"
+              className="h-10 w-full sm:w-36 rounded-xl border-border/80 bg-background px-2.5 sm:px-3 text-sm font-medium ring-primary/10 focus-visible:ring-4"
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Pausa</span>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Pausa</span>
             <Input
               type="number"
               inputMode="numeric"
               min={0}
               step={5}
               value={restSeconds}
+              aria-label="Descanso en segundos"
               onChange={(e) => onUpdate('restSeconds', Number(e.target.value) || 0)}
-              className="h-10 w-16 rounded-xl border-border/80 bg-background text-center font-bold tabular-nums ring-primary/10 focus-visible:ring-4"
+              className="h-10 w-full sm:w-16 rounded-xl border-border/80 bg-background px-2 text-center font-bold tabular-nums ring-primary/10 focus-visible:ring-4"
             />
           </div>
         </div>
 
-        {/* Acciones: biserie + eliminar */}
-        <div className="flex items-center gap-1.5">
+        {/* Acciones en desktop: biserie + eliminar */}
+        <div className="hidden sm:flex items-center gap-1.5">
           {supersetGroup ? (
             <Button
               type="button"

@@ -1,9 +1,10 @@
 import { getAuthUser } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_DATA_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 import { RoutineBuilderLazy } from "./routine-builder-lazy";
 
 export default async function BuilderPage() {
@@ -30,9 +31,9 @@ export default async function BuilderPage() {
         backLabel="Volver a rutinas"
       />
 
-      <main className="container py-8">
+      <div className={ADMIN_DATA_PAGE_SHELL}>
         <RoutineBuilderLazy />
-      </main>
+      </div>
     </div>
   );
 }

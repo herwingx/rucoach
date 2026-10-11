@@ -3,10 +3,25 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser, getUserProfile } from "@/lib/auth-utils";
 
+export async function getRoutineMeta(routineId: string): Promise<{
+  goal: string | null;
+  level: string | null;
+} | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("routines")
+    .select("goal, level")
+    .eq("id", routineId)
+    .maybeSingle();
+  return data ? { goal: data.goal ?? null, level: data.level ?? null } : null;
+}
+
 export async function saveRoutineFromBuilder(data: {
   name: string;
   description: string | null;
   duration_weeks: number;
+  goal?: string | null;
+  level?: string | null;
   days: {
     day_number: number;
     day_name: string;
@@ -37,6 +52,8 @@ export async function saveRoutineFromBuilder(data: {
     name: data.name,
     description: data.description,
     duration_weeks: data.duration_weeks,
+    goal: data.goal || null,
+    level: data.level || null,
     days_per_week: data.days.length,
   });
 
@@ -54,18 +71,19 @@ export async function saveRoutineFromBuilder(data: {
 
     if (dayError) throw new Error(dayError.message);
 
-    for (const ex of day.exercises) {
+    if (day.exercises.length > 0) {
+      const exercisesPayload = day.exercises.map((ex) => ({
+        routine_day_id: dayId,
+        exercise_id: ex.exercise_id,
+        order_index: ex.order_index,
+        sets: ex.sets,
+        reps: ex.reps,
+        rest_seconds: ex.rest_seconds,
+        superset_group: ex.superset_group ?? null,
+      }));
       const { error: reError } = await supabase
         .from("routine_exercises")
-        .insert({
-          routine_day_id: dayId,
-          exercise_id: ex.exercise_id,
-          order_index: ex.order_index,
-          sets: ex.sets,
-          reps: ex.reps,
-          rest_seconds: ex.rest_seconds,
-          superset_group: ex.superset_group ?? null,
-        });
+        .insert(exercisesPayload);
       if (reError) throw new Error(reError.message);
     }
   }
@@ -79,6 +97,8 @@ export async function updateRoutineFromBuilder(
     name: string;
     description: string | null;
     duration_weeks: number;
+    goal?: string | null;
+    level?: string | null;
     days: {
       day_number: number;
       day_name: string;
@@ -119,6 +139,8 @@ export async function updateRoutineFromBuilder(
       name: data.name,
       description: data.description,
       duration_weeks: data.duration_weeks,
+      goal: data.goal || null,
+      level: data.level || null,
       days_per_week: data.days.length,
       updated_at: new Date().toISOString(),
     })
@@ -126,14 +148,12 @@ export async function updateRoutineFromBuilder(
 
   if (routineError) throw new Error(routineError.message);
 
-  const { data: existingDays } = await supabase
+  const { error: deleteDaysError } = await supabase
     .from("routine_days")
-    .select("id")
+    .delete()
     .eq("routine_id", routineId);
 
-  for (const day of existingDays || []) {
-    await supabase.from("routine_days").delete().eq("id", day.id);
-  }
+  if (deleteDaysError) throw new Error(deleteDaysError.message);
 
   for (const day of data.days) {
     const dayId = crypto.randomUUID();
@@ -147,18 +167,19 @@ export async function updateRoutineFromBuilder(
 
     if (dayError) throw new Error(dayError.message);
 
-    for (const ex of day.exercises) {
+    if (day.exercises.length > 0) {
+      const exercisesPayload = day.exercises.map((ex) => ({
+        routine_day_id: dayId,
+        exercise_id: ex.exercise_id,
+        order_index: ex.order_index,
+        sets: ex.sets,
+        reps: ex.reps,
+        rest_seconds: ex.rest_seconds,
+        superset_group: ex.superset_group ?? null,
+      }));
       const { error: reError } = await supabase
         .from("routine_exercises")
-        .insert({
-          routine_day_id: dayId,
-          exercise_id: ex.exercise_id,
-          order_index: ex.order_index,
-          sets: ex.sets,
-          reps: ex.reps,
-          rest_seconds: ex.rest_seconds,
-          superset_group: ex.superset_group ?? null,
-        });
+        .insert(exercisesPayload);
       if (reError) throw new Error(reError.message);
     }
   }

@@ -2,7 +2,10 @@ import { getAuthUser, getUserRole } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { EditClientForm } from "./edit-client-form";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_FORM_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 
 interface Props {
   params: Promise<{ clientId: string }>;
@@ -35,9 +38,9 @@ export default async function EditClientPage({ params }: Props) {
         backLabel="Volver al asesorado"
       />
 
-      <main className="container py-8 max-w-2xl">
+      <div className={ADMIN_FORM_PAGE_SHELL}>
         <EditClientForm client={client} />
-      </main>
+      </div>
     </div>
   );
 }

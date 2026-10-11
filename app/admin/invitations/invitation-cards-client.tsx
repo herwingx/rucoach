@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Copy, Power, Trash2, MoreVertical, Mail, Calendar, Key, UserPlus } from "lucide-react";
@@ -51,6 +51,10 @@ export function InvitationCardsClient({
   const [codes, setCodes] = useState(initialCodes);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    setCodes(initialCodes);
+  }, [initialCodes]);
 
   const handleCopy = (code: string) => {
     const url =
@@ -162,7 +166,7 @@ export function InvitationCardsClient({
                     )}
                     
                     {code.for_role === "admin" ? (
-                      <Badge variant="outline" className="text-amber-600 border-amber-500/30 bg-amber-500/5 text-[10px] uppercase">
+                      <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/5 text-[10px] uppercase">
                         Coach
                       </Badge>
                     ) : (
@@ -207,7 +211,7 @@ export function InvitationCardsClient({
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="size-9 rounded-full sm:rounded-lg">
+                    <Button variant="ghost" size="icon" aria-label="Más opciones" className="size-9 rounded-full sm:rounded-lg">
                       <MoreVertical className="size-4" />
                     </Button>
                   </DropdownMenuTrigger>

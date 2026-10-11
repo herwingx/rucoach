@@ -120,22 +120,32 @@ export async function assignRoutineToClient(
       .single();
 
     if (clientInfo && routineInfo?.name) {
+      const tasks: Promise<unknown>[] = [];
       if (clientInfo.email) {
         const { sendNewRoutineNotification } = await import("@/lib/email");
-        sendNewRoutineNotification({
-          to: clientInfo.email,
-          clientName: clientInfo.full_name,
-          routineName: routineInfo.name,
-        }).catch((err) => console.error("Error enviando email rutina:", err));
+        tasks.push(
+          sendNewRoutineNotification({
+            to: clientInfo.email,
+            clientName: clientInfo.full_name,
+            routineName: routineInfo.name,
+          }).catch((err) => console.error("Error enviando email rutina:", err)),
+        );
       }
 
       if (clientInfo.user_id) {
-        const { sendPushNotification } = await import("@/app/actions/web-push");
-        sendPushNotification(clientInfo.user_id, {
-          title: "🔥 ¡Nueva Rutina Asignada!",
-          body: `Tu coach ha subido tu bloque: ${routineInfo.name}. ¡A darle!`,
-          data: { url: "/client/dashboard" },
-        }).catch((err) => console.error("Error enviando push rutina:", err));
+        const { notifyUser } = await import("@/lib/push");
+        tasks.push(
+          notifyUser(clientInfo.user_id, {
+            title: "🔥 ¡Nueva Rutina Asignada!",
+            body: `Tu coach ha subido tu bloque: ${routineInfo.name}. ¡A darle!`,
+            url: "/client/routines",
+            tag: "routine-assigned",
+          }),
+        );
+      }
+
+      if (tasks.length > 0) {
+        await Promise.allSettled(tasks);
       }
     }
   } catch (err) {
@@ -222,6 +232,7 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
       client_id,
       current_week,
       routine_id,
+      override_next_day_id,
       routines (
         duration_weeks,
         days_per_week
@@ -259,21 +270,33 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
       is_rest_day,
       routine_exercises (
         id,
+        exercise_id,
+        order_index,
         sets,
         reps,
         rest_seconds,
+        superset_group,
         exercises (
           id,
           name,
+          name_es,
           primary_muscle,
           secondary_muscle,
+          secondary_muscles,
+          secondary_muscles_es,
+          body_parts,
+          body_parts_es,
           equipment,
+          equipment_es,
           exercise_type,
+          uses_external_load,
           gif_url,
           image_url,
           demo_video_url,
           instructions,
+          instructions_es,
           target_muscles,
+          target_muscles_es,
           technique_notes
         )
       )
@@ -283,7 +306,14 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
 
   if (daysError) throw daysError;
 
-  const sortedDays = sortRoutineDaysByDayNumber(routineDaysRaw ?? []);
+  const sortedDays = sortRoutineDaysByDayNumber(routineDaysRaw ?? []).map(
+    (d) => ({
+      ...d,
+      routine_exercises: [...(d.routine_exercises ?? [])].sort(
+        (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0),
+      ),
+    }),
+  );
   if (!sortedDays.length) {
     return {
       isComplete: false,
@@ -314,7 +344,21 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
     }
   }
 
-  const nextIdx = getNextRoutineDayIndex(sortedDays, lastRoutineDayId);
+  const overrideDayId = (
+    clientRoutine as { override_next_day_id?: string | null }
+  ).override_next_day_id;
+  const overrideIdx = overrideDayId
+    ? sortedDays.findIndex(
+        (d) =>
+          d.id === overrideDayId &&
+          !d.is_rest_day &&
+          Array.isArray(d.routine_exercises) &&
+          d.routine_exercises.length > 0,
+      )
+    : -1;
+
+  const computedIdx = getNextRoutineDayIndex(sortedDays, lastRoutineDayId);
+  const nextIdx = overrideIdx >= 0 ? overrideIdx : computedIdx;
   const routineDay = nextIdx === null ? null : sortedDays[nextIdx];
 
   if (!routineDay) {
@@ -327,6 +371,18 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
     };
   }
 
+  let exercisesWithOverrides = routineDay.routine_exercises || [];
+  if (exercisesWithOverrides.length > 0) {
+    const { applyExerciseOverrides } = await import(
+      "@/app/actions/routine-overrides"
+    );
+    exercisesWithOverrides = await applyExerciseOverrides(
+      clientRoutine.id,
+      exercisesWithOverrides,
+      supabase,
+    );
+  }
+
   const blockLabel = routineDay.day_name
     ? `Día ${routineDay.day_number} · ${routineDay.day_name}`
     : `Día ${routineDay.day_number}`;
@@ -337,7 +393,7 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
     day: nextIdx,
     dayName: routineDay.day_name,
     isRestDay: routineDay.is_rest_day,
-    exercises: routineDay.routine_exercises || [],
+    exercises: exercisesWithOverrides,
     message: `Próximo bloque: ${blockLabel}`,
   };
 }

@@ -11,17 +11,20 @@ import {
 import { GymSettingsForm } from "./gym-settings-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Building2,
-  Dumbbell,
-  Globe2,
+  CreditCard,
   Library,
   User,
   Settings,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_DATA_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 import { CoachProfileSettings } from "@/components/admin/coach-profile-settings";
+import { MembershipPlansSettings } from "@/components/admin/membership-plans-settings";
+import { cn } from "@/lib/utils";
 
 export default async function AdminSettingsPage() {
   const { user, role, profile } = await getAuthData();
@@ -30,11 +33,27 @@ export default async function AdminSettingsPage() {
 
   const supabase = await createClient();
 
-  const { data: gymSettings } = await supabase
-    .from("gym_settings")
-    .select("gym_name, phone, schedule, currency, timezone")
-    .eq("admin_id", user.id)
-    .single();
+  const [{ data: gymSettings }, { data: membershipPlans }] = await Promise.all([
+    supabase
+      .from("gym_settings")
+      .select("gym_name, phone, schedule, currency, timezone")
+      .eq("admin_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("membership_plans")
+      .select("id, name, duration_days, price, description, is_active, coach_id")
+      .order("price", { ascending: true }),
+  ]);
+
+  const normalizedPlans = (membershipPlans ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    duration_days: Number(p.duration_days) || 30,
+    price: Number(p.price) || 0,
+    description: p.description ?? null,
+    is_active: Boolean(p.is_active ?? true),
+    coach_id: p.coach_id ?? null,
+  }));
 
   return (
     <div className="min-h-screen bg-background">
@@ -44,7 +63,7 @@ export default async function AdminSettingsPage() {
         description="Administra los datos de tu negocio y la experiencia de tus asesorados."
       />
 
-      <main className="container py-6 sm:py-8">
+      <div className={cn(ADMIN_DATA_PAGE_SHELL, "space-y-8")}>
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
 
           <Tabs defaultValue="profile" className="flex flex-col gap-6">
@@ -55,6 +74,13 @@ export default async function AdminSettingsPage() {
               >
                 <User className="size-4" />
                 Mi perfil
+              </TabsTrigger>
+              <TabsTrigger
+                value="plans"
+                className="shrink-0 gap-2 rounded-xl px-4 py-2 data-[state=active]:shadow-md"
+              >
+                <CreditCard className="size-4" />
+                Planes y Tarifas
               </TabsTrigger>
               <TabsTrigger
                 value="general"
@@ -76,6 +102,12 @@ export default async function AdminSettingsPage() {
                 userId={user.id}
                 initialFullName={profile?.full_name}
                 initialAvatarUrl={profile?.avatar_url}
+              />
+            </TabsContent>
+            <TabsContent value="plans" className="mt-0">
+              <MembershipPlansSettings
+                initialPlans={normalizedPlans}
+                currency={gymSettings?.currency ?? "MXN"}
               />
             </TabsContent>
             <TabsContent value="general" className="mt-0">
@@ -136,7 +168,7 @@ export default async function AdminSettingsPage() {
             </TabsContent>
           </Tabs>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

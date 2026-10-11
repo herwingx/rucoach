@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { AdminClientStatusBadge } from "@/components/admin/admin-client-status-badge";
 import { toast } from "sonner";
 import { CheckCircle, XCircle, Calendar, Mail } from "lucide-react";

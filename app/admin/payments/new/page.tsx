@@ -1,8 +1,11 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthData } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { NewPaymentForm } from "./new-payment-form";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_FORM_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 
 type MembershipPlanRow = {
   id: string;
@@ -11,45 +14,50 @@ type MembershipPlanRow = {
   duration_days: number;
 };
 
-export default async function NewPaymentPage() {
-  const user = await getAuthUser();
+export default async function NewPaymentPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ clientId?: string }>;
+}) {
+  const { user, role } = await getAuthData();
 
-  if (!user) {
+  if (!user || role !== "admin") {
     redirect("/auth/login");
   }
 
-  // Get list of clients
-  const supabase = await createClient();
-  const { data: clients } = await supabase
-    .from("clients")
-    .select("id, full_name, email")
-    .eq("coach_id", user.id)
-    .eq("status", "active")
-    .order("full_name");
+  const resolvedParams = searchParams ? await searchParams : {};
+  const initialClientId = resolvedParams?.clientId;
 
-  // Get membership plans
-  const { data: plans } = await supabase
-    .from("membership_plans")
-    .select("id, name, price, duration_days")
-    .eq("is_active", true)
-    .order("name");
+  const supabase = await createClient();
+  const [{ data: clients }, { data: plans }] = await Promise.all([
+    supabase
+      .from("clients")
+      .select("id, full_name, email, status, current_plan_id, membership_end")
+      .eq("coach_id", user.id)
+      .order("full_name"),
+    supabase
+      .from("membership_plans")
+      .select("id, name, price, duration_days")
+      .eq("is_active", true)
+      .order("name"),
+  ]);
 
   return (
-    <div className="bg-background">
+    <div className="min-h-dvh bg-background">
       <AdminPageHeader
         title="Registrar Nuevo Pago"
+        description="Registra un cobro o cargo pendiente y actualiza automáticamente la vigencia del asesorado"
         backHref="/admin/payments"
         backLabel="Volver a pagos"
       />
 
-      <main className="container py-6 sm:py-8">
-        <div className="mx-auto max-w-2xl">
-          <NewPaymentForm
-            clients={clients || []}
-            plans={(plans ?? []) as MembershipPlanRow[]}
-          />
-        </div>
-      </main>
+      <div className={ADMIN_FORM_PAGE_SHELL}>
+        <NewPaymentForm
+          clients={clients || []}
+          plans={(plans ?? []) as MembershipPlanRow[]}
+          initialClientId={initialClientId}
+        />
+      </div>
     </div>
   );
 }

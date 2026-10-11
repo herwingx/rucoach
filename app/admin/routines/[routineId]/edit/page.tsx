@@ -2,7 +2,10 @@ import { getAuthUser } from "@/lib/auth-utils";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_DATA_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 import { RoutineBuilderClient } from "../../builder/routine-builder-client";
 
 type RoutineExerciseRow = {
@@ -94,6 +97,8 @@ export default async function EditRoutinePage({ params }: Props) {
     name: routine.name,
     description: routine.description || "",
     durationWeeks: routine.duration_weeks || 4,
+    goal: routine.goal ?? "",
+    level: routine.level ?? "",
     days: dayNames.map((name, i) => {
       const rd = existingDays.find((d) => d.day_number === i + 1);
       if (rd) {
@@ -142,12 +147,12 @@ export default async function EditRoutinePage({ params }: Props) {
         backLabel="Volver a la rutina"
       />
 
-      <main className="container py-8">
+      <div className={ADMIN_DATA_PAGE_SHELL}>
         <RoutineBuilderClient
           routineId={routineId}
           initialData={builderInitialData}
         />
-      </main>
+      </div>
     </div>
   );
 }

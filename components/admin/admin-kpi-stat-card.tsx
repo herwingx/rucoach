@@ -45,7 +45,7 @@ export function AdminKpiStatCard({
   return (
     <Card
       className={cn(
-        'min-w-0 overflow-visible border-muted/70 shadow-none transition-shadow hover:shadow-md',
+        'py-0 gap-0 min-w-0 overflow-visible rounded-2xl border-border/50 bg-card/60 backdrop-blur-xl shadow-sm transition-shadow hover:shadow-md',
         className,
       )}
     >

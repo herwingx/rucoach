@@ -44,7 +44,7 @@ export async function createNewClient(formData: FormData) {
 
   const clientId = crypto.randomUUID();
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("clients")
     .insert([
       {

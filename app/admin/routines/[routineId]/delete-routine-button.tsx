@@ -64,9 +64,10 @@ export function DeleteRoutineButton({
         <AlertDialogHeader>
           <AlertDialogTitle>¿Eliminar rutina?</AlertDialogTitle>
           <AlertDialogDescription>
-            Se eliminará &quot;{routineName}&quot; y todos sus días y
-            ejercicios. Esta acción no se puede deshacer. Si la rutina está
-            asignada a clientes, la asignación también se eliminará.
+            Se eliminará &quot;{routineName}&quot; junto con todos sus días y
+            ejercicios configurados. Esta acción no se puede deshacer. Nota: no
+            podrás eliminar una rutina si está asignada a clientes o tiene
+            sesiones registradas.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

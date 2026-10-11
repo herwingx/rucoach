@@ -54,9 +54,15 @@ import {
   LayoutGrid,
   Diff,
   Trophy,
+  ShieldAlert,
+  RefreshCw,
+  RotateCcw,
+  CheckCircle2,
+  MessageSquareQuote,
 } from "lucide-react";
 import { getGoalLabel } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
 import type { Routine, WorkoutSession } from "@/lib/types";
 import type { SessionExerciseLogRow } from "@/lib/workouts";
 import {
@@ -66,6 +72,10 @@ import {
   workoutStatusLabelEs,
 } from "@/lib/format-workout-session";
 import { AchievementBadge } from "@/components/client/achievement-badge";
+import {
+  resolveClientPainReport,
+  revertExerciseOverride,
+} from "@/app/actions/routine-overrides";
 
 import { PhotoGallery } from "@/components/photos/photo-gallery";
 import { PhotoCompare } from "@/components/photos/photo-compare";
@@ -91,6 +101,11 @@ type BodyMeasurementRow = {
   recorded_at: string;
   weight?: number | null;
   body_fat_pct?: number | null;
+  waist_cm?: number | null;
+  hip_cm?: number | null;
+  chest_cm?: number | null;
+  arm_cm?: number | null;
+  thigh_cm?: number | null;
 };
 
 // Actualizado para coincidir con el componente PhotoCard
@@ -200,6 +215,62 @@ function formatSetLine(log: SessionExerciseLogRow) {
   );
 }
 
+export type HubPainReport = {
+  id: string;
+  body_region: string;
+  severity: number;
+  notes: string | null;
+  is_active: boolean;
+  reported_at: string;
+};
+
+export type HubExerciseOverride = {
+  id: string;
+  client_routine_id: string;
+  original_routine_exercise_id: number;
+  replacement_exercise_id: string;
+  reason: string | null;
+  changed_by: "client" | "coach";
+  created_at: string;
+  exercises?: {
+    id: string;
+    name: string;
+    name_es?: string | null;
+  } | null;
+  routine_exercises?: {
+    id: number;
+    exercises?: {
+      id: string;
+      name: string;
+      name_es?: string | null;
+    } | null;
+    routine_days?: {
+      day_number?: number | null;
+      day_name?: string | null;
+    } | null;
+  } | null;
+};
+
+const PAIN_REGION_LABELS_ES: Record<string, string> = {
+  hombro: "Hombro",
+  codo: "Codo",
+  muñeca: "Muñeca",
+  espalda_baja: "Espalda baja",
+  rodilla: "Rodilla",
+  cadera: "Cadera",
+  tobillo: "Tobillo",
+  cuello: "Cuello",
+  otro: "Otra zona",
+};
+
+const FEELING_LABELS_ES: Record<number, string> = {
+  1: "1/5 · Muy ligero",
+  2: "2/5 · Bien",
+  3: "3/5 · Exigente",
+  4: "4/5 · Intenso",
+  5: "5/5 · Al límite",
+};
+
 const PROGRESS_VIEWPORT = 12;
 
 export function ClientProfileHub({
@@ -212,6 +283,8 @@ export function ClientProfileHub({
   progressPhotos,
   personalRecords,
   userAchievements,
+  painReports = [],
+  exerciseOverrides = [],
   clientId,
 }: {
   client: ClientHubClient;
@@ -223,12 +296,49 @@ export function ClientProfileHub({
   progressPhotos: ProgressPhotoRow[];
   personalRecords: any[];
   userAchievements: any[];
+  painReports?: HubPainReport[];
+  exerciseOverrides?: HubExerciseOverride[];
   clientId?: string;
 }) {
   const [tab, setTab] = useState("summary");
+  const [savedNotes, setSavedNotes] = useState<string>(client?.notes || "");
   const [notesDraft, setNotesDraft] = useState<string>(client?.notes || "");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [painReportsState, setPainReportsState] = useState<HubPainReport[]>(painReports);
+  const [resolvingPainId, setResolvingPainId] = useState<string | null>(null);
+  const [overridesState, setOverridesState] = useState<HubExerciseOverride[]>(exerciseOverrides);
+  const [revertingOverrideId, setRevertingOverrideId] = useState<string | null>(null);
+
+  async function handleResolvePain(reportId: string) {
+    setResolvingPainId(reportId);
+    try {
+      const res = await resolveClientPainReport(reportId);
+      if (!res.success) {
+        toast.error(res.error || "No se pudo marcar como resuelto");
+        return;
+      }
+      setPainReportsState((prev) => prev.filter((r) => r.id !== reportId));
+      toast.success("Reporte de molestia marcado como resuelto");
+    } finally {
+      setResolvingPainId(null);
+    }
+  }
+
+  async function handleRevertOverride(overrideId: string) {
+    setRevertingOverrideId(overrideId);
+    try {
+      const res = await revertExerciseOverride(overrideId);
+      if (!res.success) {
+        toast.error(res.error || "No se pudo restaurar el ejercicio original");
+        return;
+      }
+      setOverridesState((prev) => prev.filter((o) => o.id !== overrideId));
+      toast.success("Ejercicio original restaurado para este atleta");
+    } finally {
+      setRevertingOverrideId(null);
+    }
+  }
 
   const lastSessionAt =
     workoutSessions?.[0]?.started_at || client?.last_session_at || null;
@@ -289,18 +399,101 @@ export function ClientProfileHub({
         .update({ notes: notesDraft || null })
         .eq("id", client.id);
 
-      if (error) throw error;
-      setIsSaving(false);
+      if (error) {
+        toast.error("No se pudieron guardar las notas");
+        setSaveError(error.message);
+        return;
+      }
+
+      setSavedNotes(notesDraft);
+      toast.success("Notas guardadas");
     } catch (e: unknown) {
-      setIsSaving(false);
+      toast.error("No se pudieron guardar las notas");
       setSaveError(e instanceof Error ? e.message : "Error al guardar notas");
+    } finally {
+      setIsSaving(false);
     }
   }
 
   return (
     <div className="flex flex-col gap-6">
+      {painReportsState.length > 0 && (
+        <div
+          role="region"
+          aria-label="Reportes activos de dolor o lesión"
+          className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 sm:p-5 shadow-sm"
+        >
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                <ShieldAlert className="size-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black tracking-tight text-foreground">
+                  Atención clínica: Molestia o dolor activo ({painReportsState.length})
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  El atleta reportó estas molestias desde su perfil. La auto-progresión agresiva está pausada en las zonas afectadas.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {painReportsState.map((report) => {
+              const regionLabel =
+                PAIN_REGION_LABELS_ES[report.body_region] ??
+                report.body_region.replace(/_/g, " ");
+              const isHighSeverity = report.severity >= 7;
+              return (
+                <div
+                  key={report.id}
+                  className="flex items-start justify-between gap-3 rounded-xl border border-amber-500/30 bg-background/80 p-3.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold text-foreground capitalize">
+                        {regionLabel}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          isHighSeverity
+                            ? "border-destructive/40 bg-destructive/15 text-destructive font-black text-[10px]"
+                            : "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-black text-[10px]"
+                        }
+                      >
+                        Severidad {report.severity}/10
+                      </Badge>
+                      <span className="text-[11px] text-muted-foreground">
+                        · {formatDate(report.reported_at)}
+                      </span>
+                    </div>
+                    {report.notes ? (
+                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                        “{report.notes}”
+                      </p>
+                    ) : null}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={resolvingPainId === report.id}
+                    onClick={() => handleResolvePain(report.id)}
+                    className="h-8 shrink-0 gap-1.5 rounded-lg text-xs font-semibold"
+                  >
+                    <CheckCircle2 className="size-3.5 text-emerald-500" />
+                    {resolvingPainId === report.id ? "..." : "Resuelto"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <div className="sticky top-0 z-10 -mx-4 px-4 py-2 bg-background/95 backdrop-blur-md border-b sm:static sm:z-auto sm:mx-0 sm:px-0 sm:py-0 sm:bg-transparent sm:border-none">
+        <div className="-mx-4 px-4 py-2 bg-background/95 border-b border-border/40 mb-2 sm:mx-0 sm:px-0 sm:py-0 sm:bg-transparent sm:border-none sm:mb-0">
           <ScrollArea className="w-full whitespace-nowrap pb-1">
             <TabsList className="inline-flex w-auto bg-card/60 backdrop-blur-xl p-1 h-12 rounded-[1rem] border border-border/50 shadow-sm mb-1">
               <TabsTrigger
@@ -316,6 +509,11 @@ export function ClientProfileHub({
               >
                 <Dumbbell className="size-4" />
                 Rutina
+                {overridesState.length > 0 && (
+                  <span className="ml-0.5 inline-flex size-5 items-center justify-center rounded-full bg-amber-500/20 text-[10px] font-black text-amber-600 dark:text-amber-400">
+                    {overridesState.length}
+                  </span>
+                )}
               </TabsTrigger>
               <TabsTrigger
                 value="history"
@@ -430,7 +628,7 @@ export function ClientProfileHub({
                     <CardTitle className="text-[16px] sm:text-[17px] font-bold">Resumen del atleta</CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 sm:px-6 pb-5 sm:pb-6">
-                    <div className="flex flex-col xs:flex-row items-center xs:items-start gap-4 sm:gap-6 text-center xs:text-left">
+                    <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
                       <Avatar className="size-[5rem] sm:size-[4.5rem] rounded-[1.2rem] border-2 border-background shadow-sm shrink-0">
                         {client?.avatar_url ? (
                           <AvatarImage
@@ -445,17 +643,17 @@ export function ClientProfileHub({
                       </Avatar>
 
                       <div className="flex flex-col gap-2 min-w-0 flex-1 w-full">
-                        <div className="flex flex-col xs:flex-row xs:items-center gap-2 xs:gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
                           <div className="text-xl sm:text-2xl font-bold leading-tight break-words">
                             {client?.full_name || "-"}
                           </div>
-                          <div className="flex justify-center xs:justify-start">
+                          <div className="flex justify-center sm:justify-start">
                             {client?.status ? (
                               <AdminClientStatusBadge status={client.status} />
                             ) : null}
                           </div>
                         </div>
-                        <div className="flex flex-col gap-0.5 text-[13px] sm:text-[14px] font-medium opacity-90 text-muted-foreground items-center xs:items-start">
+                        <div className="flex flex-col gap-0.5 text-[13px] sm:text-[14px] font-medium opacity-90 text-muted-foreground items-center sm:items-start">
                           {client?.email ? (
                             <span className="break-all">{client.email}</span>
                           ) : (
@@ -463,12 +661,12 @@ export function ClientProfileHub({
                           )}
                           {client?.phone && <span className="break-all">{client.phone}</span>}
                         </div>
-                        <div className="mt-1 flex flex-col items-center xs:items-start gap-3">
-                          <div className="inline-flex flex-wrap items-center justify-center xs:justify-start gap-x-2 gap-y-1 text-sm bg-muted/30 rounded-xl px-4 py-2.5 w-full xs:w-fit border border-border/20">
+                        <div className="mt-1 flex flex-col items-center sm:items-start gap-3">
+                          <div className="inline-flex flex-wrap items-center justify-center sm:justify-start gap-x-2 gap-y-1 text-sm bg-muted/30 rounded-xl px-4 py-2.5 w-full sm:w-fit border border-border/20">
                             <span className="font-bold text-foreground">
                             {client?.plan_name ? client.plan_name : "Sin plan activo"}
                             </span>
-                            <span className="opacity-30 text-muted-foreground hidden xs:inline">·</span>
+                            <span className="opacity-30 text-muted-foreground hidden sm:inline">·</span>
                             <span className="font-medium text-muted-foreground text-[13px]">
                               {client?.days_until_expiry != null
                                 ? client.days_until_expiry > 0
@@ -476,9 +674,22 @@ export function ClientProfileHub({
                                   : "Membresía vencida"
                                 : "Sin fecha de vencimiento"}
                             </span>
+                            {client?.id && (
+                              <>
+                                <span className="opacity-30 text-muted-foreground hidden sm:inline">·</span>
+                                <Link
+                                  href={`/admin/payments/new?clientId=${client.id}`}
+                                  className="text-xs font-bold text-primary hover:underline"
+                                >
+                                  {client?.days_until_expiry != null && client.days_until_expiry <= 0
+                                    ? "Renovar membresía"
+                                    : "Registrar cobro"}
+                                </Link>
+                              </>
+                            )}
                           </div>
                           
-                          <div className="flex flex-wrap justify-center xs:justify-start gap-2">
+                          <div className="flex flex-wrap justify-center sm:justify-start gap-2">
                             {client?.goal && (
                               <Badge variant="secondary" className="text-[10px] font-black uppercase tracking-widest gap-1.5 bg-primary/10 text-primary border-primary/20 py-1 px-2.5">
                                 <Target className="size-3" />
@@ -554,7 +765,7 @@ export function ClientProfileHub({
                  </div>
                </CardHeader>
                <CardContent className="p-4 sm:p-6">
-                 <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-4 sm:gap-6">
+                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 sm:gap-6">
                    {userAchievements.slice(0, 8).map((ua) => (
                      <div key={ua.id} className="flex justify-center">
                        <AchievementBadge
@@ -572,8 +783,75 @@ export function ClientProfileHub({
         </TabsContent>
 
         <TabsContent value="routine" className="flex flex-col gap-4 pt-2">
+          {overridesState.length > 0 && (
+            <Card className="border-amber-500/35 bg-amber-500/5 backdrop-blur-xl rounded-[1.5rem] shadow-sm overflow-hidden">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base font-bold">
+                  <RefreshCw className="size-4 text-amber-600 dark:text-amber-400" />
+                  Ejercicios intercambiados por el atleta ({overridesState.length})
+                </CardTitle>
+                <CardDescription>
+                  El asesorado cambió estos ejercicios en su rutina activa (por equipo ocupado o molestia). Puedes mantener el reemplazo o restaurar el ejercicio original.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-2.5 px-4 sm:px-6 pb-5">
+                {overridesState.map((ov) => {
+                  const origEx = ov.routine_exercises?.exercises;
+                  const origName = origEx?.name_es || origEx?.name || "Ejercicio original";
+                  const newName =
+                    ov.exercises?.name_es || ov.exercises?.name || "Ejercicio alternativo";
+                  const rd = ov.routine_exercises?.routine_days;
+                  const dayLabel = rd?.day_number
+                    ? `Día ${rd.day_number}${rd.day_name ? ` · ${rd.day_name}` : ""}`
+                    : "Rutina activa";
+                  return (
+                    <div
+                      key={ov.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-border/60 bg-background/80 p-3.5"
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-muted-foreground">
+                          <Badge variant="secondary" className="text-[10px] font-bold">
+                            {dayLabel}
+                          </Badge>
+                          <span>·</span>
+                          <span>Cambiado el {formatDate(ov.created_at)}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                          <span className="line-through text-muted-foreground">
+                            {origName}
+                          </span>
+                          <span className="text-muted-foreground font-bold">→</span>
+                          <span className="font-bold text-foreground">{newName}</span>
+                        </div>
+                        {ov.reason ? (
+                          <p className="text-xs text-muted-foreground">
+                            Motivo: <span className="italic">“{ov.reason}”</span>
+                          </p>
+                        ) : null}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={revertingOverrideId === ov.id}
+                        onClick={() => handleRevertOverride(ov.id)}
+                        className="h-9 shrink-0 gap-1.5 rounded-xl text-xs font-semibold"
+                      >
+                        <RotateCcw className="size-3.5" />
+                        {revertingOverrideId === ov.id
+                          ? "Restaurando…"
+                          : "Restaurar original"}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="border-border/50 bg-card/60 backdrop-blur-xl rounded-[1.5rem] shadow-sm overflow-hidden">
-            <CardHeader className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-4 pb-3">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-3">
               <CardTitle className="flex items-center gap-2 text-base font-bold">
                 <Dumbbell className="size-4 text-primary" />
                 Rutina asignada
@@ -583,7 +861,7 @@ export function ClientProfileHub({
                   asChild
                   size="sm"
                   variant={routine ? "outline" : "default"}
-                  className="w-full xs:w-auto h-9 font-bold text-[13px]"
+                  className="w-full sm:w-auto h-9 font-bold text-[13px]"
                 >
                   <Link href={`/admin/clients/${clientId}/assign-routine`}>
                     <Plus className="mr-1 size-4" />
@@ -675,6 +953,10 @@ export function ClientProfileHub({
                       vol > 0
                         ? `${vol} kg de volumen`
                         : "Volumen en 0 — puede ser sesión sin cargas registradas";
+                    const feelingLabel =
+                      s.feeling_score != null
+                        ? FEELING_LABELS_ES[s.feeling_score] ?? `Sensación ${s.feeling_score}/5`
+                        : null;
 
                     return (
                       <AccordionItem
@@ -695,14 +977,21 @@ export function ClientProfileHub({
                                   ? ` · ${s.exercises_completed} ejercicios`
                                   : null}
                               </div>
-                              {routineDay ? (
-                                <div className="text-muted-foreground mt-1 text-[13px] font-medium">
-                                  Bloque: {" "}
-                                  <span className="text-primary bg-primary/10 rounded-md px-1.5 py-0.5 font-bold">
-                                    {routineDay}
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-[13px] font-medium text-muted-foreground">
+                                {routineDay ? (
+                                  <span>
+                                    Bloque:{" "}
+                                    <span className="text-primary bg-primary/10 rounded-md px-1.5 py-0.5 font-bold">
+                                      {routineDay}
+                                    </span>
                                   </span>
-                                </div>
-                              ) : null}
+                                ) : null}
+                                {feelingLabel ? (
+                                  <span className="inline-flex items-center rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-semibold text-foreground">
+                                    Esfuerzo: {feelingLabel}
+                                  </span>
+                                ) : null}
+                              </div>
                             </div>
                             <Badge
                               variant="outline"
@@ -714,6 +1003,19 @@ export function ClientProfileHub({
                         </AccordionTrigger>
                         <AccordionContent className="pb-3 pt-0">
                           <Separator className="mb-3" />
+                          {s.feeling_note ? (
+                            <div className="mb-3 flex items-start gap-2.5 rounded-xl border border-primary/25 bg-primary/5 px-3.5 py-2.5 text-xs">
+                              <MessageSquareQuote className="mt-0.5 size-4 shrink-0 text-primary" />
+                              <div>
+                                <span className="font-bold text-foreground">
+                                  Nota del atleta en esta sesión:{" "}
+                                </span>
+                                <span className="text-muted-foreground">
+                                  “{s.feeling_note}”
+                                </span>
+                              </div>
+                            </div>
+                          ) : null}
                           {groups.length === 0 ? (
                             <p className="text-muted-foreground text-sm">
                               No hay series registradas en esta sesión. Si el
@@ -893,7 +1195,7 @@ export function ClientProfileHub({
                           <Badge variant="outline" className="text-[10px] font-bold opacity-30">Inicial</Badge>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         <div className="flex flex-col gap-0.5">
                           <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">Peso</span>
                           <div className="text-xl font-black text-foreground italic flex items-baseline gap-1">
@@ -906,6 +1208,46 @@ export function ClientProfileHub({
                             {m.body_fat_pct ?? "—"} <span className="text-[10px] font-bold not-italic text-muted-foreground uppercase opacity-60">%</span>
                           </div>
                         </div>
+                        {m.waist_cm != null && (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">Cintura</span>
+                            <div className="text-xl font-black text-foreground italic flex items-baseline gap-1">
+                              {m.waist_cm} <span className="text-[10px] font-bold not-italic text-muted-foreground uppercase opacity-60">cm</span>
+                            </div>
+                          </div>
+                        )}
+                        {m.hip_cm != null && (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">Cadera</span>
+                            <div className="text-xl font-black text-foreground italic flex items-baseline gap-1">
+                              {m.hip_cm} <span className="text-[10px] font-bold not-italic text-muted-foreground uppercase opacity-60">cm</span>
+                            </div>
+                          </div>
+                        )}
+                        {m.chest_cm != null && (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">Pecho</span>
+                            <div className="text-xl font-black text-foreground italic flex items-baseline gap-1">
+                              {m.chest_cm} <span className="text-[10px] font-bold not-italic text-muted-foreground uppercase opacity-60">cm</span>
+                            </div>
+                          </div>
+                        )}
+                        {m.arm_cm != null && (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">Brazo</span>
+                            <div className="text-xl font-black text-foreground italic flex items-baseline gap-1">
+                              {m.arm_cm} <span className="text-[10px] font-bold not-italic text-muted-foreground uppercase opacity-60">cm</span>
+                            </div>
+                          </div>
+                        )}
+                        {m.thigh_cm != null && (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/40">Muslo</span>
+                            <div className="text-xl font-black text-foreground italic flex items-baseline gap-1">
+                              {m.thigh_cm} <span className="text-[10px] font-bold not-italic text-muted-foreground uppercase opacity-60">cm</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1015,14 +1357,14 @@ export function ClientProfileHub({
             <CardFooter className="flex flex-col gap-3 border-t bg-muted/15 pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-muted-foreground text-xs">
                 Los cambios se guardan al pulsar guardar. Descartar restaura el
-                texto que había al cargar la página.
+                último valor guardado.
               </p>
               <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
                 <Button
                   variant="outline"
                   type="button"
                   onClick={() => {
-                    setNotesDraft(client?.notes || "");
+                    setNotesDraft(savedNotes);
                     setSaveError(null);
                   }}
                   disabled={isSaving}
@@ -1069,7 +1411,7 @@ export function ClientProfileHub({
                      <p className="text-xs text-muted-foreground/40 mt-4 max-w-xs mx-auto">Los logros se otorgan automáticamente basándose en la consistencia y récords personales.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 xs:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-10 sm:gap-x-8 sm:gap-y-12">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-x-4 gap-y-10 sm:gap-x-8 sm:gap-y-12">
                     {userAchievements.map((ua) => (
                       <div key={ua.id} className="flex flex-col items-center gap-3 group">
                         <div className="relative transition-transform duration-300 group-hover:scale-110">

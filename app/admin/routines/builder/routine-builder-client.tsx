@@ -22,13 +22,21 @@ import {
   Sparkles,
   Lightbulb,
   Loader2,
-  Dumbbell,
   ClipboardCopy,
   ClipboardPaste,
+  Link2,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 import {
+  getRoutineMeta,
   saveRoutineFromBuilder,
   updateRoutineFromBuilder,
 } from "@/app/actions/routine-builder";
@@ -87,6 +95,20 @@ const DAY_NAMES = [
 // Letras disponibles para grupos de biserie
 const SUPERSET_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
+const ROUTINE_GOALS = [
+  { value: "muscle_gain", label: "Ganancia muscular" },
+  { value: "weight_loss", label: "Pérdida de grasa" },
+  { value: "toning", label: "Fuerza / Tonificación" },
+  { value: "endurance", label: "Resistencia" },
+  { value: "maintenance", label: "Mantenimiento" },
+];
+
+const ROUTINE_LEVELS = [
+  { value: "Principiante", label: "Principiante" },
+  { value: "Intermedio", label: "Intermedio" },
+  { value: "Avanzado", label: "Avanzado" },
+];
+
 export interface RoutineBuilderClientProps {
   exercises?: Exercise[];
   routineId?: string;
@@ -94,6 +116,8 @@ export interface RoutineBuilderClientProps {
     name: string;
     description: string;
     durationWeeks: number;
+    goal?: string | null;
+    level?: string | null;
     days: Day[];
   };
 }
@@ -118,6 +142,8 @@ export function RoutineBuilderClient({
   const [durationWeeks, setDurationWeeks] = useState(
     initialData?.durationWeeks ?? 4,
   );
+  const [goal, setGoal] = useState(initialData?.goal ?? "");
+  const [level, setLevel] = useState(initialData?.level ?? "");
   const [days, setDays] = useState<Day[]>(
     initialData?.days ??
       DAY_NAMES.map((name, i) => ({
@@ -138,6 +164,23 @@ export function RoutineBuilderClient({
     sourceDayName: string;
     exercises: DayExercise[];
   } | null>(null);
+
+  useEffect(() => {
+    if (
+      routineId &&
+      initialData?.goal === undefined &&
+      initialData?.level === undefined
+    ) {
+      getRoutineMeta(routineId)
+        .then((meta) => {
+          if (meta) {
+            if (meta.goal) setGoal(meta.goal);
+            if (meta.level) setLevel(meta.level);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [routineId, initialData?.goal, initialData?.level]);
 
   // Fetch exercises on client if not provided
   useEffect(() => {
@@ -387,6 +430,8 @@ export function RoutineBuilderClient({
         name: name.trim(),
         description: description.trim() || null,
         duration_weeks: durationWeeks,
+        goal: goal || null,
+        level: level || null,
         days: days.map((d) => ({
           day_number: d.dayNumber,
           day_name: d.name,
@@ -422,7 +467,7 @@ export function RoutineBuilderClient({
   const restDays = days.filter((d) => d.isRestDay).length;
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-8 pb-28 lg:pb-10">
+    <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-6 pb-28 lg:pb-10">
       {!loadingExercises && exercises.length === 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 px-4">
           <Card className="w-full max-w-md rounded-xl border shadow-sm">
@@ -449,17 +494,68 @@ export function RoutineBuilderClient({
         </div>
       )}
 
-      <Alert className="border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent shadow-sm">
+      <Alert className="rounded-2xl border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4 sm:p-5 shadow-sm">
         <Lightbulb className="size-4 text-primary mt-0.5" aria-hidden />
-        <AlertTitle className="text-sm font-semibold tracking-tight text-primary">
+        <AlertTitle className="text-sm font-bold tracking-tight text-primary mb-2">
           Flujo rápido
         </AlertTitle>
-        <AlertDescription className="text-[13px] leading-relaxed text-muted-foreground">
-          1) Nombre y duración → 2) Marca días de entreno o descanso → 3) Añade
-          ejercicios, arrastra para ordenar, usa{" "}
-          <span className="font-semibold text-foreground">🔗</span> para crear
-          biseriesde → 4) Copia días con{" "}
-          <span className="font-semibold text-foreground">📋</span> → 5) Guardar.
+        <AlertDescription className="w-full text-[13px] leading-relaxed text-muted-foreground">
+          <ol className="flex flex-col gap-2 w-full">
+            <li className="flex items-start gap-2.5">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+                1
+              </span>
+              <span>
+                Escribe el <strong className="font-semibold text-foreground">nombre</strong>, duración, objetivo y nivel de la rutina.
+              </span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+                2
+              </span>
+              <span>
+                Marca cada día de la semana como <strong className="font-semibold text-foreground">Entreno</strong> o <strong className="font-semibold text-foreground">Descanso</strong>.
+              </span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+                3
+              </span>
+              <span>
+                Añade ejercicios, arrastra para ordenar y usa{" "}
+                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 font-semibold text-foreground align-baseline">
+                  <Link2 className="size-3.5 text-primary shrink-0" aria-hidden />
+                  Enlazar
+                </span>{" "}
+                para crear biseries de ejercicios.
+              </span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+                4
+              </span>
+              <span>
+                Duplica días completos fácilmente con{" "}
+                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 font-semibold text-foreground align-baseline">
+                  <ClipboardCopy className="size-3.5 text-primary shrink-0" aria-hidden />
+                  Copiar
+                </span>{" "}
+                y{" "}
+                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 font-semibold text-foreground align-baseline">
+                  <ClipboardPaste className="size-3.5 text-primary shrink-0" aria-hidden />
+                  Pegar
+                </span>.
+              </span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+                5
+              </span>
+              <span>
+                Haz clic en <strong className="font-semibold text-foreground">Guardar rutina</strong> al finalizar.
+              </span>
+            </li>
+          </ol>
         </AlertDescription>
       </Alert>
 
@@ -510,6 +606,46 @@ export function RoutineBuilderClient({
                 className="h-11 rounded-xl text-center tabular-nums bg-muted/30 focus-visible:bg-background shadow-xs border-border/60 transition-colors"
               />
             </Field>
+            <Field className="md:col-span-6 gap-1.5">
+              <FieldLabel htmlFor="routine-goal" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Objetivo
+              </FieldLabel>
+              <Select value={goal} onValueChange={setGoal}>
+                <SelectTrigger
+                  id="routine-goal"
+                  className="h-11 w-full rounded-xl bg-muted/30 focus-visible:bg-background shadow-xs border-border/60"
+                >
+                  <SelectValue placeholder="Seleccionar objetivo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROUTINE_GOALS.map((g) => (
+                    <SelectItem key={g.value} value={g.value}>
+                      {g.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field className="md:col-span-6 gap-1.5">
+              <FieldLabel htmlFor="routine-level" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Nivel
+              </FieldLabel>
+              <Select value={level} onValueChange={setLevel}>
+                <SelectTrigger
+                  id="routine-level"
+                  className="h-11 w-full rounded-xl bg-muted/30 focus-visible:bg-background shadow-xs border-border/60"
+                >
+                  <SelectValue placeholder="Seleccionar nivel..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROUTINE_LEVELS.map((l) => (
+                    <SelectItem key={l.value} value={l.value}>
+                      {l.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
             <Field className="md:col-span-12 gap-1.5">
               <FieldLabel htmlFor="routine-desc" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 Descripción (opcional)
@@ -551,7 +687,7 @@ export function RoutineBuilderClient({
             {clipboard && (
               <Badge
                 variant="outline"
-                className="animate-pulse rounded-full border-violet-500/30 bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-600"
+                className="animate-pulse rounded-full border-violet-500/30 bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-600 dark:text-violet-400"
               >
                 <ClipboardCopy className="mr-1.5 size-3" />
                 &quot;{clipboard.sourceDayName}&quot; en portapapeles
@@ -612,7 +748,7 @@ export function RoutineBuilderClient({
                         <CardDescription className="text-xs sm:text-sm">
                           {day.isRestDay
                             ? "Día de recuperación — sin ejercicios."
-                            : "Construye la sesión: ordena con el asa ⋮⋮ (escritorio)."}
+                            : "Construye la sesión: ordena los ejercicios arrastrando el asa."}
                         </CardDescription>
                       </div>
                     </div>
@@ -636,7 +772,7 @@ export function RoutineBuilderClient({
                           type="button"
                           variant="ghost"
                           size="sm"
-                          className="h-9 gap-2 rounded-xl border border-violet-500/30 bg-violet-500/5 px-3 text-xs font-semibold text-violet-600 hover:bg-violet-500/15"
+                          className="h-9 gap-2 rounded-xl border border-violet-500/30 bg-violet-500/5 px-3 text-xs font-semibold text-violet-600 dark:text-violet-400 hover:bg-violet-500/15"
                           onClick={() => handlePasteDay(day.id)}
                         >
                           <ClipboardPaste className="size-3.5" />
@@ -696,7 +832,7 @@ export function RoutineBuilderClient({
                               O usa{" "}
                               <button
                                 type="button"
-                                className="font-semibold text-violet-600 underline underline-offset-2"
+                                className="font-semibold text-violet-600 dark:text-violet-400 underline underline-offset-2"
                                 onClick={() => handlePasteDay(day.id)}
                               >
                                 Pegar ejercicios de &quot;{clipboard.sourceDayName}&quot;
@@ -777,7 +913,7 @@ export function RoutineBuilderClient({
                           variant="outline"
                           size="lg"
                           onClick={() => handlePasteDay(day.id)}
-                          className="h-12 rounded-xl border-2 border-dashed border-violet-500/40 bg-violet-500/5 text-xs font-semibold text-violet-600 hover:bg-violet-500/15"
+                          className="h-12 rounded-xl border-2 border-dashed border-violet-500/40 bg-violet-500/5 text-xs font-semibold text-violet-600 dark:text-violet-400 hover:bg-violet-500/15"
                         >
                           <ClipboardPaste className="size-4 shrink-0" />
                           Pegar

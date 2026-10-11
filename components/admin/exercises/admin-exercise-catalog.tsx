@@ -6,10 +6,67 @@ import type { Exercise } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Library, Search as SearchIcon, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { Library, Search as SearchIcon, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { exName, exEquipment, exTargetMuscles } from '@/lib/exercise-i18n'
 import { ExerciseDetailDrawer } from '@/components/client/exercise-detail-drawer'
+
+const MUSCLE_LABELS_ES: Record<string, string> = {
+  chest: 'Pecho',
+  back: 'Espalda',
+  shoulders: 'Hombros',
+  biceps: 'Bíceps',
+  triceps: 'Tríceps',
+  forearms: 'Antebrazos',
+  quadriceps: 'Cuádriceps',
+  hamstrings: 'Isquiotibiales',
+  glutes: 'Glúteos',
+  calves: 'Pantorrillas',
+  abs: 'Abdomen',
+  cardio: 'Cardio',
+  full_body: 'Cuerpo completo',
+  pectorals: 'Pectorales',
+  lats: 'Dorsales',
+  delts: 'Deltoides',
+  quads: 'Cuádriceps',
+  traps: 'Trapecios',
+  spine: 'Espalda baja',
+}
+
+const EXERCISE_TYPE_LABELS_ES: Record<string, string> = {
+  strength: 'Fuerza',
+  cardio: 'Cardio',
+  mobility: 'Movilidad',
+  hiit: 'HIIT',
+  stretching: 'Estiramiento',
+}
+
+function translateMuscleLabel(val?: string | null): string {
+  if (!val) return ''
+  const key = val.trim().toLowerCase()
+  return MUSCLE_LABELS_ES[key] ?? val
+}
+
+function getPrimaryMuscleLabel(ex: Exercise): string | null {
+  const targets = exTargetMuscles(ex)
+  if (targets.length > 0) {
+    return translateMuscleLabel(targets[0])
+  }
+  if (ex.primary_muscle) {
+    return translateMuscleLabel(ex.primary_muscle)
+  }
+  return null
+}
+
+function getSecondaryMuscleLabel(ex: Exercise): string | null {
+  if (ex.secondary_muscles_es?.length) {
+    return translateMuscleLabel(ex.secondary_muscles_es[0])
+  }
+  if (ex.secondary_muscle) {
+    return translateMuscleLabel(ex.secondary_muscle)
+  }
+  return null
+}
 
 interface AdminExerciseCatalogProps {
   exercises: Exercise[]
@@ -94,7 +151,21 @@ export function AdminExerciseCatalog({
   }, [exercises])
 
   const openDetail = (ex: Exercise) => {
-    setDetailExercise(ex)
+    const primaryLabel = getPrimaryMuscleLabel(ex)
+    const secondaryLabel = getSecondaryMuscleLabel(ex)
+    setDetailExercise({
+      ...ex,
+      target_muscles_es: ex.target_muscles_es?.length
+        ? ex.target_muscles_es.map(translateMuscleLabel)
+        : primaryLabel
+          ? [primaryLabel]
+          : undefined,
+      secondary_muscles_es: ex.secondary_muscles_es?.length
+        ? ex.secondary_muscles_es.map(translateMuscleLabel)
+        : secondaryLabel
+          ? [secondaryLabel]
+          : undefined,
+    })
     setDetailOpen(true)
   }
 
@@ -110,7 +181,7 @@ export function AdminExerciseCatalog({
   return (
     <>
       <div className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-start lg:gap-8">
-        <aside className="flex flex-col gap-4 lg:sticky lg:top-[max(6rem,env(safe-area-inset-top,0px))] lg:col-span-4 lg:self-start xl:col-span-3 pb-4">
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-[calc(112px+1.5rem)] lg:col-span-4 lg:self-start xl:col-span-3 pb-4">
           <div className="relative overflow-hidden rounded-[1.25rem] border border-border/60 bg-gradient-to-b from-card to-card/50 shadow-sm backdrop-blur-xl transition-all duration-300 hover:shadow-md">
             <div
               className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-primary/10 blur-3xl transition-opacity duration-500"
@@ -137,11 +208,23 @@ export function AdminExerciseCatalog({
                 />
                 <Input
                   placeholder="Buscar por nombre…"
-                  className="h-12 w-full rounded-xl border-border/70 bg-background/50 pl-11 shadow-sm transition-all focus-visible:border-primary/50 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-primary/10 text-sm"
+                  className="h-12 w-full rounded-xl border-border/70 bg-background/50 pl-11 pr-9 shadow-sm transition-all focus-visible:border-primary/50 focus-visible:bg-background focus-visible:ring-4 focus-visible:ring-primary/10 text-sm"
                   value={search}
                   onChange={(e) => handleSearch(e.target.value)}
                   aria-label="Buscar ejercicios"
                 />
+                {search && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Limpiar búsqueda"
+                    className="absolute right-1.5 top-1/2 size-8 -translate-y-1/2 rounded-full hover:bg-transparent"
+                    onClick={() => handleSearch('')}
+                  >
+                    <X className="size-3.5 text-muted-foreground" />
+                  </Button>
+                )}
               </div>
 
               <div className="flex flex-col gap-3">
@@ -151,6 +234,8 @@ export function AdminExerciseCatalog({
                 </p>
                 <div className="flex max-h-[min(40vh,16rem)] flex-wrap gap-2 overflow-y-auto pr-1 pb-1 lg:max-h-[min(50vh,20rem)] scrollbar-hide">
                   <Badge
+                    role="button"
+                    tabIndex={0}
                     variant={!activeBodyPart ? 'default' : 'secondary'}
                     className={cn(
                       'min-h-[36px] items-center justify-center shrink-0 cursor-pointer rounded-full px-4 text-[13px] font-medium transition-all active:scale-95 border-transparent',
@@ -159,6 +244,12 @@ export function AdminExerciseCatalog({
                         : 'bg-muted/60 text-muted-foreground hover:bg-secondary hover:text-secondary-foreground',
                     )}
                     onClick={() => handleBodyPartChange(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleBodyPartChange(null)
+                      }
+                    }}
                   >
                     Todas
                   </Badge>
@@ -167,6 +258,8 @@ export function AdminExerciseCatalog({
                     return (
                       <Badge
                         key={bp}
+                        role="button"
+                        tabIndex={0}
                         variant={isActive ? 'default' : 'outline'}
                         className={cn(
                           "min-h-[36px] items-center justify-center shrink-0 cursor-pointer rounded-full px-4 text-[13px] font-medium capitalize transition-all active:scale-95",
@@ -175,6 +268,12 @@ export function AdminExerciseCatalog({
                             : 'bg-background/50 hover:bg-secondary/60 text-muted-foreground hover:text-foreground border-border/60 hover:border-border'
                         )}
                         onClick={() => handleBodyPartChange(isActive ? null : bp)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            handleBodyPartChange(isActive ? null : bp)
+                          }
+                        }}
                       >
                         {bp}
                       </Badge>
@@ -282,7 +381,7 @@ export function AdminExerciseCatalog({
                   >
                     <div className="relative aspect-[4/3] shrink-0 overflow-hidden bg-muted/20 border-b border-border/40">
                       {ex.gif_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- URLs externas
+                         
                         <img
                           src={ex.gif_url}
                           alt=""
@@ -290,7 +389,7 @@ export function AdminExerciseCatalog({
                           loading="lazy"
                         />
                       ) : ex.image_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
+                         
                         <img
                           src={ex.image_url}
                           alt=""
@@ -309,14 +408,19 @@ export function AdminExerciseCatalog({
                         {exName(ex)}
                       </h3>
                       <div className="flex flex-wrap gap-1.5 mt-auto pt-1">
-                        {exTargetMuscles(ex).length > 0 ? (
+                        {getPrimaryMuscleLabel(ex) ? (
                           <Badge variant="secondary" className="text-[10px] font-semibold capitalize bg-secondary/60 text-secondary-foreground px-2 py-0 border-transparent">
-                            {exTargetMuscles(ex)[0]}
+                            {getPrimaryMuscleLabel(ex)}
+                          </Badge>
+                        ) : null}
+                        {getSecondaryMuscleLabel(ex) ? (
+                          <Badge variant="outline" className="text-[10px] capitalize px-2 py-0 font-medium text-muted-foreground border-border/60 bg-background/50">
+                            {getSecondaryMuscleLabel(ex)}
                           </Badge>
                         ) : null}
                         {ex.exercise_type ? (
                           <Badge variant="outline" className="text-[10px] capitalize px-2 py-0 font-medium text-muted-foreground border-border/60 bg-background/50">
-                            {ex.exercise_type}
+                            {EXERCISE_TYPE_LABELS_ES[ex.exercise_type.toLowerCase()] ?? ex.exercise_type}
                           </Badge>
                         ) : null}
                       </div>

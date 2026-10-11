@@ -151,6 +151,7 @@ export function ExerciseSelector({
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="Limpiar búsqueda"
                 className="absolute right-1 top-1/2 size-8 -translate-y-1/2 rounded-full hover:bg-transparent"
                 onClick={() => setSearch('')}
               >
@@ -166,24 +167,40 @@ export function ExerciseSelector({
             </div>
             <div className="flex w-full gap-2 overflow-x-auto no-scrollbar pb-1">
               <Badge
+                role="button"
+                tabIndex={0}
                 variant={!activeBodyPart ? 'default' : 'secondary'}
                 className={cn(
                   'h-8 shrink-0 cursor-pointer rounded-full px-3 text-xs transition-all',
                   !activeBodyPart ? 'shadow-sm ring-2 ring-primary/20' : 'hover:bg-secondary/80'
                 )}
                 onClick={() => setActiveBodyPart(null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setActiveBodyPart(null)
+                  }
+                }}
               >
                 Todas
               </Badge>
               {bodyParts.map((bp) => (
                 <Badge
                   key={bp}
+                  role="button"
+                  tabIndex={0}
                   variant={activeBodyPart === bp ? 'default' : 'outline'}
                   className={cn(
                     'h-8 shrink-0 cursor-pointer rounded-full px-3 text-xs capitalize transition-all',
                     activeBodyPart === bp ? 'shadow-sm ring-2 ring-primary/20' : 'text-muted-foreground hover:border-primary/40 hover:text-foreground'
                   )}
                   onClick={() => setActiveBodyPart(activeBodyPart === bp ? null : bp)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setActiveBodyPart(activeBodyPart === bp ? null : bp)
+                    }
+                  }}
                 >
                   {bp}
                 </Badge>

@@ -2,6 +2,7 @@ import { getAuthUser, getUserRole } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getRoutines } from "@/lib/routines";
+import { ADMIN_FORM_PAGE_SHELL } from "@/components/admin/admin-page-header";
 import { AssignRoutineForm } from "./assign-routine-form";
 
 interface Props {
@@ -29,10 +30,15 @@ export default async function AssignRoutinePage({ params }: Props) {
   const routines = await getRoutines();
 
   return (
-    <AssignRoutineForm
-      clientId={clientId}
-      clientName={client.full_name}
-      routines={routines}
-    />
+    <div
+      data-shell={ADMIN_FORM_PAGE_SHELL}
+      className="[&_main]:w-full [&_main]:min-w-0 [&_main]:max-w-2xl [&_main]:mx-auto [&_main]:px-4 sm:[&_main]:px-6 md:[&_main]:px-8 [&_main]:py-6 sm:[&_main]:py-8"
+    >
+      <AssignRoutineForm
+        clientId={clientId}
+        clientName={client.full_name}
+        routines={routines}
+      />
+    </div>
   );
 }

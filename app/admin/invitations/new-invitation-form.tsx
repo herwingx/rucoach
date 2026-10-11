@@ -94,10 +94,18 @@ export function NewInvitationForm() {
                   <ScrollBar orientation="horizontal" className="invisible" />
                 </ScrollArea>
               </Tabs>
-              <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground bg-muted/20 p-2 rounded-lg border border-dashed border-border/60">
-                {forRole === "admin"
-                  ? "🛡️ El código de coach crea otro administrador con acceso completo al panel. Úsalo con cuidado."
-                  : "👤 El código de cliente permite el registro de un nuevo asesorado en tu base de datos."}
+              <p className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground bg-muted/20 p-2.5 rounded-lg border border-dashed border-border/60">
+                {forRole === "admin" ? (
+                  <>
+                    <ShieldCheck className="size-4 shrink-0 text-primary mt-0.5" aria-hidden />
+                    <span>El código de coach crea otro administrador con acceso completo al panel. Úsalo con cuidado.</span>
+                  </>
+                ) : (
+                  <>
+                    <User className="size-4 shrink-0 text-primary mt-0.5" aria-hidden />
+                    <span>El código de cliente permite el registro de un nuevo asesorado en tu base de datos.</span>
+                  </>
+                )}
               </p>
             </Field>
 

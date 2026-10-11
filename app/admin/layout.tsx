@@ -1,4 +1,5 @@
 import { getAuthData } from "@/lib/auth-utils";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AdminLayoutShell } from "@/components/admin-layout-shell";
 
@@ -13,9 +14,17 @@ export default async function AdminLayout({
     redirect("/auth/login");
   }
 
-  // Redirigir a onboarding si no está completado
-  if (profile && !profile.onboarding_completed) {
+  const headersList = await headers();
+  const pathname = headersList.get("x-pathname") || "";
+  const isOnboardingRoute = pathname.startsWith("/admin/onboarding");
+
+  // Redirigir a onboarding si no está completado (evitando bucle infinito en /admin/onboarding)
+  if (profile && !profile.onboarding_completed && !isOnboardingRoute) {
     redirect("/admin/onboarding");
+  }
+
+  if (isOnboardingRoute) {
+    return <>{children}</>;
   }
 
   return (

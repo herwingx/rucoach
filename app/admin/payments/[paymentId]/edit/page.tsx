@@ -1,18 +1,19 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthData } from "@/lib/auth-utils";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import Link from "next/link";
 import { EditPaymentForm } from "./edit-payment-form";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_FORM_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 
 export default async function EditPaymentPage({
   params,
 }: {
   params: Promise<{ paymentId: string }>;
 }) {
-  const user = await getAuthUser();
-  if (!user) redirect("/auth/login");
+  const { user, role } = await getAuthData();
+  if (!user || role !== "admin") redirect("/auth/login");
 
   const { paymentId } = await params;
   const supabase = await createClient();
@@ -31,7 +32,7 @@ export default async function EditPaymentPage({
   if (!payment) notFound();
 
   return (
-    <div className="bg-background">
+    <div className="min-h-dvh bg-background">
       <AdminPageHeader
         sticky
         title="Editar pago"
@@ -39,9 +40,9 @@ export default async function EditPaymentPage({
         backHref="/admin/payments"
         backLabel="Volver a pagos"
       />
-      <main className="container py-8">
+      <div className={ADMIN_FORM_PAGE_SHELL}>
         <EditPaymentForm payment={payment} />
-      </main>
+      </div>
     </div>
   );
 }

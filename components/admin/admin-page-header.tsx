@@ -1,9 +1,11 @@
-'use client'
-
+import Image from 'next/image'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+
+export const ADMIN_DATA_PAGE_SHELL = 'w-full min-w-0 px-4 sm:px-6 md:px-8 py-6 sm:py-8'
+export const ADMIN_FORM_PAGE_SHELL = 'w-full min-w-0 max-w-2xl mx-auto px-4 sm:px-6 md:px-8 py-6 sm:py-8'
 
 type AdminPageHeaderProps = {
   kicker?: React.ReactNode
@@ -35,7 +37,7 @@ export function AdminPageHeader({
       )}
     >
       {/* Usamos px-4 sm:px-6 md:px-8 en lugar de container para alineación perfecta con el Sidebar */}
-      <div className="w-full h-full flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:py-0 px-4 sm:px-6 md:px-8">
+      <div className="w-full h-full flex flex-col gap-4 py-4 md:min-h-[112px] md:flex-row md:items-center md:justify-between md:gap-4 md:py-0 px-4 sm:px-6 md:px-8">
         <div className="flex min-w-0 items-center gap-4 h-full">
           {/* Leading icon: back arrow or logo */}
           <div className="shrink-0 flex items-center h-full">
@@ -53,7 +55,13 @@ export function AdminPageHeader({
             ) : (
               <div className="flex items-center md:hidden">
                 <div className="size-11 rounded-xl overflow-hidden ring-1 ring-border/50 shadow-md shrink-0 bg-primary/10 flex items-center justify-center p-1.5">
-                  <img src="/android-chrome-192x192.png" alt="Logo" className="size-full object-contain" />
+                  <Image
+                    src="/android-chrome-192x192.png"
+                    alt="Logo RU Coach"
+                    width={36}
+                    height={36}
+                    className="size-full object-contain p-1"
+                  />
                 </div>
               </div>
             )}
@@ -83,7 +91,7 @@ export function AdminPageHeader({
 
         {/* Actions section */}
         {actions ? (
-          <div className="flex w-full flex-wrap gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-end shrink-0 sm:h-full">
+          <div className="flex w-full flex-wrap gap-3 md:w-auto md:flex-row md:items-center md:justify-end shrink-0 md:h-full">
             {actions}
           </div>
         ) : null}

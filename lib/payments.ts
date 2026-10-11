@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { Payment } from '@/lib/types'
 
 export async function getPayments() {
   const supabase = await createClient()

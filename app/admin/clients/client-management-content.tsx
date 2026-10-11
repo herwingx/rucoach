@@ -2,9 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  Card,
   CardContent,
-  CardHeader,
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
@@ -27,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -37,7 +35,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Users,
   UserCheck,
@@ -54,7 +51,6 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { deleteClient, updateClientStatus } from "@/app/actions/clients";
-import { updateUserSubscription } from "@/app/actions/invitations";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -95,6 +91,20 @@ interface ClientManagementContentProps {
   clients: ClientManagementCard[];
 }
 
+function parseLocalDate(dateStr: string) {
+  return new Date(dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`);
+}
+
+function getEffectiveStatus(client: ClientManagementCard): string {
+  if (client.status === "active" && client.membershipEnd) {
+    const endDay = client.membershipEnd.slice(0, 10);
+    if (new Date(`${endDay}T23:59:59`) < new Date()) {
+      return "expired";
+    }
+  }
+  return client.status;
+}
+
 export function ClientManagementContent({
   clients: initialClients,
 }: ClientManagementContentProps) {
@@ -113,12 +123,13 @@ export function ClientManagementContent({
 
       if (!matchesSearch) return false;
 
+      const effectiveStatus = getEffectiveStatus(c);
       if (activeTab === "all") return true;
-      if (activeTab === "active") return c.status === "active";
-      if (activeTab === "pending") return c.status === "pending";
-      if (activeTab === "pending_payment") return c.status === "pending_payment";
-      if (activeTab === "expired") return c.status === "expired";
-      if (activeTab === "suspended") return c.status === "suspended";
+      if (activeTab === "active") return effectiveStatus === "active";
+      if (activeTab === "pending") return effectiveStatus === "pending";
+      if (activeTab === "pending_payment") return effectiveStatus === "pending_payment";
+      if (activeTab === "expired") return effectiveStatus === "expired";
+      if (activeTab === "suspended") return effectiveStatus === "suspended";
 
       return true;
     });
@@ -127,11 +138,11 @@ export function ClientManagementContent({
   const stats = useMemo(() => {
     return {
       total: clients.length,
-      active: clients.filter((c) => c.status === "active").length,
-      expired: clients.filter((c) => c.status === "expired").length,
-      suspended: clients.filter((c) => c.status === "suspended").length,
-      pending: clients.filter((c) => c.status === "pending").length,
-      pendingPayment: clients.filter((c) => c.status === "pending_payment").length,
+      active: clients.filter((c) => getEffectiveStatus(c) === "active").length,
+      expired: clients.filter((c) => getEffectiveStatus(c) === "expired").length,
+      suspended: clients.filter((c) => getEffectiveStatus(c) === "suspended").length,
+      pending: clients.filter((c) => getEffectiveStatus(c) === "pending").length,
+      pendingPayment: clients.filter((c) => getEffectiveStatus(c) === "pending_payment").length,
     };
   }, [clients]);
 
@@ -146,7 +157,7 @@ export function ClientManagementContent({
       } else {
         toast.error("No pudimos eliminar al asesorado. Intenta de nuevo.");
       }
-    } catch (error) {
+    } catch {
       toast.error("No pudimos eliminar al asesorado. Revisa tu conexión.");
     } finally {
       setIsDeleting(false);
@@ -194,7 +205,7 @@ export function ClientManagementContent({
       } else {
         toast.error("No pudimos cambiar el estado. Intenta de nuevo.");
       }
-    } catch (error) {
+    } catch {
       toast.error("No pudimos cambiar el estado. Revisa tu conexión.");
     }
   };
@@ -237,7 +248,7 @@ export function ClientManagementContent({
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-1">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4.5 text-muted-foreground/70" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 z-10 size-4 text-muted-foreground" />
             <Input
               placeholder="Buscar por nombre, email..."
               value={search}
@@ -443,7 +454,7 @@ export function ClientManagementContent({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-4 ml-1">
-                      <AdminClientStatusBadge status={client.status} />
+                      <AdminClientStatusBadge status={getEffectiveStatus(client)} />
                       {client.planName && (
                         <Badge
                           variant="secondary"
@@ -480,7 +491,7 @@ export function ClientManagementContent({
                         <p className="text-[14px] font-bold leading-tight text-foreground">
                           {client.membershipEnd
                             ? format(
-                                new Date(client.membershipEnd),
+                                parseLocalDate(client.membershipEnd),
                                 "d MMM yyyy",
                                 { locale: es },
                               )
@@ -490,7 +501,7 @@ export function ClientManagementContent({
                           <p className="text-[11px] leading-snug text-muted-foreground font-medium mt-0.5">
                             Último pago: hasta{" "}
                             {format(
-                              new Date(client.latestPaidPeriodEnd),
+                              parseLocalDate(client.latestPaidPeriodEnd),
                               "d MMM yyyy",
                               { locale: es },
                             )}

@@ -5,15 +5,17 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { NewInvitationForm } from "./new-invitation-form";
 import {
   InvitationCardsClient,
   type InvitationCodeItem,
 } from "./invitation-cards-client";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_DATA_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
+import { cn } from "@/lib/utils";
 
 function normalizeInvitationRow(row: {
   id: string;
@@ -73,7 +75,7 @@ export default async function AdminInvitationsPage() {
         title="Códigos de invitación"
         description="Genera códigos para que tus asesorados puedan registrarse"
       />
-      <main className="container flex flex-col gap-6 py-6 sm:py-8">
+      <div className={cn(ADMIN_DATA_PAGE_SHELL, "flex flex-col gap-6")}>
         {/* Create New Code */}
         <NewInvitationForm />
 
@@ -97,7 +99,7 @@ export default async function AdminInvitationsPage() {
             <InvitationCardsClient codes={codes} />
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 }

@@ -3,17 +3,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import {
-  CreditCard,
-  Dumbbell,
-  Library,
-  Ticket,
-  UserPlus,
-  Users,
-} from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CoachOverview } from "./coach-overview";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_DATA_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 
 export default async function AdminDashboard() {
   const { user, role, profile } = await getAuthData();
@@ -44,9 +40,9 @@ export default async function AdminDashboard() {
         }
       />
 
-      <main className="container py-4 sm:py-6 lg:py-8">
+      <div className={ADMIN_DATA_PAGE_SHELL}>
         <CoachOverview />
-      </main>
+      </div>
     </div>
   );
 }

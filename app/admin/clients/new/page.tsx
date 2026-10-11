@@ -1,6 +1,9 @@
 import { getAuthUser } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_FORM_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 import { NewClientForm } from "./new-client-form";
 
 export default async function NewClientPage() {
@@ -17,9 +20,9 @@ export default async function NewClientPage() {
         backLabel="Volver a asesorados"
       />
 
-      <main className="container py-8 max-w-2xl">
+      <div className={ADMIN_FORM_PAGE_SHELL}>
         <NewClientForm />
-      </main>
+      </div>
     </div>
   );
 }

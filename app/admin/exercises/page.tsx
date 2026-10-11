@@ -1,8 +1,12 @@
+import { Suspense } from "react";
 import { getAuthData } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_DATA_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 import { AdminExerciseCatalog } from "@/components/admin/exercises/admin-exercise-catalog";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -84,16 +88,18 @@ export default async function AdminExercisesPage({
         }
       />
 
-      <main className="container py-6 sm:py-8">
-        <AdminExerciseCatalog
-          exercises={exercises}
-          totalCount={totalCount}
-          totalPages={totalPages}
-          currentPage={page}
-          allBodyParts={allBodyParts}
-          initialFilters={{ search: search || "", bodyPart: bodyPart || null }}
-        />
-      </main>
+      <div className={ADMIN_DATA_PAGE_SHELL}>
+        <Suspense fallback={null}>
+          <AdminExerciseCatalog
+            exercises={exercises}
+            totalCount={totalCount}
+            totalPages={totalPages}
+            currentPage={page}
+            allBodyParts={allBodyParts}
+            initialFilters={{ search: search || "", bodyPart: bodyPart || null }}
+          />
+        </Suspense>
+      </div>
     </div>
   );
 }

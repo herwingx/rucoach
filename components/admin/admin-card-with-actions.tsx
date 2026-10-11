@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { MoreHorizontal } from 'lucide-react'
 import {
@@ -130,20 +130,10 @@ export function AdminCardWithActions({
   className,
   cardClassName,
 }: AdminCardWithActionsProps) {
-  const [dropdownOpen, setDropdownOpen] = React.useState(false)
-
   const contextContent = (
     <ContextMenuContent className="w-48">
       <ContextMenuGroup>{renderMenuItems(menuSections, { onClose: () => {} })}</ContextMenuGroup>
     </ContextMenuContent>
-  )
-
-  const dropdownContent = (
-    <DropdownMenuContent align="end" className="w-48">
-      <DropdownMenuGroup>
-        {renderDropdownItems(menuSections, { onClose: () => setDropdownOpen(false) })}
-      </DropdownMenuGroup>
-    </DropdownMenuContent>
   )
 
   return (
@@ -151,7 +141,7 @@ export function AdminCardWithActions({
       <ContextMenuTrigger asChild>
         <Card
           className={cn(
-            'group overflow-hidden rounded-xl transition-[box-shadow,border-color,background-color] duration-200',
+            'py-0 gap-0 group overflow-hidden rounded-xl transition-[box-shadow,border-color,background-color] duration-200',
             'hover:border-border hover:bg-accent/25 hover:shadow-md',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
             cardClassName,

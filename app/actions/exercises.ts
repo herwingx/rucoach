@@ -9,6 +9,60 @@ function emptyToNull(s: string | null | undefined) {
   return t ? t : null;
 }
 
+const MUSCLE_TO_BODY_PART_ES: Record<string, string[]> = {
+  chest: ["pecho"],
+  back: ["espalda"],
+  shoulders: ["hombros"],
+  biceps: ["brazos"],
+  triceps: ["brazos"],
+  forearms: ["brazos"],
+  quadriceps: ["piernas"],
+  hamstrings: ["piernas"],
+  glutes: ["piernas"],
+  calves: ["pantorrillas"],
+  abs: ["abdomen"],
+  cardio: ["cardio"],
+  full_body: ["cuerpo completo"],
+};
+
+const MUSCLE_TO_ES: Record<string, string> = {
+  chest: "pecho",
+  back: "espalda",
+  shoulders: "hombros",
+  biceps: "bíceps",
+  triceps: "tríceps",
+  forearms: "antebrazos",
+  quadriceps: "cuádriceps",
+  hamstrings: "isquiotibiales",
+  glutes: "glúteos",
+  calves: "pantorrillas",
+  abs: "abdomen",
+  cardio: "cardio",
+  full_body: "cuerpo completo",
+};
+
+const EQUIPMENT_TO_ES: Record<string, string> = {
+  barbell: "barra",
+  dumbbell: "mancuerna",
+  machine: "máquina",
+  cable: "polea",
+  bodyweight: "peso corporal",
+  kettlebell: "pesa rusa",
+  bands: "bandas",
+  other: "otro",
+};
+
+function translateMuscle(m: string): string {
+  const key = m.trim().toLowerCase();
+  return MUSCLE_TO_ES[key] ?? m.trim();
+}
+
+function translateEquipment(eq: string | null): string | null {
+  if (!eq) return null;
+  const key = eq.trim().toLowerCase();
+  return EQUIPMENT_TO_ES[key] ?? eq.trim();
+}
+
 export async function createAdminExercise(formData: FormData) {
   const user = await getAuthUser();
   const profile = await getUserProfile();
@@ -24,19 +78,49 @@ export async function createAdminExercise(formData: FormData) {
 
   const primaryMuscle =
     emptyToNull(formData.get("primaryMuscle") as string) ?? "full_body";
+  const secondaryMuscle = emptyToNull(
+    formData.get("secondaryMuscle") as string,
+  );
   const exerciseType =
     emptyToNull(formData.get("exerciseType") as string) ?? "strength";
+  const equipment = emptyToNull(formData.get("equipment") as string);
+  const techniqueNotes = emptyToNull(formData.get("techniqueNotes") as string);
+
+  const bodyPartsEs = MUSCLE_TO_BODY_PART_ES[primaryMuscle] ?? [
+    translateMuscle(primaryMuscle),
+  ];
+  const targetMusclesEs = [translateMuscle(primaryMuscle)];
+  const secondaryMusclesEs = secondaryMuscle
+    ? secondaryMuscle
+        .split(",")
+        .map((s) => translateMuscle(s))
+        .filter(Boolean)
+    : [];
+  const equipmentEs = translateEquipment(equipment);
+  const instructionsEs = techniqueNotes
+    ? techniqueNotes
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
 
   const supabase = await createClient();
 
   const row: Record<string, unknown> = {
     id: crypto.randomUUID(),
     name,
+    name_es: name,
     primary_muscle: primaryMuscle,
-    secondary_muscle: emptyToNull(formData.get("secondaryMuscle") as string),
+    secondary_muscle: secondaryMuscle,
     exercise_type: exerciseType,
-    equipment: emptyToNull(formData.get("equipment") as string),
-    technique_notes: emptyToNull(formData.get("techniqueNotes") as string),
+    equipment,
+    equipment_es: equipmentEs,
+    equipments: equipmentEs ? [equipmentEs] : [],
+    body_parts_es: bodyPartsEs,
+    target_muscles_es: targetMusclesEs,
+    secondary_muscles_es: secondaryMusclesEs,
+    instructions_es: instructionsEs,
+    technique_notes: techniqueNotes,
     gif_url: emptyToNull(formData.get("gifUrl") as string),
     image_url: emptyToNull(formData.get("imageUrl") as string),
     demo_video_url: emptyToNull(formData.get("demoVideoUrl") as string),

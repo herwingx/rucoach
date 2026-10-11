@@ -28,9 +28,16 @@ type AdminConversationItem = {
   unread: number;
 };
 
-export default async function AdminMessagesPage() {
+export default async function AdminMessagesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ clientId?: string }>;
+}) {
   const user = await getAuthUser();
   if (!user) redirect("/auth/login");
+
+  const sp = searchParams ? await searchParams : undefined;
+  const requestedClientId = sp?.clientId?.trim() || null;
 
   const supabase = await createClient();
 
@@ -49,9 +56,17 @@ export default async function AdminMessagesPage() {
   const { data: myClients } = await supabase
     .from("clients")
     .select("id, user_id, full_name, avatar_url")
-    .eq("coach_id", user.id);
+    .or(`coach_id.eq.${user.id},coach_id.is.null`);
 
   const clients: CoachClientRow[] = myClients ?? [];
+
+  const matchedClient = requestedClientId
+    ? clients.find(
+        (c) => c.user_id === requestedClientId || c.id === requestedClientId,
+      )
+    : null;
+  const initialSelectedUserId =
+    matchedClient?.user_id ?? requestedClientId ?? null;
 
   const userIds = clients
     .map((c) => c.user_id)
@@ -124,6 +139,7 @@ export default async function AdminMessagesPage() {
         role={role}
         otherUser={null}
         conversations={conversations}
+        initialSelectedUserId={initialSelectedUserId}
       />
     </div>
   );

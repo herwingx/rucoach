@@ -24,7 +24,7 @@ import { createAdminExercise } from "@/app/actions/exercises";
 import { getR2PresignedUrl } from "@/app/actions/r2-storage";
 import { R2_PUBLIC_URL } from "@/lib/constants";
 import { toast } from "sonner";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload, Check } from "lucide-react";
 
 const PRIMARY_MUSCLES = [
   { value: "chest", label: "Pecho" },
@@ -190,7 +190,7 @@ export function NewExerciseForm() {
               id="ex-sec"
               name="secondaryMuscle"
               className="rounded-xl"
-              placeholder="Ej. triceps"
+              placeholder="Ej. Tríceps, Hombros"
             />
           </FieldContent>
         </Field>
@@ -234,8 +234,9 @@ export function NewExerciseForm() {
                 />
               </Button>
               {gifUrl && (
-                <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                  ✓ {gifUrl.split("/").pop()}
+                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[200px]">
+                  <Check className="size-3.5 text-primary shrink-0" aria-hidden />
+                  <span className="truncate">{gifUrl.split("/").pop()}</span>
                 </span>
               )}
             </div>

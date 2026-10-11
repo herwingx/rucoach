@@ -52,7 +52,6 @@ import {
   type CoachClientCard,
   type CoachOverviewMetrics,
 } from "./coach-overview";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   ArrowDown,
   ArrowUp,
@@ -86,7 +85,7 @@ function formatRelativeDays(days: number) {
   return `hace ${days} días`;
 }
 
-function MetricHint({
+function _MetricHint({
   label,
   children,
 }: {
@@ -204,7 +203,7 @@ export function CoachOverviewClient({
       } else {
         toast.error("No pudimos reiniciar la rutina.");
       }
-    } catch (err) {
+    } catch {
       toast.error("Error al reiniciar la rutina.");
     }
   };
@@ -309,10 +308,10 @@ export function CoachOverviewClient({
           </p>
         </div>
 
-        <Card className="border-muted/70 shadow-none">
+        <Card className="py-0 gap-0 rounded-2xl border-border/50 bg-card/60 backdrop-blur-xl shadow-sm">
           <CardHeader className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5">
             <div className="min-w-0 flex-1">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-sm font-bold tracking-tight text-foreground">
                 Filtros
               </CardTitle>
               <CardDescription className="text-xs sm:text-sm">

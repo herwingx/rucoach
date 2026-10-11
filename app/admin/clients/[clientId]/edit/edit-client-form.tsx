@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/components/ui/date-picker";
 import Link from "next/link";
@@ -54,8 +54,15 @@ export function EditClientForm({
   const [experienceLevel, setExperienceLevel] = useState(
     (client.experience_level as string) || "",
   );
+  const birthDateStr = client.birth_date as string | undefined;
   const [birthDate, setBirthDate] = useState<Date | undefined>(
-    client.birth_date ? new Date(client.birth_date as string) : undefined,
+    birthDateStr
+      ? new Date(
+          birthDateStr.includes("T")
+            ? birthDateStr
+            : `${birthDateStr}T12:00:00`,
+        )
+      : undefined,
   );
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -68,13 +75,17 @@ export function EditClientForm({
     formData.set("goal", goal);
     formData.set("experienceLevel", experienceLevel);
     if (birthDate) {
-      formData.set("birthDate", birthDate.toISOString().split("T")[0]);
+      const y = birthDate.getFullYear();
+      const m = String(birthDate.getMonth() + 1).padStart(2, "0");
+      const d = String(birthDate.getDate()).padStart(2, "0");
+      formData.set("birthDate", `${y}-${m}-${d}`);
     }
 
     try {
       await updateClient(client.id as string, formData);
       toast.success("¡Cambios guardados correctamente!");
     } catch (error) {
+      unstable_rethrow(error);
       toast.error("No pudimos guardar los cambios. Intenta de nuevo.");
       console.error(error);
     } finally {

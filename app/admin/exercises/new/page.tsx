@@ -1,7 +1,10 @@
 import { getAuthUser } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_FORM_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 import { NewExerciseForm } from "./new-exercise-form";
 import {
   Card,
@@ -32,7 +35,7 @@ export default async function NewExercisePage() {
         backLabel="Catálogo"
       />
 
-      <main className="container max-w-2xl py-6 sm:py-8">
+      <div className={ADMIN_FORM_PAGE_SHELL}>
         <Card className="border-muted/70">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">Datos del movimiento</CardTitle>
@@ -44,7 +47,7 @@ export default async function NewExercisePage() {
             <NewExerciseForm />
           </CardContent>
         </Card>
-      </main>
+      </div>
     </div>
   );
 }

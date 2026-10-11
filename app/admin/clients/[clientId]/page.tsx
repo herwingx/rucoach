@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getAuthUser, getUserRole } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  getBodyMeasurements,
   getExerciseLogsForSessions,
   getWorkoutSessions,
 } from "@/lib/workouts";
@@ -16,7 +16,13 @@ import {
 } from "./client-profile-hub";
 import type { Routine } from "@/lib/types";
 import { AccessCodeBanner } from "./access-code-banner";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_DATA_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
+import { Button } from "@/components/ui/button";
+import { CreditCard, Dumbbell, Edit2, MessageSquare } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Props {
   params: Promise<{ clientId: string }>;
@@ -32,9 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .eq("id", clientId)
     .single();
   return {
-    title: client?.full_name
-      ? `${client.full_name} | RU Coach`
-      : "Atleta | RU Coach",
+    title: client?.full_name || "Atleta",
   };
 }
 
@@ -89,16 +93,24 @@ export default async function ClientProfilePage({
     planRes,
     profileRes,
     workoutSessions,
-    bodyMeasurements,
+    bodyMeasurementsRes,
     photosRes,
     activeClientRoutineRes,
     prsRes,
     achievementsRes,
+    painReportsRes,
   ] = await Promise.all([
     planPromise,
     profilePromise,
     getWorkoutSessions(clientId, 12),
-    getBodyMeasurements(clientId, HUB_MEASUREMENTS_LIMIT),
+    supabase
+      .from("body_measurements")
+      .select(
+        "id, recorded_at, weight, body_fat_pct, waist_cm, hip_cm, chest_cm, arm_cm, thigh_cm",
+      )
+      .eq("client_id", clientId)
+      .order("recorded_at", { ascending: false })
+      .limit(HUB_MEASUREMENTS_LIMIT),
     supabase
       .from("progress_photos")
       .select(
@@ -109,7 +121,7 @@ export default async function ClientProfilePage({
       .limit(30),
     supabase
       .from("client_routines")
-      .select("routine_id")
+      .select("id, routine_id")
       .eq("client_id", clientId)
       .eq("is_active", true)
       .limit(1)
@@ -125,14 +137,35 @@ export default async function ClientProfilePage({
           .select("*, achievements(*)")
           .eq("user_id", client.user_id)
       : Promise.resolve({ data: [] }),
+    supabase
+      .from("client_pain_reports")
+      .select("id, body_region, severity, notes, is_active, reported_at")
+      .eq("client_id", clientId)
+      .eq("is_active", true)
+      .order("reported_at", { ascending: false }),
   ]);
 
+  const bodyMeasurements = bodyMeasurementsRes.data ?? [];
   const personalRecords = prsRes.data ?? [];
   const userAchievements = (achievementsRes.data as any[]) ?? [];
+  const activePainReports = painReportsRes.data ?? [];
 
-  const sessionExerciseLogs = await getExerciseLogsForSessions(
-    workoutSessions.map((s) => s.id),
-  );
+  const activeClientRoutineId = activeClientRoutineRes.data?.id ?? null;
+
+  const [sessionExerciseLogs, overridesRes] = await Promise.all([
+    getExerciseLogsForSessions(workoutSessions.map((s) => s.id)),
+    activeClientRoutineId
+      ? supabase
+          .from("client_exercise_overrides")
+          .select(
+            "id, client_routine_id, original_routine_exercise_id, replacement_exercise_id, reason, changed_by, created_at, exercises!replacement_exercise_id(id, name, name_es), routine_exercises!original_routine_exercise_id(id, exercises(id, name, name_es), routine_days(day_number, day_name))",
+          )
+          .eq("client_routine_id", activeClientRoutineId)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const exerciseOverrides = overridesRes.data ?? [];
 
   const planName = planRes.data?.name ?? null;
   const profile = profileRes.data ?? null;
@@ -170,9 +203,65 @@ export default async function ClientProfilePage({
             ? ` · ${profile.streak_days} días racha`
             : ""
         }`}
+        actions={
+          <>
+            {client.user_id && (
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="flex-1 sm:flex-initial gap-1.5 text-xs sm:text-sm px-2.5 sm:px-3.5"
+              >
+                <Link href={`/admin/messages?clientId=${client.user_id}`}>
+                  <MessageSquare className="size-3.5 sm:size-4 shrink-0" />
+                  <span>Mensaje</span>
+                </Link>
+              </Button>
+            )}
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="flex-1 sm:flex-initial gap-1.5 text-xs sm:text-sm px-2.5 sm:px-3.5"
+            >
+              <Link href={`/admin/payments/new?clientId=${clientId}`}>
+                <CreditCard className="size-3.5 sm:size-4 shrink-0" />
+                <span>
+                  <span className="hidden sm:inline">Registrar </span>Pago
+                </span>
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="flex-1 sm:flex-initial gap-1.5 text-xs sm:text-sm px-2.5 sm:px-3.5"
+            >
+              <Link href={`/admin/clients/${clientId}/edit`}>
+                <Edit2 className="size-3.5 sm:size-4 shrink-0" />
+                <span>
+                  Editar<span className="hidden sm:inline"> cliente</span>
+                </span>
+              </Link>
+            </Button>
+            <Button
+              asChild
+              size="sm"
+              className="flex-1 sm:flex-initial gap-1.5 text-xs sm:text-sm px-2.5 sm:px-3.5"
+            >
+              <Link href={`/admin/clients/${clientId}/assign-routine`}>
+                <Dumbbell className="size-3.5 sm:size-4 shrink-0" />
+                <span className="sm:hidden">Rutina</span>
+                <span className="hidden sm:inline">
+                  {routine ? "Cambiar rutina" : "Asignar rutina"}
+                </span>
+              </Link>
+            </Button>
+          </>
+        }
       />
 
-      <main className="container flex flex-col gap-8 py-8">
+      <div className={cn(ADMIN_DATA_PAGE_SHELL, "flex flex-col gap-8")}>
         {accessCode && (
           <AccessCodeBanner
             code={accessCode}
@@ -191,9 +280,11 @@ export default async function ClientProfilePage({
           progressPhotos={progressPhotos ?? []}
           personalRecords={personalRecords}
           userAchievements={userAchievements}
+          painReports={activePainReports as any}
+          exerciseOverrides={exerciseOverrides as any}
           clientId={clientId}
         />
-      </main>
+      </div>
     </div>
   );
 }

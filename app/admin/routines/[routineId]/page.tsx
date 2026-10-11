@@ -9,7 +9,10 @@ import { DeleteRoutineButton } from "./delete-routine-button";
 import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 import { RoutineDayCards } from "@/components/routines/routine-day-cards";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_DATA_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 
 type RoutineDayRow = { is_rest_day: boolean };
 
@@ -26,7 +29,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .eq("id", routineId)
     .single();
   return {
-    title: routine?.name ? `${routine.name} | RU Coach` : "Rutina | RU Coach",
+    title: routine?.name || "Rutina",
   };
 }
 
@@ -82,21 +85,26 @@ export default async function RoutineDetailsPage({ params }: Props) {
         }
         actions={
           <div className="flex w-full items-center gap-3 sm:w-auto">
-            <Button asChild className="flex-1 sm:w-auto h-12 rounded-[1rem] font-bold text-[15px] shadow-sm transition-all hover:shadow-md active:scale-[0.98]">
+            <Button
+              asChild
+              className="flex-1 sm:flex-initial h-12 rounded-[1rem] font-bold text-[15px] shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
+            >
               <Link href={`/admin/routines/${routineId}/edit`}>
                 <Pencil className="mr-2 size-5" />
                 Editar Rutina
               </Link>
             </Button>
-            <DeleteRoutineButton
-              routineId={routineId}
-              routineName={routine.name}
-            />
+            <div className="flex-1 sm:flex-initial flex [&>*]:flex-1 sm:[&>*]:flex-initial">
+              <DeleteRoutineButton
+                routineId={routineId}
+                routineName={routine.name}
+              />
+            </div>
           </div>
         }
       />
 
-      <main className="container py-6 sm:py-8">
+      <div className={ADMIN_DATA_PAGE_SHELL}>
         <div className="grid gap-6">
           {/* Routine Info */}
           <Card className="rounded-[1.5rem] border-border/50 bg-card/60 shadow-sm backdrop-blur-xl overflow-hidden">
@@ -146,7 +154,7 @@ export default async function RoutineDetailsPage({ params }: Props) {
             <RoutineDayCards days={routine.routine_days || []} />
           </section>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

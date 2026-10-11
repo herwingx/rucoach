@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation'
 import { AdminSidebar } from '@/components/admin-sidebar'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import { cn } from '@/lib/utils'
 
@@ -16,10 +16,9 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
       <SidebarInset className={cn(isMessages && 'flex-1 min-h-0')}>
         <div
           id="main-content"
-          role="main"
           tabIndex={-1}
           className={cn(
-            'flex-1 pb-[calc(60px+env(safe-area-inset-bottom))] md:pb-0',
+            'flex-1 safe-area-pt pb-[calc(60px+env(safe-area-inset-bottom))] md:pb-0',
             isMessages ? 'flex min-h-0 flex-col overflow-hidden' : 'overflow-auto',
           )}
         >

@@ -6,7 +6,10 @@ import Link from "next/link";
 import { Plus, Dumbbell, CalendarDays, Sigma } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AdminKpiStatCard } from "@/components/admin/admin-kpi-stat-card";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_DATA_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 import RoutineCardsClient, {
   type RoutineCardItem,
 } from "./routine-cards-client";
@@ -101,7 +104,7 @@ export default async function AdminRoutinesPage() {
         }
       />
 
-      <main className="container min-w-0 py-8">
+      <div className={ADMIN_DATA_PAGE_SHELL}>
         {totalRoutines > 0 && (
           <section className="mb-6 grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3">
             <AdminKpiStatCard
@@ -141,7 +144,7 @@ export default async function AdminRoutinesPage() {
         ) : (
           <RoutineCardsClient routines={routineCards} />
         )}
-      </main>
+      </div>
     </div>
   );
 }

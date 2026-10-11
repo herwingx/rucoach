@@ -8,7 +8,10 @@ import {
   ClientManagementContent,
   type ClientManagementCard,
 } from "./client-management-content";
-import { AdminPageHeader } from "@/components/admin/admin-page-header";
+import {
+  ADMIN_DATA_PAGE_SHELL,
+  AdminPageHeader,
+} from "@/components/admin/admin-page-header";
 import {
   fetchLatestCompletedSessionByClients,
   fetchLatestPaidPaymentByClients,
@@ -119,9 +122,9 @@ export default async function AdminClientsPage() {
         }
       />
 
-      <main className="container py-8">
+      <div className={ADMIN_DATA_PAGE_SHELL}>
         <ClientManagementContent clients={clients} />
-      </main>
+      </div>
     </div>
   );
 }

@@ -135,17 +135,17 @@ export function AdminDashboardCards({
         />
       </div>
 
-      <Card className="overflow-hidden border-muted/70 border-dashed shadow-none">
-        <CardHeader className="p-4 pb-2 sm:p-5 sm:pb-3">
+      <Card className="overflow-hidden py-0 gap-0 rounded-2xl border-border/50 bg-card/60 backdrop-blur-xl shadow-sm">
+        <CardHeader className="p-4 pb-3 sm:p-5 sm:pb-4 border-b border-border/40">
           <div className="flex flex-wrap items-center gap-2">
-            <CardTitle className="text-base font-semibold">Seguimiento</CardTitle>
+            <CardTitle className="text-base font-bold tracking-tight">Seguimiento</CardTitle>
             {attentionCount > 0 ? (
-              <Badge variant="destructive" className="gap-1 font-normal">
+              <Badge variant="destructive" className="gap-1 font-semibold">
                 <AlertTriangle className="size-3.5" />
                 {attentionCount} prioritaria{attentionCount !== 1 ? 's' : ''}
               </Badge>
             ) : (
-              <Badge variant="outline" className="font-normal text-muted-foreground">
+              <Badge variant="outline" className="font-medium text-muted-foreground">
                 Sin alertas críticas
               </Badge>
             )}
@@ -157,34 +157,34 @@ export function AdminDashboardCards({
         <CardContent className="p-0">
           <div className="grid gap-0 sm:grid-cols-2">
             <div className="flex flex-col gap-3 p-4 sm:p-5">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <Flame className="size-3.5" />
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <Flame className="size-3.5 text-primary" />
                 Mayor constancia (30 días)
               </div>
-              <p className="truncate text-lg font-semibold leading-tight">
+              <p className="truncate text-lg font-bold leading-tight">
                 {mostActiveClientName || '—'}
               </p>
               {mostActiveClientId ? (
-                <Button variant="outline" size="sm" className="w-full sm:w-fit" asChild>
+                <Button variant="outline" size="sm" className="w-full sm:w-fit rounded-xl font-semibold" asChild>
                   <Link href={`/admin/clients/${mostActiveClientId}`}>Ver perfil</Link>
                 </Button>
               ) : null}
             </div>
             <Separator className="sm:hidden" />
-            <div className="border-t border-dashed bg-muted/20 sm:border-t-0 sm:border-l sm:border-dashed">
+            <div className="border-t border-border/40 bg-muted/15 sm:border-t-0 sm:border-l">
               <div className="flex flex-col gap-3 p-4 sm:p-5">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   <AlertTriangle className="size-3.5 text-destructive" />
                   Revisar primero
                 </div>
                 {attentionClientName ? (
                   <>
-                    <p className="truncate text-lg font-semibold leading-tight text-destructive">
+                    <p className="truncate text-lg font-bold leading-tight text-destructive">
                       {attentionClientName}
                     </p>
                     <p className="text-sm text-muted-foreground">{attentionReason || 'Requiere acción'}</p>
                     {attentionClientId ? (
-                      <Button size="sm" className="w-full sm:w-fit" asChild>
+                      <Button size="sm" className="w-full sm:w-fit rounded-xl font-bold" asChild>
                         <Link href={`/admin/clients/${attentionClientId}`}>Abrir ficha</Link>
                       </Button>
                     ) : null}
