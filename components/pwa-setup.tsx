@@ -2,7 +2,6 @@
 
 import { useEffect } from 'react'
 
-const SW_RELOAD_GUARD_KEY = 'rucoach-sw-reload-guard-ts'
 const DISMISS_KEY = 'rucoach-pwa-install-dismissed-v1'
 
 export type DeferredPromptEvent = Event & {
@@ -24,13 +23,24 @@ export function PWASetup() {
       // Capturar beforeinstallprompt lo antes posible (incluso en /auth/login)
       // para que esté disponible al entrar al dashboard o abrir el menú lateral.
       const handleBeforeInstall = (e: Event) => {
+        const path = window.location.pathname || ''
+        const isAuthOrPublic =
+          path.startsWith('/auth') ||
+          path === '/login' ||
+          path === '/signup' ||
+          path === '/welcome' ||
+          path === '/offline' ||
+          path === '/suspended'
+
         try {
           const wasDismissed = localStorage.getItem(DISMISS_KEY) === '1'
-          if (!wasDismissed) {
+          if (!wasDismissed && !isAuthOrPublic) {
             e.preventDefault()
           }
         } catch {
-          e.preventDefault()
+          if (!isAuthOrPublic) {
+            e.preventDefault()
+          }
         }
         window.__rucoachDeferredPrompt = e as DeferredPromptEvent
         window.dispatchEvent(new CustomEvent('rucoach:pwa-prompt-ready'))
@@ -78,20 +88,6 @@ export function PWASetup() {
           updateInterval = setInterval(() => {
             registration.update().catch(() => {})
           }, 60_000)
-
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing
-            if (!newWorker) return
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                const now = Date.now()
-                const last = Number(sessionStorage.getItem(SW_RELOAD_GUARD_KEY) || 0)
-                if (now - last < 8000) return
-                sessionStorage.setItem(SW_RELOAD_GUARD_KEY, String(now))
-                window.location.reload()
-              }
-            })
-          })
         })
         .catch(() => {})
 

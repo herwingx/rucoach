@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -18,9 +19,11 @@ export function PremiumSplash() {
             {/* Logo Container */}
             <div className="relative size-24 rounded-[2rem] overflow-hidden shadow-2xl ring-1 ring-white/10 p-0.5 bg-background">
               <div className="relative size-full rounded-[1.8rem] overflow-hidden bg-gradient-to-br from-primary/20 to-transparent">
-                <img
-                  src="/android-chrome-512x512.png"
+                <Image
+                  src="/android-chrome-192x192.png"
                   alt="RU Coach Logo"
+                  width={96}
+                  height={96}
                   className="size-full object-cover"
                 />
               </div>
