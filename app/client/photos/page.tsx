@@ -21,18 +21,30 @@ export default async function ClientPhotosPage() {
 
   if (!clientRecord) redirect("/client/dashboard");
 
-  const { data: photos } = await supabase
-    .from("progress_photos")
-    .select("id, photo_url, view_type, weight_kg, notes, taken_at, created_at")
-    .eq("client_id", clientRecord.id)
-    .order("taken_at", { ascending: false });
+  const [{ data: photos }, { data: latestMeasurement }] = await Promise.all([
+    supabase
+      .from("progress_photos")
+      .select("id, photo_url, view_type, weight_kg, notes, taken_at, created_at")
+      .eq("client_id", clientRecord.id)
+      .order("taken_at", { ascending: false }),
+    supabase
+      .from("body_measurements")
+      .select("weight")
+      .eq("client_id", clientRecord.id)
+      .not("weight", "is", null)
+      .order("recorded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
 
   const photoList = photos || [];
+  const latestWeightKg =
+    latestMeasurement?.weight != null ? Number(latestMeasurement.weight) : null;
   const n = photoList.length;
   const photosSubtitle =
     n === 0
-      ? "Sin fotos aún · sube la primera desde la pestaña Subir"
-      : `${n} ${n === 1 ? "foto" : "fotos"} en tu galería`;
+      ? "Registra tu punto de partida con tus perfiles de Frente, Perfil y Espalda."
+      : `${n} ${n === 1 ? "foto registrada" : "fotos registradas"} · seguimiento visual y comparador Antes / Después`;
 
   return (
     <>
@@ -41,6 +53,11 @@ export default async function ClientPhotosPage() {
         <PhotosContent
           clientId={clientRecord.id as string}
           initialPhotos={photoList}
+          latestWeightKg={
+            latestWeightKg != null && Number.isFinite(latestWeightKg)
+              ? latestWeightKg
+              : null
+          }
         />
       </div>
     </>

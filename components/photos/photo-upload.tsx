@@ -6,21 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Upload,
   Loader2,
   X,
   Camera,
-  Info,
   CheckCircle2,
   Sparkles,
   Calendar,
+  Scale,
+  User,
+  Eye,
 } from 'lucide-react'
 import { getR2PresignedUrl } from '@/app/actions/r2-storage'
 import { R2_PUBLIC_URL } from '@/lib/constants'
@@ -29,11 +24,18 @@ import Image from 'next/image'
 import { cn } from '@/lib/utils'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-const VIEW_TYPES = [
-  { value: 'front', label: 'Frente' },
-  { value: 'side', label: 'Perfil' },
-  { value: 'back', label: 'Espalda' },
-  { value: 'other', label: 'Otra' },
+export const PHOTO_VIEW_TYPES = [
+  { value: 'front', label: 'Frente', hint: 'Vista frontal' },
+  { value: 'side', label: 'Perfil', hint: 'Vista lateral' },
+  { value: 'back', label: 'Espalda', hint: 'Vista posterior' },
+  { value: 'other', label: 'Otra', hint: 'Pose libre' },
+] as const
+
+const QUICK_NOTE_CHIPS = [
+  'En ayunas',
+  'Post-entreno (Pump)',
+  'Luz natural',
+  'Check-in semanal',
 ] as const
 
 const MAX_INPUT_FILE_SIZE = 25 * 1024 * 1024 // 25 MB
@@ -151,11 +153,26 @@ export async function compressImageForUpload(file: File): Promise<File> {
 export function PhotoUpload({
   clientId,
   onSuccess,
+  latestWeightKg = null,
+  selectedViewType,
+  onViewTypeChange,
 }: {
   clientId: string
   onSuccess: (photo: ProgressPhoto) => void
+  latestWeightKg?: number | null
+  selectedViewType?: string
+  onViewTypeChange?: (viewType: string) => void
 }) {
-  const [viewType, setViewType] = React.useState<string>('front')
+  const [internalViewType, setInternalViewType] = React.useState<string>('front')
+  const viewType = selectedViewType ?? internalViewType
+  const setViewType = React.useCallback(
+    (next: string) => {
+      setInternalViewType(next)
+      onViewTypeChange?.(next)
+    },
+    [onViewTypeChange]
+  )
+
   const [takenAt, setTakenAt] = React.useState<string>(() => getLocalToday())
   const [weightKg, setWeightKg] = React.useState('')
   const [notes, setNotes] = React.useState('')
@@ -235,6 +252,18 @@ export function PhotoUpload({
     }
   }
 
+  const toggleNoteChip = (chip: string) => {
+    setNotes((prev) => {
+      const trimmed = prev.trim()
+      if (!trimmed) return chip
+      const parts = trimmed.split(',').map((p) => p.trim()).filter(Boolean)
+      if (parts.includes(chip)) {
+        return parts.filter((p) => p !== chip).join(', ')
+      }
+      return `${trimmed}, ${chip}`
+    })
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!file) return
@@ -271,7 +300,7 @@ export function PhotoUpload({
           photo_url: publicUrl,
           view_type: viewType,
           weight_kg: weightKg ? parseFloat(weightKg) : null,
-          notes: notes || null,
+          notes: notes.trim() || null,
           taken_at: selectedDate,
         })
         .select()
@@ -295,296 +324,315 @@ export function PhotoUpload({
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-2">
-      {/* Upload Area */}
-      <div className="space-y-6">
-        <div className="space-y-2">
-          <h3 className="text-2xl font-bold tracking-tight">Nueva foto</h3>
-          <p className="text-muted-foreground">
-            Sube una foto de tu estado actual o de días anteriores para registrar tu progreso.
-          </p>
-        </div>
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        accept="image/*,.heic,.heif"
+        onChange={(e) => {
+          const selected = e.target.files?.[0]
+          if (selected) void handleFile(selected)
+          e.target.value = ''
+        }}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        className="hidden"
+        accept="image/*"
+        capture="environment"
+        onChange={(e) => {
+          const selected = e.target.files?.[0]
+          if (selected) void handleFile(selected)
+          e.target.value = ''
+        }}
+      />
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div
-            className={cn(
-              'relative group cursor-pointer overflow-hidden rounded-3xl border-2 border-dashed transition-all aspect-[4/3] flex flex-col items-center justify-center p-6 text-center',
-              dragActive
-                ? 'border-primary bg-primary/5'
-                : 'border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/50',
-              previewUrl && 'border-solid border-primary/20 bg-muted/30'
-            )}
-            onDragEnter={onDrag}
-            onDragLeave={onDrag}
-            onDragOver={onDrag}
-            onDrop={onDrop}
-            onClick={() => !previewUrl && !isCompressing && fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              accept="image/*,.heic,.heif"
-              onChange={(e) => {
-                const selected = e.target.files?.[0]
-                if (selected) void handleFile(selected)
-                e.target.value = ''
-              }}
-            />
-            <input
-              ref={cameraInputRef}
-              type="file"
-              className="hidden"
-              accept="image/*"
-              capture="environment"
-              onChange={(e) => {
-                const selected = e.target.files?.[0]
-                if (selected) void handleFile(selected)
-                e.target.value = ''
-              }}
-            />
-
-            {isCompressing ? (
-              <div className="space-y-3">
-                <div className="size-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto text-primary">
-                  <Loader2 className="size-7 animate-spin" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-base font-semibold">Optimizando foto...</p>
-                  <p className="text-xs text-muted-foreground">
-                    Ajustando resolución para una subida rápida sin perder nitidez
-                  </p>
-                </div>
-              </div>
-            ) : previewUrl ? (
-              <div className="relative w-full h-full group/preview">
-                <Image
-                  src={previewUrl}
-                  alt="Preview"
-                  fill
-                  className="object-contain rounded-2xl"
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-100 sm:opacity-0 sm:group-hover/preview:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="rounded-full"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      fileInputRef.current?.click()
-                    }}
-                  >
-                    <Camera className="mr-2 size-4" />
-                    Cambiar
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="rounded-full"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setFile(null)
-                      setOriginalSize(null)
-                      setPreviewUrl(null)
-                    }}
-                  >
-                    <X className="mr-2 size-4" />
-                    Quitar
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="size-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto text-primary group-hover:scale-110 transition-transform">
-                  <Upload className="size-8" />
-                </div>
-                <div>
-                  <p className="text-lg font-semibold">Suelta tu foto aquí</p>
-                  <p className="text-sm text-muted-foreground">
-                    o elige desde tu galería o cámara del teléfono
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="rounded-xl text-xs font-semibold"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      fileInputRef.current?.click()
-                    }}
-                  >
-                    <Upload className="mr-1.5 size-3.5" />
-                    Explorar galería
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="rounded-xl text-xs font-semibold sm:hidden"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      cameraInputRef.current?.click()
-                    }}
-                  >
-                    <Camera className="mr-1.5 size-3.5" />
-                    Tomar foto
-                  </Button>
-                </div>
-                <div className="flex items-center justify-center gap-3 text-xs text-muted-foreground">
-                  <span>JPG, PNG, WebP, HEIC</span>
-                  <span>•</span>
-                  <span>Compresión automática (hasta 25 MB)</span>
-                </div>
-              </div>
-            )}
+      {/* Dropzone or Compact Preview */}
+      {isCompressing ? (
+        <div className="flex min-h-[190px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 p-6 text-center">
+          <div className="flex size-12 items-center justify-center rounded-full bg-primary/15 text-primary">
+            <Loader2 className="size-6 animate-spin" />
           </div>
-
-          {file && !isCompressing && (
-            <div className="flex items-center justify-between gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 px-3.5 py-2 text-xs text-emerald-600 dark:text-emerald-400">
-              <div className="flex items-center gap-2 font-medium">
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-foreground">Optimizando foto...</p>
+            <p className="text-xs text-muted-foreground">
+              Ajustando resolución para una subida instantánea sin perder nitidez
+            </p>
+          </div>
+        </div>
+      ) : previewUrl && file ? (
+        <div className="grid gap-4 rounded-2xl border border-primary/25 bg-muted/20 p-4 sm:grid-cols-[150px_1fr] sm:items-center">
+          <div className="relative mx-auto aspect-[3/4] w-36 overflow-hidden rounded-xl border border-border/60 bg-black/40 sm:w-full">
+            <Image
+              src={previewUrl}
+              alt="Vista previa de progreso"
+              fill
+              className="object-contain"
+            />
+          </div>
+          <div className="flex flex-col justify-between gap-3">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                 <Sparkles className="size-3.5 shrink-0" />
-                <span>
-                  Optimizada para subida rápida ({formatFileSize(file.size)})
-                </span>
+                <span>Lista para subir ({formatFileSize(file.size)})</span>
               </div>
               {originalSize && originalSize > file.size && (
-                <span className="text-[11px] text-muted-foreground">
-                  Original: {formatFileSize(originalSize)}
-                </span>
+                <p className="text-xs text-muted-foreground">
+                  Peso original: {formatFileSize(originalSize)} · Optimización automática aplicada
+                </p>
               )}
+              <p className="text-xs font-medium text-muted-foreground">
+                Verifica el ángulo, la fecha y el peso antes de guardar tu registro.
+              </p>
             </div>
-          )}
-
-          <FieldGroup>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field>
-                <FieldLabel>Categoría de la vista</FieldLabel>
-                <Select value={viewType} onValueChange={setViewType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Elige vista" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VIEW_TYPES.map((v) => (
-                      <SelectItem key={v.value} value={v.value}>
-                        {v.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="taken-at" className="flex items-center gap-1.5">
-                  <Calendar className="size-3.5 text-muted-foreground" />
-                  <span>Fecha de la foto</span>
-                </FieldLabel>
-                <Input
-                  id="taken-at"
-                  type="date"
-                  max={getLocalToday()}
-                  value={takenAt}
-                  onChange={(e) => setTakenAt(e.target.value)}
-                  required
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel htmlFor="weight">Peso (kg - opcional)</FieldLabel>
-                <Input
-                  id="weight"
-                  type="number"
-                  step="0.1"
-                  placeholder="75.0"
-                  value={weightKg}
-                  onChange={(e) => setWeightKg(e.target.value)}
-                />
-              </Field>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-9 rounded-xl text-xs font-semibold"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera className="mr-1.5 size-3.5" />
+                Cambiar foto
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-9 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => {
+                  setFile(null)
+                  setOriginalSize(null)
+                  setPreviewUrl(null)
+                }}
+              >
+                <X className="mr-1.5 size-3.5" />
+                Quitar
+              </Button>
             </div>
-
-            <Field>
-              <FieldLabel htmlFor="notes">Notas / Sensaciones (opcional)</FieldLabel>
-              <Input
-                id="notes"
-                placeholder="Ej: Ayunas, post-entreno, etc."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </Field>
-          </FieldGroup>
-
-          {error && (
-            <Alert variant="destructive" className="rounded-2xl">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full h-12 rounded-xl text-base font-bold shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
-            disabled={!file || isCompressing || isUploading}
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="mr-2 size-5 animate-spin" />
-                Subiendo progreso...
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="mr-2 size-5" />
-                Guardar foto de progreso
-              </>
-            )}
-          </Button>
-        </form>
-      </div>
-
-      {/* Guidance / Info */}
-      <div className="hidden lg:flex flex-col justify-center space-y-8 p-8 rounded-3xl bg-muted/30 border border-muted">
-        <div className="space-y-4">
-          <h4 className="text-xl font-bold flex items-center gap-2">
-            <Info className="size-5 text-primary" />
-            Tips para mejores fotos
-          </h4>
-          <ul className="space-y-4">
-            <li className="flex gap-3">
-              <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary text-xs font-bold">
-                1
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Usa la misma iluminación y hora del día (preferiblemente ayunas).
-              </p>
-            </li>
-            <li className="flex gap-3">
-              <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary text-xs font-bold">
-                2
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Mantén la misma distancia a la cámara y fondo neutro.
-              </p>
-            </li>
-            <li className="flex gap-3">
-              <div className="size-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary text-xs font-bold">
-                3
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Usa la misma ropa para que la comparación sea más precisa.
-              </p>
-            </li>
-          </ul>
+          </div>
         </div>
-
-        <div className="p-6 rounded-2xl bg-primary/5 border border-primary/10">
-          <p className="text-sm text-primary font-medium leading-relaxed">
-            &quot;La constancia en las fotos es tan importante como la constancia en el entrenamiento. Es tu mejor herramienta para ver lo que la báscula no te dice.&quot;
+      ) : (
+        <div
+          className={cn(
+            'group relative flex min-h-[190px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-6 text-center transition-all',
+            dragActive
+              ? 'border-primary bg-primary/5'
+              : 'border-border/70 bg-muted/15 hover:border-primary/50 hover:bg-muted/30'
+          )}
+          onDragEnter={onDrag}
+          onDragLeave={onDrag}
+          onDragOver={onDrag}
+          onDrop={onDrop}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <div className="mb-3 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform group-hover:scale-105">
+            <Upload className="size-6" />
+          </div>
+          <p className="text-base font-bold tracking-tight text-foreground">
+            Suelta tu foto aquí o selecciónala
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Compatible con galería o cámara directa en móvil y escritorio
+          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-9 rounded-xl px-3.5 text-xs font-semibold shadow-sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                fileInputRef.current?.click()
+              }}
+            >
+              <Upload className="mr-1.5 size-3.5" />
+              Explorar galería
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 rounded-xl px-3.5 text-xs font-semibold sm:hidden"
+              onClick={(e) => {
+                e.stopPropagation()
+                cameraInputRef.current?.click()
+              }}
+            >
+              <Camera className="mr-1.5 size-3.5" />
+              Tomar foto
+            </Button>
+          </div>
+          <p className="mt-3 text-[11px] font-medium text-muted-foreground/80">
+            JPG, PNG, WebP, HEIC • Compresión inteligente automática (hasta 25 MB)
           </p>
         </div>
-      </div>
-    </div>
+      )}
+
+      {/* Visual Angle Selector */}
+      <FieldGroup className="space-y-4">
+        <Field>
+          <FieldLabel className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <Eye className="size-3.5 text-primary" />
+            <span>Ángulo / Perfil de la foto</span>
+          </FieldLabel>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {PHOTO_VIEW_TYPES.map((v) => {
+              const isSelected = viewType === v.value
+              return (
+                <button
+                  key={v.value}
+                  type="button"
+                  onClick={() => setViewType(v.value)}
+                  className={cn(
+                    'flex flex-col items-start rounded-xl border p-3 text-left transition-all',
+                    isSelected
+                      ? 'border-primary bg-primary/10 text-foreground ring-1 ring-primary/30 shadow-sm'
+                      : 'border-border/60 bg-muted/15 text-muted-foreground hover:border-border hover:bg-muted/30 hover:text-foreground'
+                  )}
+                >
+                  <div className="flex w-full items-center justify-between gap-1">
+                    <span className="text-xs font-bold text-foreground">{v.label}</span>
+                    <User
+                      className={cn(
+                        'size-3.5 shrink-0',
+                        isSelected ? 'text-primary' : 'text-muted-foreground/50'
+                      )}
+                    />
+                  </div>
+                  <span className="mt-0.5 text-[11px] text-muted-foreground">
+                    {v.hint}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </Field>
+
+        {/* Date & Weight Row */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel
+              htmlFor="taken-at"
+              className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            >
+              <Calendar className="size-3.5 text-primary" />
+              <span>Fecha de captura</span>
+            </FieldLabel>
+            <Input
+              id="taken-at"
+              type="date"
+              max={getLocalToday()}
+              value={takenAt}
+              onChange={(e) => setTakenAt(e.target.value)}
+              className="h-11 rounded-xl"
+              required
+            />
+          </Field>
+
+          <Field>
+            <div className="flex items-center justify-between gap-2">
+              <FieldLabel
+                htmlFor="weight"
+                className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground"
+              >
+                <Scale className="size-3.5 text-primary" />
+                <span>Peso corporal (opcional)</span>
+              </FieldLabel>
+              {latestWeightKg != null && (
+                <button
+                  type="button"
+                  onClick={() => setWeightKg(String(latestWeightKg))}
+                  className="rounded-lg bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary transition-colors hover:bg-primary/20"
+                >
+                  Usar {latestWeightKg} kg
+                </button>
+              )}
+            </div>
+            <Input
+              id="weight"
+              type="number"
+              step="0.1"
+              placeholder={
+                latestWeightKg != null
+                  ? `Último registrado: ${latestWeightKg} kg`
+                  : 'Ej: 75.0 kg'
+              }
+              value={weightKg}
+              onChange={(e) => setWeightKg(e.target.value)}
+              className="h-11 rounded-xl"
+            />
+          </Field>
+        </div>
+
+        {/* Notes + Quick Chips */}
+        <Field>
+          <FieldLabel
+            htmlFor="notes"
+            className="text-xs font-bold uppercase tracking-wider text-muted-foreground"
+          >
+            Condición / Notas (opcional)
+          </FieldLabel>
+          <Input
+            id="notes"
+            placeholder="Ej: En ayunas, post-entreno, semana 4 de definición..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="h-11 rounded-xl"
+          />
+          <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+            {QUICK_NOTE_CHIPS.map((chip) => {
+              const isSelected = notes
+                .split(',')
+                .map((p) => p.trim())
+                .includes(chip)
+              return (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => toggleNoteChip(chip)}
+                  className={cn(
+                    'rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-all',
+                    isSelected
+                      ? 'border-primary/40 bg-primary/15 text-primary'
+                      : 'border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+                  )}
+                >
+                  + {chip}
+                </button>
+              )
+            })}
+          </div>
+        </Field>
+      </FieldGroup>
+
+      {error && (
+        <Alert variant="destructive" className="rounded-2xl">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <Button
+        type="submit"
+        size="lg"
+        className="h-12 w-full rounded-xl text-base font-bold shadow-lg shadow-primary/20 transition-all active:scale-[0.98]"
+        disabled={!file || isCompressing || isUploading}
+      >
+        {isUploading ? (
+          <>
+            <Loader2 className="mr-2 size-5 animate-spin" />
+            Subiendo progreso...
+          </>
+        ) : (
+          <>
+            <CheckCircle2 className="mr-2 size-5" />
+            Guardar foto de progreso
+          </>
+        )}
+      </Button>
+    </form>
   )
 }
-

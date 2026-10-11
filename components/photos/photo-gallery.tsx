@@ -50,6 +50,9 @@ interface PhotoGalleryProps {
   onDeleteSuccess?: (id: string) => void
   onView?: (photo: ProgressPhoto) => void
   showActions?: boolean
+  onRequestUpload?: () => void
+  externalFilter?: string
+  onExternalFilterChange?: (val: string) => void
 }
 
 export function PhotoGallery({
@@ -57,8 +60,19 @@ export function PhotoGallery({
   onDeleteSuccess,
   onView,
   showActions = true,
+  onRequestUpload,
+  externalFilter,
+  onExternalFilterChange,
 }: PhotoGalleryProps) {
-  const [filter, setFilter] = React.useState<string>('all')
+  const [internalFilter, setInternalFilter] = React.useState<string>('all')
+  const filter = externalFilter ?? internalFilter
+  const setFilter = React.useCallback(
+    (val: string) => {
+      setInternalFilter(val)
+      onExternalFilterChange?.(val)
+    },
+    [onExternalFilterChange],
+  )
   const [search, setSearch] = React.useState('')
   const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid')
   const [viewingPhoto, setViewingPhoto] = React.useState<ProgressPhoto | null>(null)
@@ -103,14 +117,24 @@ export function PhotoGallery({
 
   if (photos.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center border-2 border-dashed rounded-3xl bg-muted/20">
-        <div className="size-16 rounded-full bg-muted flex items-center justify-center mb-4">
+      <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed bg-muted/20 px-4 py-16 text-center">
+        <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-muted">
           <Camera className="size-8 text-muted-foreground" />
         </div>
-        <h3 className="text-xl font-semibold mb-2">Sin fotos aún</h3>
-        <p className="text-muted-foreground max-w-xs mx-auto">
-          Comienza a documentar tu progreso subiendo tu primera foto.
+        <h3 className="mb-2 text-xl font-semibold">Sin fotos aún</h3>
+        <p className="mx-auto mb-6 max-w-xs text-sm text-muted-foreground">
+          Comienza a documentar tu transformación subiendo tu primera foto de progreso.
         </p>
+        {onRequestUpload && (
+          <Button
+            type="button"
+            onClick={onRequestUpload}
+            className="rounded-xl font-semibold shadow-md shadow-primary/20"
+          >
+            <Camera className="mr-2 size-4" />
+            Subir mi primera foto
+          </Button>
+        )}
       </div>
     )
   }

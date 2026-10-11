@@ -290,45 +290,65 @@ export function ClientCalendarPageSkeleton() {
   )
 }
 
-/** Fotos de Progreso: Tabs (Galería, Comparar, Subir) + filtros + galería 3 cols. */
+/** Fotos de Progreso: Estudio Visual en aside (4 cols) + Tabs/Contenido en main (8 cols). */
 export function ClientPhotosPageSkeleton() {
   return (
     <>
       <ClientStackPageHeaderSkeleton />
       <div
-        className={`${CLIENT_DATA_PAGE_SHELL} space-y-6`}
+        className={`${CLIENT_DATA_PAGE_SHELL} grid gap-6 lg:grid-cols-12 lg:items-start`}
         aria-busy="true"
         aria-label="Cargando fotos de progreso"
       >
-        {/* TabsList: Galería, Comparar, Subir */}
-        <div className="flex h-auto w-full sm:w-fit items-center justify-start gap-1 overflow-x-auto rounded-2xl border border-border/40 bg-muted/50 p-1 shadow-sm">
-          <Skeleton className="h-9 flex-1 sm:flex-none sm:w-28 rounded-xl" />
-          <Skeleton className="h-9 flex-1 sm:flex-none sm:w-28 rounded-xl" />
-          <Skeleton className="h-9 flex-1 sm:flex-none sm:w-24 rounded-xl" />
-        </div>
-
-        {/* Category Filter Pills */}
-        <div className="flex flex-wrap items-center gap-2">
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-9 w-20 rounded-xl" />
-          ))}
-        </div>
-
-        {/* Gallery Grid */}
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <Card
-              key={i}
-              className="overflow-hidden rounded-3xl border-border/80 bg-card/60 shadow-sm ring-1 ring-primary/5"
-            >
-              <Skeleton className="aspect-[3/4] w-full rounded-none" />
-              <div className="p-4 flex items-center justify-between gap-2">
-                <Skeleton className="h-4 w-28 rounded-md" />
-                <Skeleton className="h-6 w-16 rounded-full" />
+        <aside className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-4 lg:sticky lg:top-[calc(112px+1.5rem)] lg:self-start">
+          <Card className="overflow-hidden rounded-3xl border-border/80 bg-card/60 shadow-sm ring-1 ring-primary/5">
+            <CardHeader className="space-y-4 pb-5">
+              <div className="flex items-center gap-4">
+                <Skeleton className="size-11 shrink-0 rounded-2xl" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-5 w-32 rounded-md" />
+                  <Skeleton className="h-3.5 w-44 max-w-full rounded-md opacity-60" />
+                </div>
               </div>
-            </Card>
-          ))}
-        </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-2 gap-2.5">
+                {[0, 1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-20 w-full rounded-2xl" />
+                ))}
+              </div>
+              <Skeleton className="h-36 w-full rounded-2xl" />
+            </CardContent>
+          </Card>
+        </aside>
+
+        <section className="order-1 min-w-0 lg:order-2 lg:col-span-8">
+          <Card className="overflow-hidden rounded-3xl border-border/80 bg-card/60 shadow-sm ring-1 ring-primary/5">
+            <CardHeader className="border-b bg-muted/5 px-5 pt-5 pb-4 sm:px-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex h-auto w-full sm:w-fit items-center justify-start gap-1 rounded-2xl border border-border/40 bg-muted/50 p-1">
+                  <Skeleton className="h-9 flex-1 sm:flex-none sm:w-28 rounded-xl" />
+                  <Skeleton className="h-9 flex-1 sm:flex-none sm:w-28 rounded-xl" />
+                  <Skeleton className="h-9 flex-1 sm:flex-none sm:w-24 rounded-xl" />
+                </div>
+                <Skeleton className="h-7 w-36 rounded-xl" />
+              </div>
+            </CardHeader>
+            <CardContent className="p-5 sm:p-6 space-y-5">
+              <Skeleton className="h-48 w-full rounded-2xl" />
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                {[0, 1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-16 w-full rounded-xl" />
+                ))}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Skeleton className="h-11 w-full rounded-xl" />
+                <Skeleton className="h-11 w-full rounded-xl" />
+              </div>
+              <Skeleton className="h-12 w-full rounded-xl" />
+            </CardContent>
+          </Card>
+        </section>
       </div>
     </>
   )
