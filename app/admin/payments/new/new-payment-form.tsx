@@ -102,6 +102,31 @@ export function NewPaymentForm({
     addDays(new Date(), 30),
   );
 
+  const [reference, setReference] = React.useState<string>("");
+  const [referenceTouched, setReferenceTouched] = React.useState<boolean>(false);
+
+  const selectedPlan = React.useMemo(
+    () =>
+      selectedPlanId !== "none"
+        ? plans.find((p) => p.id === selectedPlanId)
+        : undefined,
+    [plans, selectedPlanId],
+  );
+
+  const numericAmount = Number.parseFloat(amount);
+  const discountInfo = React.useMemo(() => {
+    if (!selectedPlan || Number.isNaN(numericAmount) || selectedPlan.price <= 0) {
+      return null;
+    }
+    const diff = selectedPlan.price - numericAmount;
+    if (diff <= 0) return null;
+    const pct = Math.round((diff / selectedPlan.price) * 100);
+    return {
+      savedAmount: diff,
+      pct,
+    };
+  }, [selectedPlan, numericAmount]);
+
   const applyClientDefaults = React.useCallback(
     (clientId: string) => {
       setSelectedClientId(clientId);
@@ -118,7 +143,7 @@ export function NewPaymentForm({
 
       const matchedPlan = client.current_plan_id
         ? plans.find((p) => p.id === client.current_plan_id)
-        : undefined;
+        : plans[0];
 
       if (matchedPlan) {
         setSelectedPlanId(matchedPlan.id);
@@ -126,11 +151,14 @@ export function NewPaymentForm({
         setPeriodEnd(
           addDays(suggestedStart, matchedPlan.duration_days || 30),
         );
+        if (!referenceTouched) {
+          setReference(`Plan ${matchedPlan.name}`);
+        }
       } else {
         setPeriodEnd(addDays(suggestedStart, 30));
       }
     },
-    [clients, plans],
+    [clients, plans, referenceTouched],
   );
 
   React.useEffect(() => {
@@ -144,18 +172,43 @@ export function NewPaymentForm({
     setSelectedPlanId(planId);
     if (planId === "none") {
       setAmount("");
+      if (!referenceTouched) setReference("");
       return;
     }
 
     const plan = plans.find((p) => p.id === planId);
     if (plan) {
       setAmount(plan.price.toString());
+      if (!referenceTouched) {
+        setReference(`Plan ${plan.name}`);
+      }
 
       const start = periodStart || new Date();
       setPeriodStart(start);
 
       if (plan.duration_days) {
         setPeriodEnd(addDays(start, plan.duration_days));
+      }
+    }
+  };
+
+  const applyDiscountPercent = (pct: number) => {
+    if (!selectedPlan) return;
+    const discounted = Math.max(
+      0,
+      Math.round(selectedPlan.price * (1 - pct / 100)),
+    );
+    setAmount(String(discounted));
+    if (!referenceTouched) {
+      if (pct === 0) {
+        setReference(`Plan ${selectedPlan.name}`);
+      } else if (pct === 100) {
+        setReference(`Plan ${selectedPlan.name} (Cortesía / Beca 100%)`);
+      } else {
+        const saved = selectedPlan.price - discounted;
+        setReference(
+          `Plan ${selectedPlan.name} (Descuento -${pct}% · Ahorro $${saved})`,
+        );
       }
     }
   };
@@ -177,6 +230,7 @@ export function NewPaymentForm({
     formData.set("amount", amount);
     formData.set("paymentMethod", paymentMethod);
     formData.set("paymentStatus", paymentStatus);
+    formData.set("reference", reference.trim());
     formData.set(
       "paidAt",
       paymentStatus === "paid" && paidAt ? format(paidAt, "yyyy-MM-dd") : "",
@@ -307,14 +361,24 @@ export function NewPaymentForm({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="planId">Plan de Membresía</FieldLabel>
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel htmlFor="planId">Plan de Membresía</FieldLabel>
+                  <Link
+                    href="/admin/settings?tab=plans"
+                    className="text-[11px] font-semibold text-primary hover:underline"
+                  >
+                    Editar planes / tarifas →
+                  </Link>
+                </div>
                 <Select value={selectedPlanId} onValueChange={handlePlanChange}>
                   <SelectTrigger id="planId" className="w-full">
                     <SelectValue placeholder="Sin plan específico" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectItem value="none">Sin plan específico (personalizado)</SelectItem>
+                      <SelectItem value="none">
+                        Cobro libre / Personalizado (sin plan fijo)
+                      </SelectItem>
                       {plans.map((plan) => (
                         <SelectItem key={plan.id} value={plan.id}>
                           {plan.name} — ${plan.price.toLocaleString("es-MX")} ({plan.duration_days} días)
@@ -323,6 +387,9 @@ export function NewPaymentForm({
                     </SelectGroup>
                   </SelectContent>
                 </Select>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  El plan define los días de vigencia (ej. 30 días) y sugiere el precio base.
+                </p>
               </Field>
 
               <Field>
@@ -350,7 +417,16 @@ export function NewPaymentForm({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <FieldLabel htmlFor="amount">Monto (MXN) *</FieldLabel>
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel htmlFor="amount">
+                    Monto a cobrar (MXN) *
+                  </FieldLabel>
+                  {discountInfo && (
+                    <span className="inline-flex items-center rounded-md bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      Descuento -{discountInfo.pct}% (-${discountInfo.savedAmount.toLocaleString("es-MX")})
+                    </span>
+                  )}
+                </div>
                 <Input
                   id="amount"
                   name="amount"
@@ -359,12 +435,72 @@ export function NewPaymentForm({
                   step="0.01"
                   min="0"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    setAmount(nextVal);
+                    if (selectedPlan && !referenceTouched) {
+                      const num = Number.parseFloat(nextVal);
+                      if (!Number.isNaN(num) && num < selectedPlan.price) {
+                        const saved = selectedPlan.price - num;
+                        const pct = Math.round((saved / selectedPlan.price) * 100);
+                        setReference(
+                          `Plan ${selectedPlan.name} (Descuento -${pct}% · Ahorro $${saved})`,
+                        );
+                      } else if (!Number.isNaN(num) && num === selectedPlan.price) {
+                        setReference(`Plan ${selectedPlan.name}`);
+                      }
+                    }
+                  }}
                   required
                 />
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  Al elegir un plan se sugiere el precio; puedes ajustarlo por descuento o promoción.
-                </p>
+                {selectedPlan && selectedPlan.price > 0 ? (
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-[11px] text-muted-foreground">
+                      Aplicar descuento rápido sobre{" "}
+                      <span className="font-semibold text-foreground">
+                        ${selectedPlan.price.toLocaleString("es-MX")}
+                      </span>{" "}
+                      o escribe cualquier monto directo arriba:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { label: "Precio normal", pct: 0 },
+                        { label: "-10%", pct: 10 },
+                        { label: "-15%", pct: 15 },
+                        { label: "-20%", pct: 20 },
+                        { label: "-50%", pct: 50 },
+                        { label: "Beca $0", pct: 100 },
+                      ].map((chip) => {
+                        const targetPrice = Math.round(
+                          selectedPlan.price * (1 - chip.pct / 100),
+                        );
+                        const isActive = numericAmount === targetPrice;
+                        return (
+                          <button
+                            key={chip.pct}
+                            type="button"
+                            onClick={() => applyDiscountPercent(chip.pct)}
+                            className={cn(
+                              "rounded-lg border px-2 py-1 text-[11px] font-semibold transition-all cursor-pointer",
+                              isActive
+                                ? "border-primary bg-primary/15 text-foreground"
+                                : "border-border bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted",
+                            )}
+                          >
+                            {chip.label}{" "}
+                            {chip.pct > 0 && chip.pct < 100
+                              ? `($${targetPrice})`
+                              : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Escribe el monto real acordado con el asesorado.
+                  </p>
+                )}
               </Field>
               <Field>
                 <FieldLabel htmlFor="paymentMethod">Método de Pago</FieldLabel>
@@ -418,8 +554,16 @@ export function NewPaymentForm({
               <Input
                 id="reference"
                 name="reference"
+                value={reference}
+                onChange={(e) => {
+                  setReferenceTouched(true);
+                  setReference(e.target.value);
+                }}
                 placeholder="Ej. Mensualidad Octubre, Folio SPEI #1234, Ajuste..."
               />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Aparecerá en el recibo del asesorado y en tu historial de cobros (si aplicas descuento se anota automáticamente).
+              </p>
             </Field>
           </FieldGroup>
 

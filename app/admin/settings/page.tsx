@@ -26,10 +26,21 @@ import { CoachProfileSettings } from "@/components/admin/coach-profile-settings"
 import { MembershipPlansSettings } from "@/components/admin/membership-plans-settings";
 import { cn } from "@/lib/utils";
 
-export default async function AdminSettingsPage() {
+export default async function AdminSettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ tab?: string }>;
+}) {
   const { user, role, profile } = await getAuthData();
 
   if (!user || role !== "admin") redirect("/auth/login");
+
+  const resolvedParams = searchParams ? await searchParams : {};
+  const validTabs = ["profile", "plans", "general", "biblioteca"];
+  const defaultTab =
+    resolvedParams?.tab && validTabs.includes(resolvedParams.tab)
+      ? resolvedParams.tab
+      : "profile";
 
   const supabase = await createClient();
 
@@ -66,7 +77,7 @@ export default async function AdminSettingsPage() {
       <div className={cn(ADMIN_DATA_PAGE_SHELL, "space-y-8")}>
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
 
-          <Tabs defaultValue="profile" className="flex flex-col gap-6">
+          <Tabs defaultValue={defaultTab} className="flex flex-col gap-6">
             <TabsList className="no-scrollbar flex h-auto w-full sm:w-fit items-center justify-start overflow-x-auto rounded-2xl border border-border/40 bg-muted/50 p-1 shadow-sm">
               <TabsTrigger
                 value="profile"
