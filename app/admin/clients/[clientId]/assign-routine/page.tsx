@@ -1,4 +1,4 @@
-import { getAuthUser, getUserRole } from "@/lib/auth-utils";
+import { getAuthData } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getRoutines } from "@/lib/routines";
@@ -10,24 +10,25 @@ interface Props {
 }
 
 export default async function AssignRoutinePage({ params }: Props) {
-  const user = await getAuthUser();
-  const role = await getUserRole();
-  const { clientId } = await params;
+  const [{ user, role }, { clientId }] = await Promise.all([
+    getAuthData(),
+    params,
+  ]);
 
-  if (!user) redirect("/auth/login");
-  if (role !== "admin") redirect("/auth/login");
+  if (!user || role !== "admin") redirect("/auth/login");
 
   const supabase = await createClient();
-  const { data: client } = await supabase
-    .from("clients")
-    .select("full_name")
-    .eq("id", clientId)
-    .eq("coach_id", user.id)
-    .single();
+  const [{ data: client }, routines] = await Promise.all([
+    supabase
+      .from("clients")
+      .select("full_name")
+      .eq("id", clientId)
+      .eq("coach_id", user.id)
+      .single(),
+    getRoutines(),
+  ]);
 
   if (!client) redirect("/admin/clients");
-
-  const routines = await getRoutines();
 
   return (
     <div

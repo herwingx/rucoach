@@ -1,4 +1,4 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthData } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ADMIN_MESSAGES_INBOX_CAP } from "@/lib/performance-limits";
@@ -33,25 +33,20 @@ export default async function AdminMessagesPage({
 }: {
   searchParams?: Promise<{ clientId?: string }>;
 }) {
-  const user = await getAuthUser();
+  const [{ user, role: authRole }, sp] = await Promise.all([
+    getAuthData(),
+    searchParams ? searchParams : Promise.resolve(undefined),
+  ]);
   if (!user) redirect("/auth/login");
 
-  const sp = searchParams ? await searchParams : undefined;
   const requestedClientId = sp?.clientId?.trim() || null;
-
-  const supabase = await createClient();
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const role = profile?.role || "client";
+  const role = authRole || "client";
 
   if (role !== "admin") {
     redirect("/client/dashboard");
   }
+
+  const supabase = await createClient();
 
   const { data: myClients } = await supabase
     .from("clients")
@@ -75,19 +70,20 @@ export default async function AdminMessagesPage({
   let conversations: AdminConversationItem[] = [];
 
   if (userIds.length > 0) {
-    const { data: msgs } = await supabase
-      .from("messages")
-      .select("from_user_id, to_user_id, content, created_at, is_read")
-      .or(
-        `from_user_id.in.(${userIds.join(",")}),to_user_id.in.(${userIds.join(",")})`,
-      )
-      .order("created_at", { ascending: false })
-      .limit(ADMIN_MESSAGES_INBOX_CAP);
-
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, full_name, avatar_url")
-      .in("id", userIds);
+    const [{ data: msgs }, { data: profiles }] = await Promise.all([
+      supabase
+        .from("messages")
+        .select("from_user_id, to_user_id, content, created_at, is_read")
+        .or(
+          `from_user_id.in.(${userIds.join(",")}),to_user_id.in.(${userIds.join(",")})`,
+        )
+        .order("created_at", { ascending: false })
+        .limit(ADMIN_MESSAGES_INBOX_CAP),
+      supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", userIds),
+    ]);
 
     const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
     const lastByPeer = new Map<

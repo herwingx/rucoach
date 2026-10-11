@@ -1,4 +1,4 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthUser, getCurrentClientRecord } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -16,19 +16,15 @@ export default async function WorkoutStartPage() {
     redirect("/auth/login");
   }
 
-  const supabase = await createClient();
-
-  // Get client
-  const { data: client } = await supabase
-    .from("clients")
-    .select("*")
-    .eq("user_id", user.id)
-    .single();
+  const [supabase, client] = await Promise.all([
+    createClient(),
+    getCurrentClientRecord(user.id),
+  ]);
 
   if (!client) redirect("/client/dashboard");
 
   // Obtener routine_id: de clients.assigned_routine_id o de client_routines activa
-  let routineId = (client as any).assigned_routine_id;
+  let routineId = client.assigned_routine_id;
   if (!routineId) {
     const { data: activeRoutine } = await supabase
       .from("client_routines")
@@ -36,42 +32,59 @@ export default async function WorkoutStartPage() {
       .eq("client_id", client.id)
       .eq("is_active", true)
       .limit(1)
-      .single();
-    routineId = activeRoutine?.routine_id;
+      .maybeSingle();
+    routineId = activeRoutine?.routine_id ?? null;
   }
 
   if (!routineId) redirect("/client/dashboard");
 
-  // Get routine with all data
-  const { data: routine } = await supabase
-    .from("routines")
-    .select(
-      `
-      *,
-      routine_days (
+  // Wave 1: Obtener rutina completa, vínculo activo, última sesión y récords personales en paralelo
+  const [
+    { data: routine },
+    { data: activeLink },
+    { data: lastSession },
+    { data: personalRecords },
+  ] = await Promise.all([
+    supabase
+      .from("routines")
+      .select(
+        `
         *,
-        routine_exercises (
+        routine_days (
           *,
-          exercises (*)
+          routine_exercises (
+            *,
+            exercises (*)
+          )
         )
+      `,
       )
-    `,
-    )
-    .eq("id", routineId)
-    .single();
+      .eq("id", routineId)
+      .single(),
+    supabase
+      .from("client_routines")
+      .select("id, current_week, override_next_day_id")
+      .eq("client_id", client.id)
+      .eq("routine_id", routineId)
+      .eq("is_active", true)
+      .maybeSingle(),
+    supabase
+      .from("workout_sessions")
+      .select("id, routine_day_id")
+      .eq("client_id", client.id)
+      .eq("status", "completed")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("personal_records")
+      .select("*")
+      .eq("client_id", client.id),
+  ]);
 
   if (!routine) {
     redirect("/client/dashboard");
   }
-
-  // Check if routine is completed & get active client_routine link
-  const { data: activeLink } = await supabase
-    .from("client_routines")
-    .select("id, current_week, override_next_day_id")
-    .eq("client_id", client.id)
-    .eq("routine_id", routineId)
-    .eq("is_active", true)
-    .maybeSingle();
 
   if (
     activeLink &&
@@ -82,15 +95,6 @@ export default async function WorkoutStartPage() {
   }
 
   const routineDays = sortRoutineDaysByDayNumber(routine.routine_days || []);
-
-  const { data: lastSession } = await supabase
-    .from("workout_sessions")
-    .select("id, routine_day_id")
-    .eq("client_id", client.id)
-    .eq("status", "completed")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
 
   const overrideDayId = (activeLink as { override_next_day_id?: string | null } | null)
     ?.override_next_day_id;
@@ -185,12 +189,6 @@ export default async function WorkoutStartPage() {
       previousByExercise[eid] = { weight_kg: v.weight_kg, reps: v.reps };
     }
   }
-
-  // Get PRs for comparison
-  const { data: personalRecords } = await supabase
-    .from("personal_records")
-    .select("*")
-    .eq("client_id", client.id);
 
   return (
     <WorkoutActiveSession

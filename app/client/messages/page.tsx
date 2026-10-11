@@ -1,4 +1,4 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthData, getCurrentClientRecord } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ChatViewLazy } from "@/components/chat/chat-view-lazy";
@@ -19,38 +19,22 @@ import {
 } from "@/components/client/client-app-page-parts";
 
 export default async function ClientMessagesPage() {
-  const user = await getAuthUser();
+  const { user, role: authRole } = await getAuthData();
   if (!user) redirect("/auth/login");
 
-  const supabase = await createClient();
-
-  // 1. Obtener el rol del usuario actual
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  const role = profile?.role || "client";
-
+  const role = authRole || "client";
   if (role !== "client") {
     redirect("/admin/dashboard");
   }
 
-  // 2. Intentar encontrar al coach
-  let coachId: string | null = null;
-  let coachCandidate: { full_name: string | null; avatar_url: string | null } | null = null;
+  const [supabase, clientWithCoach] = await Promise.all([
+    createClient(),
+    getCurrentClientRecord(user.id),
+  ]);
 
-  // A. Vía tabla clients
-  const { data: clientWithCoach } = await supabase
-    .from("clients")
-    .select("coach_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  
-  if (clientWithCoach?.coach_id) {
-    coachId = clientWithCoach.coach_id;
-  }
+  // 2. Intentar encontrar al coach
+  let coachId: string | null = clientWithCoach?.coach_id ?? null;
+  let coachCandidate: { full_name: string | null; avatar_url: string | null } | null = null;
 
   // B. Vía invitación (si no hay coach directo)
   if (!coachId) {

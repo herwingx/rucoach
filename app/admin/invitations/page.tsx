@@ -1,4 +1,4 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthData } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -18,21 +18,14 @@ import {
 import { cn } from "@/lib/utils";
 
 export default async function AdminInvitationsPage() {
-  const user = await getAuthUser();
+  const { user, role } = await getAuthData();
   if (!user) redirect("/auth/login");
 
-  const supabase = await createClient();
-
-  // Verify admin role
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") {
+  if (role !== "admin") {
     redirect("/client/dashboard");
   }
+
+  const supabase = await createClient();
 
   const [{ data: codesRaw }, { data: coachClients }] = await Promise.all([
     supabase

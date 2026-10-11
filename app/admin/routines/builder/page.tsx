@@ -1,6 +1,5 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthData } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import {
   ADMIN_DATA_PAGE_SHELL,
   AdminPageHeader,
@@ -8,18 +7,9 @@ import {
 import { RoutineBuilderLazy } from "./routine-builder-lazy";
 
 export default async function BuilderPage() {
-  const user = await getAuthUser();
+  const { user, role } = await getAuthData();
   if (!user) redirect("/auth/login");
-
-  const supabase = await createClient();
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") redirect("/client/dashboard");
+  if (role !== "admin") redirect("/client/dashboard");
 
   return (
     <div className="min-h-dvh bg-background">

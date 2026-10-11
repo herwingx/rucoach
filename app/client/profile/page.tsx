@@ -1,4 +1,4 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthUser, getCurrentClientRecord } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { calculateLevel } from "@/lib/types";
@@ -19,8 +19,12 @@ export default async function ClientProfilePage() {
     redirect("/auth/login");
   }
 
-  const supabase = await createClient();
-  const [{ data: profile }, { data: client }] = await Promise.all([
+  const [supabase, cachedClient] = await Promise.all([
+    createClient(),
+    getCurrentClientRecord(user.id),
+  ]);
+
+  const [{ data: profile }, { data: client }, paymentsRes] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).single(),
     supabase
       .from("clients")
@@ -29,40 +33,41 @@ export default async function ClientProfilePage() {
       )
       .eq("user_id", user.id)
       .maybeSingle(),
+    cachedClient?.id
+      ? supabase
+          .from("payments")
+          .select(
+            "id, amount, paid_at, period_start, period_end, payment_method, reference, membership_plans(name)",
+          )
+          .eq("client_id", cachedClient.id)
+          .order("created_at", { ascending: false })
+          .limit(24)
+      : Promise.resolve({ data: null }),
   ]);
 
-  let paymentHistory: ClientPaymentHistoryItem[] = [];
-  if (client?.id) {
-    const { data: paymentsData } = await supabase
-      .from("payments")
-      .select(
-        "id, amount, paid_at, period_start, period_end, payment_method, reference, membership_plans(name)",
-      )
-      .eq("client_id", client.id)
-      .order("created_at", { ascending: false })
-      .limit(24);
-
-    paymentHistory = (paymentsData ?? []).map((p) => {
-      const planRel = (p as { membership_plans?: { name: string } | { name: string }[] | null })
-        .membership_plans;
-      const planObj =
-        planRel == null
-          ? null
-          : Array.isArray(planRel)
-            ? (planRel[0] ?? null)
-            : planRel;
-      return {
-        id: p.id,
-        amount: p.amount,
-        paid_at: p.paid_at,
-        period_start: p.period_start,
-        period_end: p.period_end,
-        payment_method: p.payment_method,
-        reference: p.reference,
-        plan_name: planObj?.name ?? null,
-      };
-    });
-  }
+  const paymentHistory: ClientPaymentHistoryItem[] = (
+    paymentsRes.data ?? []
+  ).map((p) => {
+    const planRel = (
+      p as { membership_plans?: { name: string } | { name: string }[] | null }
+    ).membership_plans;
+    const planObj =
+      planRel == null
+        ? null
+        : Array.isArray(planRel)
+          ? (planRel[0] ?? null)
+          : planRel;
+    return {
+      id: p.id,
+      amount: p.amount,
+      paid_at: p.paid_at,
+      period_start: p.period_start,
+      period_end: p.period_end,
+      payment_method: p.payment_method,
+      reference: p.reference,
+      plan_name: planObj?.name ?? null,
+    };
+  });
 
   const clientPlanRel = (
     client as {

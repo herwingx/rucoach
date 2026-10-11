@@ -1,6 +1,5 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthData } from "@/lib/auth-utils";
 import { redirect, notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   ADMIN_DATA_PAGE_SHELL,
@@ -34,20 +33,13 @@ interface Props {
 }
 
 export default async function EditRoutinePage({ params }: Props) {
-  const user = await getAuthUser();
-  const { routineId } = await params;
+  const [{ user, role }, { routineId }] = await Promise.all([
+    getAuthData(),
+    params,
+  ]);
 
   if (!user) redirect("/auth/login");
-
-  const supabase = await createClient();
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role !== "admin") redirect("/client/dashboard");
+  if (role !== "admin") redirect("/client/dashboard");
 
   const admin = createAdminClient();
   const { data: routine } = await admin

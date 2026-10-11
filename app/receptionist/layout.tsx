@@ -71,7 +71,7 @@ export default async function ReceptionistLayout({
                   size="sm"
                   className="px-2 py-1.5 text-xs sm:text-sm h-9 rounded-lg justify-center gap-1.5 font-semibold text-muted-foreground hover:bg-primary/10 hover:text-primary"
                 >
-                  <Link href={item.href}>
+                  <Link href={item.href} prefetch={true}>
                     <Icon className="hidden sm:inline-block size-4 shrink-0" aria-hidden />
                     <span>{item.label}</span>
                   </Link>

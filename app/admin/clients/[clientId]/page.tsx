@@ -165,8 +165,12 @@ export default async function ClientProfilePage({
   const effectiveAccessCode = accessCode || pendingInvite?.code || null;
 
   const activeClientRoutineId = activeClientRoutineRes.data?.id ?? null;
+  const routineIdFromClient =
+    (client as { assigned_routine_id?: string | null }).assigned_routine_id ??
+    activeClientRoutineRes.data?.routine_id ??
+    null;
 
-  const [sessionExerciseLogs, overridesRes] = await Promise.all([
+  const [sessionExerciseLogs, overridesRes, routine] = await Promise.all([
     getExerciseLogsForSessions(workoutSessions.map((s) => s.id)),
     activeClientRoutineId
       ? supabase
@@ -177,6 +181,9 @@ export default async function ClientProfilePage({
           .eq("client_routine_id", activeClientRoutineId)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [] }),
+    routineIdFromClient
+      ? getRoutineById(routineIdFromClient)
+      : Promise.resolve(null),
   ]);
 
   const exerciseOverrides = overridesRes.data ?? [];
@@ -184,14 +191,6 @@ export default async function ClientProfilePage({
   const planName = planRes.data?.name ?? null;
   const profile = profileRes.data ?? null;
   const progressPhotos = photosRes.data ?? [];
-
-  const routineIdFromClient =
-    (client as { assigned_routine_id?: string | null }).assigned_routine_id ??
-    activeClientRoutineRes.data?.routine_id ??
-    null;
-  const routine = routineIdFromClient
-    ? await getRoutineById(routineIdFromClient)
-    : null;
 
   const daysUntilExpiry = client.membership_end
     ? Math.ceil(

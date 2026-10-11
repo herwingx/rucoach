@@ -73,24 +73,22 @@ export default async function AdminClientsPage() {
   }
 
   const clientIds = clientsList.map((c) => c.id);
-
-  const [latestCompletedByClient, latestPaidByClient] = await Promise.all([
-    fetchLatestCompletedSessionByClients(supabase, clientIds),
-    fetchLatestPaidPaymentByClients(supabase, clientIds),
-  ]);
-
-  // 2. Fetch plans to resolve names
   const planIds = [
     ...new Set(clientsList.map((c) => c.current_plan_id).filter(Boolean)),
-  ];
+  ] as string[];
+
+  const [latestCompletedByClient, latestPaidByClient, plansRes] =
+    await Promise.all([
+      fetchLatestCompletedSessionByClients(supabase, clientIds),
+      fetchLatestPaidPaymentByClients(supabase, clientIds),
+      planIds.length > 0
+        ? supabase.from("membership_plans").select("id, name").in("id", planIds)
+        : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    ]);
+
+  // 2. Map plans to resolve names
   const plansById = new Map<string, string>();
-  if (planIds.length > 0) {
-    const { data: plans } = await supabase
-      .from("membership_plans")
-      .select("id, name")
-      .in("id", planIds);
-    for (const p of plans || []) plansById.set(p.id, p.name);
-  }
+  for (const p of plansRes.data || []) plansById.set(p.id, p.name);
 
   // 3. Map to Management Cards (fuente de verdad: sesiones completadas + último pago)
   const clients: ClientManagementCard[] = clientsList.map((c) => {

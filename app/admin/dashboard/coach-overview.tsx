@@ -1,4 +1,4 @@
-import { getAuthUser, getUserRole } from "@/lib/auth-utils";
+import { getAuthData } from "@/lib/auth-utils";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { COACH_OVERVIEW_SESSIONS_CAP } from "@/lib/performance-limits";
@@ -83,15 +83,22 @@ async function countPrSetsFromExerciseLogs(
   sessionToClient: Map<string, string>,
   allowedClientIds: Set<string>,
 ): Promise<number> {
-  let n = 0;
+  if (sessionIds.length === 0) return 0;
+  const chunks: string[][] = [];
   for (let i = 0; i < sessionIds.length; i += PR_LOG_IN_CHUNK) {
-    const chunk = sessionIds.slice(i, i + PR_LOG_IN_CHUNK);
-    const { data: prLogRows } = await supabase
-      .from("exercise_logs")
-      .select("workout_session_id, is_warmup")
-      .eq("is_pr", true)
-      .in("workout_session_id", chunk);
-
+    chunks.push(sessionIds.slice(i, i + PR_LOG_IN_CHUNK));
+  }
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      supabase
+        .from("exercise_logs")
+        .select("workout_session_id, is_warmup")
+        .eq("is_pr", true)
+        .in("workout_session_id", chunk),
+    ),
+  );
+  let n = 0;
+  for (const { data: prLogRows } of results) {
     for (const row of prLogRows || []) {
       if (row.is_warmup) continue;
       const cid = sessionToClient.get(row.workout_session_id);
@@ -103,32 +110,39 @@ async function countPrSetsFromExerciseLogs(
 }
 
 export async function CoachOverview() {
-  const user = await getAuthUser();
-  const role = await getUserRole();
+  const { user, role } = await getAuthData();
 
   if (!user || role !== "admin") return null;
 
   const supabase = await createClient();
 
-  // 1) Cargar asesorados desde clients (admin ve sus propios asesorados)
-  const { data: clientsData, error: clientsError } = await supabase
-    .from("clients")
-    .select(
-      "id, user_id, full_name, avatar_url, status, last_session_at, current_plan_id",
-    )
-    .eq("coach_id", user.id);
+  // Wave 1: Cargar asesorados, zona horaria del gimnasio y mensajes no leídos en paralelo
+  const [
+    { data: clientsData, error: clientsError },
+    { data: gymSettings },
+    unreadMessagesRes,
+  ] = await Promise.all([
+    supabase
+      .from("clients")
+      .select(
+        "id, user_id, full_name, avatar_url, status, last_session_at, current_plan_id",
+      )
+      .eq("coach_id", user.id),
+    supabase
+      .from("gym_settings")
+      .select("timezone")
+      .eq("admin_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("messages")
+      .select("from_user_id")
+      .eq("to_user_id", user.id)
+      .eq("is_read", false),
+  ]);
 
   if (clientsError) throw clientsError;
   const clientsList: ClientDbRow[] = clientsData ?? [];
-
   const clientIds = clientsList.map((c) => c.id).filter(Boolean);
-
-  // 1.5) Obtener zona horaria del gimnasio para reportes consistentes
-  const { data: gymSettings } = await supabase
-    .from("gym_settings")
-    .select("timezone")
-    .eq("admin_id", user.id)
-    .single();
 
   const timeZone = gymSettings?.timezone || "America/Mexico_City";
   const nowInTz = getNowInTimezone(timeZone);
@@ -153,60 +167,7 @@ export async function CoachOverview() {
     return `${yyyy}-${mm}-${dd}`;
   };
 
-  const latestCompletedByClient = await fetchLatestCompletedSessionByClients(
-    supabase,
-    clientIds,
-  );
-
-  // Planes para resolver current_plan_id -> plan_name
-  const planIds = [
-    ...new Set(clientsList.map((c) => c.current_plan_id).filter(Boolean)),
-  ];
-  const plansById = new Map<string, string>();
-  if (planIds.length > 0) {
-    const { data: plans } = await supabase
-      .from("membership_plans")
-      .select("id, name")
-      .in("id", planIds);
-    for (const p of plans || []) plansById.set(p.id, p.name);
-  }
-
-  // Rutina activa por cliente desde client_routines
-  const routineByClient = new Map<
-    string,
-    { id: string; routine_id: string; current_week: number }
-  >();
-  if (clientIds.length > 0) {
-    const { data: crData } = await supabase
-      .from("client_routines")
-      .select("id, client_id, routine_id, current_week")
-      .in("client_id", clientIds)
-      .eq("is_active", true);
-    for (const cr of crData || []) {
-      routineByClient.set(cr.client_id, {
-        id: cr.id,
-        routine_id: cr.routine_id,
-        current_week: cr.current_week ?? 1,
-      });
-    }
-  }
-
-  const clientsSummary = clientsList.map((c) => ({
-    id: c.id,
-    user_id: c.user_id,
-    full_name: c.full_name,
-    avatar_url: c.avatar_url,
-    status: c.status,
-    last_session_at: c.last_session_at,
-    plan_name: c.current_plan_id
-      ? (plansById.get(c.current_plan_id) ?? null)
-      : null,
-    assigned_routine_id: routineByClient.get(c.id)?.routine_id ?? null,
-    client_routine_id: routineByClient.get(c.id)?.id ?? null,
-    current_week: routineByClient.get(c.id)?.current_week ?? 1,
-  }));
-
-  if (clientsSummary.length === 0) {
+  if (clientsList.length === 0) {
     const emptyChartData: { date: string; sessions: number }[] = [];
     for (let i = 89; i >= 0; i--) {
       const d = new Date(nowInTz);
@@ -237,39 +198,162 @@ export async function CoachOverview() {
     );
   }
 
-  // 2) Fetch streak days + last_workout_at + active pain reports + unread messages
-  const userIds = clientsSummary.map((c) => c.user_id).filter(Boolean);
-  const profilesByUserId = new Map<
-    string,
-    { streak_days?: number | null; last_workout_at?: string | null }
-  >();
-  if (userIds.length > 0) {
-    const adminClient = createAdminClient();
-    const { data: profiles } = await adminClient
-      .from("profiles")
-      .select("id, streak_days, last_workout_at")
-      .in("id", userIds);
+  const planIds = [
+    ...new Set(clientsList.map((c) => c.current_plan_id).filter(Boolean)),
+  ] as string[];
+  const userIds = clientsList
+    .map((c) => c.user_id)
+    .filter((id): id is string => Boolean(id));
 
-    for (const p of profiles || []) {
-      profilesByUserId.set(p.id, {
-        streak_days: p.streak_days,
-        last_workout_at: p.last_workout_at,
-      });
-    }
-  }
+  const startOfWeek = new Date(nowInTz);
+  startOfWeek.setDate(startOfWeek.getDate() - 6);
+  startOfWeek.setHours(0, 0, 0, 0);
 
-  const [painReportsRes, unreadMessagesRes] = await Promise.all([
+  const startOfLastWeek = new Date(nowInTz);
+  startOfLastWeek.setDate(startOfLastWeek.getDate() - 13);
+  startOfLastWeek.setHours(0, 0, 0, 0);
+
+  const startOfMonth = new Date(nowInTz);
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const startOfLast30Days = new Date(nowInTz);
+  startOfLast30Days.setDate(startOfLast30Days.getDate() - 29);
+  startOfLast30Days.setHours(0, 0, 0, 0);
+
+  const startOfPrevMonth = new Date(startOfMonth);
+  startOfPrevMonth.setMonth(startOfPrevMonth.getMonth() - 1);
+
+  const earliestPrBound =
+    startOfPrevMonth.getTime() < startOfLast30Days.getTime()
+      ? startOfPrevMonth
+      : startOfLast30Days;
+
+  const adminClient = createAdminClient();
+
+  // Wave 2: Cargar en paralelo sesiones recientes, planes, rutinas activas, perfiles, reportes de dolor, sesiones completadas y PR events
+  const [
+    latestCompletedByClient,
+    plansRes,
+    crRes,
+    profilesRes,
+    painReportsRes,
+    completedSessionsRes,
+    allPrEventsRes,
+  ] = await Promise.all([
+    fetchLatestCompletedSessionByClients(supabase, clientIds),
+    planIds.length > 0
+      ? supabase.from("membership_plans").select("id, name").in("id", planIds)
+      : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+    supabase
+      .from("client_routines")
+      .select(
+        "id, client_id, routine_id, current_week, routines(id, name, days_per_week, duration_weeks)",
+      )
+      .in("client_id", clientIds)
+      .eq("is_active", true),
+    userIds.length > 0
+      ? adminClient
+          .from("profiles")
+          .select("id, streak_days, last_workout_at")
+          .in("id", userIds)
+      : Promise.resolve({
+          data: [] as {
+            id: string;
+            streak_days: number | null;
+            last_workout_at: string | null;
+          }[],
+        }),
     supabase
       .from("client_pain_reports")
       .select("client_id, body_part, severity")
       .in("client_id", clientIds)
       .eq("active", true),
     supabase
-      .from("messages")
-      .select("from_user_id")
-      .eq("to_user_id", user.id)
-      .eq("is_read", false),
+      .from("workout_sessions")
+      .select("id, client_id, started_at, total_volume_kg, status")
+      .in("client_id", clientIds)
+      .eq("status", "completed")
+      .order("started_at", { ascending: false })
+      .limit(COACH_OVERVIEW_SESSIONS_CAP),
+    supabase
+      .from("pr_events")
+      .select("id, client_id, achieved_at")
+      .in("client_id", clientIds)
+      .gte("achieved_at", earliestPrBound.toISOString()),
   ]);
+
+  const plansById = new Map<string, string>();
+  for (const p of plansRes.data || []) plansById.set(p.id, p.name);
+
+  const routineByClient = new Map<
+    string,
+    { id: string; routine_id: string; current_week: number }
+  >();
+  const routinesById = new Map<
+    string,
+    { name: string; daysPerWeek: number | null; durationWeeks: number | null }
+  >();
+
+  for (const cr of crRes.data || []) {
+    routineByClient.set(cr.client_id, {
+      id: cr.id,
+      routine_id: cr.routine_id,
+      current_week: cr.current_week ?? 1,
+    });
+    const rel = (
+      cr as {
+        routines?:
+          | {
+              id: string;
+              name: string;
+              days_per_week: number | null;
+              duration_weeks: number | null;
+            }
+          | {
+              id: string;
+              name: string;
+              days_per_week: number | null;
+              duration_weeks: number | null;
+            }[]
+          | null;
+      }
+    ).routines;
+    const r = Array.isArray(rel) ? rel[0] : rel;
+    if (r?.id) {
+      routinesById.set(r.id, {
+        name: r.name,
+        daysPerWeek: r.days_per_week ?? null,
+        durationWeeks: r.duration_weeks ?? null,
+      });
+    }
+  }
+
+  const clientsSummary = clientsList.map((c) => ({
+    id: c.id,
+    user_id: c.user_id,
+    full_name: c.full_name,
+    avatar_url: c.avatar_url,
+    status: c.status,
+    last_session_at: c.last_session_at,
+    plan_name: c.current_plan_id
+      ? (plansById.get(c.current_plan_id) ?? null)
+      : null,
+    assigned_routine_id: routineByClient.get(c.id)?.routine_id ?? null,
+    client_routine_id: routineByClient.get(c.id)?.id ?? null,
+    current_week: routineByClient.get(c.id)?.current_week ?? 1,
+  }));
+
+  const profilesByUserId = new Map<
+    string,
+    { streak_days?: number | null; last_workout_at?: string | null }
+  >();
+  for (const p of profilesRes.data || []) {
+    profilesByUserId.set(p.id, {
+      streak_days: p.streak_days,
+      last_workout_at: p.last_workout_at,
+    });
+  }
 
   const painReportsByClient = new Map<
     string,
@@ -300,57 +384,7 @@ export async function CoachOverview() {
     );
   }
 
-  // 3) Fetch routines for filter labels
-  const routineIds = Array.from(
-    new Set(clientsSummary.map((c) => c.assigned_routine_id).filter(Boolean)),
-  );
-  const routinesById = new Map<
-    string,
-    { name: string; daysPerWeek: number | null; durationWeeks: number | null }
-  >();
-  if (routineIds.length > 0) {
-    const { data: routines } = await supabase
-      .from("routines")
-      .select("id, name, days_per_week, duration_weeks")
-      .in("id", routineIds);
-    for (const r of routines || []) {
-      routinesById.set(r.id, {
-        name: r.name,
-        daysPerWeek: r.days_per_week ?? null,
-        durationWeeks: r.duration_weeks ?? null,
-      });
-    }
-  }
-
-  // 4) Fetch workout sessions to compute trend + attention + metrics
-  const startOfWeek = new Date(nowInTz);
-  startOfWeek.setDate(startOfWeek.getDate() - 6);
-  startOfWeek.setHours(0, 0, 0, 0);
-
-  const startOfLastWeek = new Date(nowInTz);
-  startOfLastWeek.setDate(startOfLastWeek.getDate() - 13);
-  startOfLastWeek.setHours(0, 0, 0, 0);
-
-  const startOfMonth = new Date(nowInTz);
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  const startOfLast30Days = new Date(nowInTz);
-  startOfLast30Days.setDate(startOfLast30Days.getDate() - 29);
-  startOfLast30Days.setHours(0, 0, 0, 0);
-
-  const startOfPrevMonth = new Date(startOfMonth);
-  startOfPrevMonth.setMonth(startOfPrevMonth.getMonth() - 1);
-
-  const { data: completedSessions } = await supabase
-    .from("workout_sessions")
-    .select("id, client_id, started_at, total_volume_kg, status")
-    .in("client_id", clientIds)
-    .eq("status", "completed")
-    .order("started_at", { ascending: false })
-    .limit(COACH_OVERVIEW_SESSIONS_CAP);
-
-  const sessionsList: CompletedSessionRow[] = completedSessions ?? [];
+  const sessionsList: CompletedSessionRow[] = completedSessionsRes.data ?? [];
 
   const sessionsByClientId = new Map<
     string,
@@ -368,29 +402,30 @@ export async function CoachOverview() {
   const clientIdSet = new Set(clientIds);
   const sessionToClient = new Map(sessionsList.map((s) => [s.id, s.client_id]));
 
-  // Metrics (week/month) — PRs: max(pr_events, series PR en logs), alineado con lo que ve el cliente
-  const { data: prEventsThisMonth } = await supabase
-    .from("pr_events")
-    .select("id, client_id, achieved_at")
-    .in("client_id", clientIds)
-    .gte("achieved_at", startOfMonth.toISOString());
-
-  const { data: prEventsPrevMonth } = await supabase
-    .from("pr_events")
-    .select("id, client_id, achieved_at")
-    .in("client_id", clientIds)
-    .gte("achieved_at", startOfPrevMonth.toISOString())
-    .lt("achieved_at", startOfMonth.toISOString());
-
-  const { data: prEventsLast30 } = await supabase
-    .from("pr_events")
-    .select("client_id, achieved_at")
-    .in("client_id", clientIds)
-    .gte("achieved_at", startOfLast30Days.toISOString());
-
   const monthStartMs = startOfMonth.getTime();
   const prevMonthStartMs = startOfPrevMonth.getTime();
+  const last30StartMs = startOfLast30Days.getTime();
   const nowMs = nowInTz.getTime();
+
+  let prEventsThisMonthCount = 0;
+  let prEventsPrevMonthCount = 0;
+  const prCount30ByClient = new Map<string, number>();
+
+  for (const row of allPrEventsRes.data || []) {
+    const t = row.achieved_at ? new Date(row.achieved_at).getTime() : NaN;
+    if (Number.isNaN(t)) continue;
+    if (t >= monthStartMs) {
+      prEventsThisMonthCount++;
+    } else if (t >= prevMonthStartMs && t < monthStartMs) {
+      prEventsPrevMonthCount++;
+    }
+    if (t >= last30StartMs) {
+      prCount30ByClient.set(
+        row.client_id,
+        (prCount30ByClient.get(row.client_id) || 0) + 1,
+      );
+    }
+  }
 
   const sessionIdsThisMonth = [
     ...new Set(
@@ -416,27 +451,58 @@ export async function CoachOverview() {
     ),
   ];
 
-  const prLogsThisMonth = await countPrSetsFromExerciseLogs(
-    supabase,
-    sessionIdsThisMonth,
-    sessionToClient,
-    clientIdSet,
-  );
-  const prLogsPrevMonth = await countPrSetsFromExerciseLogs(
-    supabase,
-    sessionIdsPrevMonth,
-    sessionToClient,
-    clientIdSet,
-  );
+  const sessionIdsForPrLogs = [
+    ...new Set(
+      sessionsList
+        .filter((s) => {
+          if (!s.started_at || !clientIdSet.has(s.client_id)) return false;
+          return new Date(s.started_at).getTime() >= last30StartMs;
+        })
+        .map((s) => s.id),
+    ),
+  ];
 
-  const prsThisMonth = Math.max(
-    (prEventsThisMonth || []).length,
-    prLogsThisMonth,
-  );
-  const prsLastMonth = Math.max(
-    (prEventsPrevMonth || []).length,
-    prLogsPrevMonth,
-  );
+  const prLogCount30ByClient = new Map<string, number>();
+  const last30Chunks: string[][] = [];
+  for (let i = 0; i < sessionIdsForPrLogs.length; i += PR_LOG_IN_CHUNK) {
+    last30Chunks.push(sessionIdsForPrLogs.slice(i, i + PR_LOG_IN_CHUNK));
+  }
+
+  // Wave 3: Contar series PR en paralelo
+  const [prLogsThisMonth, prLogsPrevMonth, ...last30ChunkResults] =
+    await Promise.all([
+      countPrSetsFromExerciseLogs(
+        supabase,
+        sessionIdsThisMonth,
+        sessionToClient,
+        clientIdSet,
+      ),
+      countPrSetsFromExerciseLogs(
+        supabase,
+        sessionIdsPrevMonth,
+        sessionToClient,
+        clientIdSet,
+      ),
+      ...last30Chunks.map((chunk) =>
+        supabase
+          .from("exercise_logs")
+          .select("workout_session_id, is_warmup")
+          .eq("is_pr", true)
+          .in("workout_session_id", chunk),
+      ),
+    ]);
+
+  for (const { data: prLogRows } of last30ChunkResults) {
+    for (const row of prLogRows || []) {
+      if (row.is_warmup) continue;
+      const cid = sessionToClient.get(row.workout_session_id);
+      if (!cid || !clientIdSet.has(cid)) continue;
+      prLogCount30ByClient.set(cid, (prLogCount30ByClient.get(cid) || 0) + 1);
+    }
+  }
+
+  const prsThisMonth = Math.max(prEventsThisMonthCount, prLogsThisMonth);
+  const prsLastMonth = Math.max(prEventsPrevMonthCount, prLogsPrevMonth);
 
   const totalTrainingsThisWeek = sessionsList.filter((s) => {
     if (!s.started_at) return false;
@@ -451,43 +517,6 @@ export async function CoachOverview() {
       !Number.isNaN(d.getTime()) && d >= startOfLastWeek && d < startOfWeek
     );
   }).length;
-
-  const prCount30ByClient = new Map<string, number>();
-  for (const row of prEventsLast30 || []) {
-    prCount30ByClient.set(
-      row.client_id,
-      (prCount30ByClient.get(row.client_id) || 0) + 1,
-    );
-  }
-
-  const prLogCount30ByClient = new Map<string, number>();
-  const sessionIdsForPrLogs = [
-    ...new Set(
-      sessionsList
-        .filter((s) => {
-          if (!s.started_at || !clientIdSet.has(s.client_id)) return false;
-          return (
-            new Date(s.started_at).getTime() >= startOfLast30Days.getTime()
-          );
-        })
-        .map((s) => s.id),
-    ),
-  ];
-  for (let i = 0; i < sessionIdsForPrLogs.length; i += PR_LOG_IN_CHUNK) {
-    const chunk = sessionIdsForPrLogs.slice(i, i + PR_LOG_IN_CHUNK);
-    const { data: prLogRows } = await supabase
-      .from("exercise_logs")
-      .select("workout_session_id, is_warmup")
-      .eq("is_pr", true)
-      .in("workout_session_id", chunk);
-
-    for (const row of prLogRows || []) {
-      if (row.is_warmup) continue;
-      const cid = sessionToClient.get(row.workout_session_id);
-      if (!cid || !clientIdSet.has(cid)) continue;
-      prLogCount30ByClient.set(cid, (prLogCount30ByClient.get(cid) || 0) + 1);
-    }
-  }
 
   // Chart data: sessions per day for last 90 days in gym timezone
   const chartDataMap = new Map<string, number>();
