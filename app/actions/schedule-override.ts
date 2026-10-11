@@ -56,11 +56,16 @@ export async function setScheduleOverride(
   // Obtener todos los días de la rutina para calcular siguiente/anterior
   const { data: routineDays } = await supabase
     .from("routine_days")
-    .select("id, day_number, day_name, is_rest_day")
+    .select("id, day_number, day_name, is_rest_day, routine_exercises(id)")
     .eq("routine_id", cr.routine_id)
     .order("day_number", { ascending: true });
 
-  const trainDays = (routineDays ?? []).filter((d) => !d.is_rest_day);
+  const trainDays = (routineDays ?? []).filter(
+    (d) =>
+      !d.is_rest_day &&
+      Array.isArray(d.routine_exercises) &&
+      d.routine_exercises.length > 0,
+  );
   if (!trainDays.length) {
     return { success: false, error: "La rutina no tiene días de entrenamiento" };
   }

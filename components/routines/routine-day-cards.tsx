@@ -10,11 +10,11 @@ import { Dumbbell, Link2, MoonStar, Timer } from 'lucide-react'
 
 /** Mapa de colores por letra de biserie (idéntico al del builder) */
 const SUPERSET_COLORS: Record<string, { bg: string; text: string; border: string; connector: string }> = {
-  A: { bg: 'bg-violet-500/10', text: 'text-violet-600', border: 'border-violet-400/30', connector: 'bg-violet-400/40' },
-  B: { bg: 'bg-sky-500/10',    text: 'text-sky-600',    border: 'border-sky-400/30',    connector: 'bg-sky-400/40'    },
-  C: { bg: 'bg-emerald-500/10',text: 'text-emerald-600',border: 'border-emerald-400/30',connector: 'bg-emerald-400/40'},
-  D: { bg: 'bg-amber-500/10',  text: 'text-amber-600',  border: 'border-amber-400/30',  connector: 'bg-amber-400/40'  },
-  E: { bg: 'bg-rose-500/10',   text: 'text-rose-600',   border: 'border-rose-400/30',   connector: 'bg-rose-400/40'   },
+  A: { bg: 'bg-violet-500/10', text: 'text-violet-600 dark:text-violet-400', border: 'border-violet-400/30', connector: 'bg-violet-400/40' },
+  B: { bg: 'bg-sky-500/10',    text: 'text-sky-600 dark:text-sky-400',       border: 'border-sky-400/30',    connector: 'bg-sky-400/40'    },
+  C: { bg: 'bg-emerald-500/10',text: 'text-emerald-600 dark:text-emerald-400',border: 'border-emerald-400/30',connector: 'bg-emerald-400/40'},
+  D: { bg: 'bg-amber-500/10',  text: 'text-amber-600 dark:text-amber-400',   border: 'border-amber-400/30',  connector: 'bg-amber-400/40'  },
+  E: { bg: 'bg-rose-500/10',   text: 'text-rose-600 dark:text-rose-400',     border: 'border-rose-400/30',   connector: 'bg-rose-400/40'   },
 }
 function getSupersetColor(group: string | null | undefined) {
   if (!group) return null
@@ -174,8 +174,8 @@ export function RoutineDayCards({
         const lowerPct = 100 - upperPct
 
         return (
-          <Card key={day.id} className="overflow-hidden rounded-[1.25rem] border border-border/50 bg-card/60 shadow-sm backdrop-blur-xl transition-all">
-            <CardHeader className="pb-4 bg-muted/10 border-b border-border/40">
+          <Card key={day.id} className="py-0 gap-0 overflow-hidden rounded-[1.25rem] border border-border/50 bg-card/60 shadow-sm backdrop-blur-xl transition-all">
+            <CardHeader className="py-4 bg-muted/10 border-b border-border/40">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-[1.1rem] font-bold tracking-tight text-foreground flex items-center">
                   Día {day.day_number ?? '-'} {day.day_name ? <span className="text-muted-foreground font-medium ml-1.5 opacity-80">· {day.day_name}</span> : ''}
@@ -211,7 +211,7 @@ export function RoutineDayCards({
                   <div className="overflow-hidden rounded-full border border-border/60 bg-muted/50 h-2 shadow-inner">
                     <div className="flex h-full w-full">
                       <div
-                        className="bg-primary shadow-[0_0_10px_rgba(var(--primary),0.5)]"
+                        className="bg-primary shadow-md shadow-primary/30"
                         style={{ width: upperLowerTotal >= 2 ? `${upperPct}%` : '50%' }}
                         aria-label={`Upper ${upperLowerTotal >= 2 ? upperPct : 50}%`}
                       />
@@ -281,7 +281,7 @@ export function RoutineDayCards({
                                     <img
                                       src={ex.exercises.gif_url}
                                       alt={ex.exercises?.name_es || ex.exercises?.name || 'Ejercicio'}
-                                      className={cn('object-cover mix-blend-multiply drop-shadow-[0_2px_4px_rgba(0,0,0,0.05)]', compact ? 'size-[2.75rem]' : 'size-[3.25rem]')}
+                                      className={cn('object-cover bg-white dark:bg-[#f8f9fa] mix-blend-multiply drop-shadow-[0_2px_4px_rgba(0,0,0,0.05)]', compact ? 'size-[2.75rem]' : 'size-[3.25rem]')}
                                       loading="lazy"
                                     />
                                   </button>
@@ -303,7 +303,7 @@ export function RoutineDayCards({
                               </div>
                             </div>
                             <div className="flex shrink-0 flex-col items-end gap-1.5 text-xs text-muted-foreground">
-                              <span className="rounded-md bg-secondary/60 px-2 py-1 font-bold tracking-widest text-[#cfcfcf]">
+                              <span className="rounded-md bg-secondary/60 px-2 py-1 font-bold tracking-widest text-foreground/80">
                                 {ex.sets ?? '-'}x{ex.reps || '-'}
                               </span>
                               {ex.rest_seconds ? (
@@ -337,11 +337,11 @@ export function RoutineDayCards({
           </DialogHeader>
 
           {selectedExercise?.gifUrl ? (
-            <div className="overflow-hidden rounded-lg border bg-muted/40">
+            <div className="overflow-hidden rounded-lg border bg-white dark:bg-[#f8f9fa]">
               <img
                 src={selectedExercise.gifUrl}
                 alt={selectedExercise.name}
-                className="aspect-square w-full object-cover"
+                className="aspect-square w-full object-cover bg-white dark:bg-[#f8f9fa] mix-blend-multiply"
               />
             </div>
           ) : null}

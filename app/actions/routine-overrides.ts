@@ -1,8 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthUser } from "@/lib/auth-utils";
 import { revalidatePath } from "next/cache";
+import { notifyUser } from "@/lib/push";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -17,6 +19,33 @@ export interface ExerciseOverride {
   changed_by: "client" | "coach";
   notified_coach: boolean;
   created_at: string;
+}
+
+export interface PainReportRecord {
+  id: string;
+  client_id: string;
+  body_region: string;
+  severity: number;
+  notes: string | null;
+  is_active: boolean;
+  reported_at: string;
+  resolved_at?: string | null;
+}
+
+const PAIN_REGION_LABELS: Record<string, string> = {
+  hombro: "Hombro",
+  codo: "Codo",
+  muñeca: "Muñeca",
+  espalda_baja: "Espalda baja",
+  rodilla: "Rodilla",
+  cadera: "Cadera",
+  tobillo: "Tobillo",
+  cuello: "Cuello",
+  otro: "Otra zona",
+};
+
+function formatPainRegionLabel(region: string): string {
+  return PAIN_REGION_LABELS[region] ?? region.replace(/_/g, " ");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,7 +92,7 @@ export async function swapExerciseForClient(input: {
 
   const { data: clientRow } = await supabase
     .from("clients")
-    .select("id, user_id, coach_id")
+    .select("id, user_id, coach_id, full_name")
     .eq("id", cr.client_id)
     .single();
 
@@ -101,15 +130,16 @@ export async function swapExerciseForClient(input: {
 
   if (error) return { success: false, error: error.message };
 
-  // Notificar al coach vía mensaje automático en el chat
+  // Notificar al coach vía mensaje automático en el chat + Push
   try {
     const origExData = origEx?.exercises as { name?: string; name_es?: string } | null;
     const rdData = origEx?.routine_days as { day_number?: number; day_name?: string } | null;
 
     const origName = origExData?.name_es || origExData?.name || "Ejercicio";
-    const newName = (newEx as { name?: string; name_es?: string } | null)?.name_es 
-      || (newEx as { name?: string; name_es?: string } | null)?.name 
-      || "Ejercicio alternativo";
+    const newName =
+      (newEx as { name?: string; name_es?: string } | null)?.name_es ||
+      (newEx as { name?: string; name_es?: string } | null)?.name ||
+      "Ejercicio alternativo";
     const dayLabel = rdData?.day_name
       ? `Día ${rdData.day_number} (${rdData.day_name})`
       : `Día ${rdData?.day_number ?? "?"}`;
@@ -117,7 +147,6 @@ export async function swapExerciseForClient(input: {
     const reasonText = input.reason ? ` Motivo: "${input.reason}".` : "";
     const messageContent = `📋 He cambiado **${origName}** por **${newName}** en ${dayLabel} de mi rutina.${reasonText} Por favor revisa si está bien.`;
 
-    // Buscar el admin (coach) al que notificar
     if (clientRow?.coach_id) {
       await supabase.from("messages").insert({
         from_user_id: user.id,
@@ -125,20 +154,26 @@ export async function swapExerciseForClient(input: {
         content: messageContent,
       });
 
-      // Marcar como notificado
       await supabase
         .from("client_exercise_overrides")
         .update({ notified_coach: true })
         .eq("client_routine_id", input.clientRoutineId)
         .eq("original_routine_exercise_id", input.originalRoutineExerciseId);
+
+      await notifyUser(clientRow.coach_id, {
+        title: `🔄 Cambio de ejercicio · ${clientRow.full_name || "Asesorado"}`,
+        body: `Cambió ${origName} por ${newName} (${dayLabel}).${reasonText}`,
+        url: `/admin/clients/${clientRow.id}`,
+        tag: `override-${clientRow.id}`,
+      });
     }
   } catch (notifyErr) {
     console.warn("No se pudo notificar al coach:", notifyErr);
-    // No bloquear aunque la notificación falle
   }
 
   revalidatePath("/client/routines");
   revalidatePath("/client/workout");
+  revalidatePath(`/admin/clients/${cr.client_id}`);
 
   return { success: true };
 }
@@ -210,6 +245,134 @@ export async function revertExerciseOverride(
 
   revalidatePath("/admin/clients");
   revalidatePath("/client/routines");
+  revalidatePath("/client/workout");
+
+  return { success: true };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAIN REPORTS: crear y resolver reportes de dolor/lesión con aviso al Coach
+// ─────────────────────────────────────────────────────────────────────────────
+export async function reportClientPain(input: {
+  clientId: string;
+  bodyRegion: string;
+  severity: number;
+  notes?: string;
+}): Promise<{
+  success: boolean;
+  report?: PainReportRecord;
+  error?: string;
+}> {
+  const user = await getAuthUser();
+  if (!user) return { success: false, error: "No autenticado" };
+
+  const supabase = await createClient();
+  const { data: clientRow } = await supabase
+    .from("clients")
+    .select("id, user_id, coach_id, full_name")
+    .eq("id", input.clientId)
+    .single();
+
+  if (!clientRow || clientRow.user_id !== user.id) {
+    return { success: false, error: "No autorizado" };
+  }
+
+  const severity = Math.max(0, Math.min(10, Math.round(input.severity || 0)));
+  const cleanNotes = input.notes?.trim() || null;
+
+  const { data: inserted, error } = await supabase
+    .from("client_pain_reports")
+    .insert({
+      client_id: input.clientId,
+      body_region: input.bodyRegion,
+      severity,
+      notes: cleanNotes,
+      is_active: true,
+    })
+    .select("id, client_id, body_region, severity, notes, is_active, reported_at")
+    .single();
+
+  if (error || !inserted) {
+    return { success: false, error: error?.message || "No se pudo guardar el reporte" };
+  }
+
+  // Notificar al coach por chat y Push
+  try {
+    if (clientRow.coach_id) {
+      const regionLabel = formatPainRegionLabel(input.bodyRegion);
+      const notesSnippet = cleanNotes ? ` Nota: "${cleanNotes}".` : "";
+      const chatText = `⚠️ Reporté una molestia/dolor en **${regionLabel}** (severidad ${severity}/10).${notesSnippet}`;
+
+      await supabase.from("messages").insert({
+        from_user_id: user.id,
+        to_user_id: clientRow.coach_id,
+        content: chatText,
+      });
+
+      await notifyUser(clientRow.coach_id, {
+        title: `⚠️ Molestia reportada · ${clientRow.full_name || "Asesorado"}`,
+        body: `${regionLabel} (${severity}/10).${notesSnippet}`,
+        url: `/admin/clients/${clientRow.id}`,
+        tag: `pain-${clientRow.id}`,
+      });
+    }
+  } catch (notifyErr) {
+    console.warn("No se pudo notificar reporte de dolor al coach:", notifyErr);
+  }
+
+  revalidatePath("/client/profile");
+  revalidatePath(`/admin/clients/${input.clientId}`);
+
+  return { success: true, report: inserted as PainReportRecord };
+}
+
+export async function resolveClientPainReport(
+  reportId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const user = await getAuthUser();
+  if (!user) return { success: false, error: "No autenticado" };
+
+  const admin = createAdminClient();
+  const { data: report } = await admin
+    .from("client_pain_reports")
+    .select("id, client_id, clients(user_id, coach_id)")
+    .eq("id", reportId)
+    .maybeSingle();
+
+  if (!report) return { success: false, error: "Reporte no encontrado" };
+
+  const clientInfo = report.clients as {
+    user_id?: string | null;
+    coach_id?: string | null;
+  } | null;
+
+  const isOwnerClient = clientInfo?.user_id === user.id;
+  const isAssignedCoach = clientInfo?.coach_id === user.id;
+
+  if (!isOwnerClient && !isAssignedCoach) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profile?.role !== "admin") {
+      return { success: false, error: "No autorizado" };
+    }
+  }
+
+  const { error } = await admin
+    .from("client_pain_reports")
+    .update({
+      is_active: false,
+      resolved_at: new Date().toISOString(),
+    })
+    .eq("id", reportId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/client/profile");
+  revalidatePath(`/admin/clients/${report.client_id}`);
+  revalidatePath("/admin/clients");
 
   return { success: true };
 }
@@ -219,7 +382,7 @@ export async function revertExerciseOverride(
 // Usado por getNextWorkoutDay y la vista de rutinas del cliente
 // ─────────────────────────────────────────────────────────────────────────────
 export async function applyExerciseOverrides<
-  T extends { id: number; exercises?: unknown },
+  T extends { id: number; exercise_id?: string; exercises?: unknown },
 >(
   clientRoutineId: string,
   routineExercises: T[],
@@ -230,7 +393,7 @@ export async function applyExerciseOverrides<
   const { data: overrides } = await supabase
     .from("client_exercise_overrides")
     .select(
-      "original_routine_exercise_id, replacement_exercise_id, exercises!replacement_exercise_id(*)",
+      "original_routine_exercise_id, replacement_exercise_id, reason, exercises!replacement_exercise_id(*)",
     )
     .eq("client_routine_id", clientRoutineId);
 
@@ -239,13 +402,24 @@ export async function applyExerciseOverrides<
   const overrideMap = new Map(
     overrides.map((o) => [
       o.original_routine_exercise_id,
-      o.exercises,
+      {
+        replacement_exercise_id: o.replacement_exercise_id,
+        reason: o.reason ?? null,
+        exercises: o.exercises,
+      },
     ]),
   );
 
   return routineExercises.map((ex) => {
-    const replacement = overrideMap.get(ex.id);
-    if (!replacement) return ex;
-    return { ...ex, exercises: replacement };
+    const ov = overrideMap.get(ex.id);
+    if (!ov?.exercises) return ex;
+    return {
+      ...ex,
+      original_exercise_id: ex.exercise_id,
+      exercise_id: ov.replacement_exercise_id,
+      exercises: ov.exercises,
+      is_overridden: true,
+      override_reason: ov.reason,
+    };
   });
 }

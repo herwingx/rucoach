@@ -71,7 +71,7 @@ export function ClientDashboardCards({
               <Trophy className="size-5 text-amber-500" />
             </div>
             {prsThisMonth > 0 && (
-              <Badge className="h-5 font-black text-[9px] uppercase tracking-widest px-2 bg-amber-500 text-white border-none rounded-lg">
+              <Badge className="h-5 font-black text-[9px] uppercase tracking-widest px-2 bg-amber-500 text-amber-950 border-none rounded-lg">
                 PR
               </Badge>
             )}

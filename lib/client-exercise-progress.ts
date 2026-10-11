@@ -7,6 +7,22 @@ export type ExerciseLogProgressRow = {
   reps: number | null
   is_warmup: boolean | null
   workout_session_id: string
+  exercises?:
+    | {
+        name?: string | null
+        name_es?: string | null
+        exercise_type?: string | null
+        uses_external_load?: boolean | null
+        equipment?: string | null
+      }
+    | {
+        name?: string | null
+        name_es?: string | null
+        exercise_type?: string | null
+        uses_external_load?: boolean | null
+        equipment?: string | null
+      }[]
+    | null
   workout_sessions:
     | { started_at: string }
     | { started_at: string }[]
@@ -46,15 +62,17 @@ export function buildExerciseProgressFromLogs(
     if (!startedAt) continue
     const key = `${row.workout_session_id}:${row.exercise_id}`
     const prev = bestPerSession.get(key)
-    const label =
-      row.exercise_name && row.exercise_name.trim().length > 0
-        ? row.exercise_name.trim()
-        : 'Ejercicio'
+    const exMeta = Array.isArray(row.exercises) ? row.exercises[0] : row.exercises
+    const resolvedName =
+      exMeta?.name_es?.trim() ||
+      exMeta?.name?.trim() ||
+      row.exercise_name?.trim() ||
+      'Ejercicio'
     if (!prev || w > prev.weight_kg) {
       bestPerSession.set(key, {
         achieved_at: startedAt,
         exercise_id: row.exercise_id,
-        exercise_name: label,
+        exercise_name: resolvedName,
         weight_kg: w,
         reps: row.reps ?? null,
       })

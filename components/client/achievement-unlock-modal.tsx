@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { AchievementBadge } from './achievement-badge'
 import type { Achievement } from '@/lib/types'
 import { Sparkles, Trophy, Share2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface AchievementUnlockModalProps {
   achievements: Achievement[]
@@ -29,10 +29,32 @@ export function AchievementUnlockModal({
 
   if (!current) return null
 
+  const handleShare = async () => {
+    const shareText = `🏆 ¡Acabo de desbloquear el logro "${current.name}" (+${current.xp_reward} XP) en RU Coach! ${current.description ?? ''}`.trim()
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: `Logro Desbloqueado: ${current.name}`,
+          text: shareText,
+          url: window.location.origin,
+        })
+        return
+      } catch (err) {
+        if ((err as Error)?.name === 'AbortError') return
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(shareText)
+      toast.success('¡Logro copiado al portapapeles!')
+    } catch {
+      toast.error('No se pudo copiar al portapapeles')
+    }
+  }
+
   return (
     <Dialog open={achievements.length > 0} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md border-none bg-gradient-to-b from-background to-muted/50 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(var(--primary-rgb),0.15),transparent)] pointer-events-none" />
+      <DialogContent className="sm:max-w-md rounded-3xl border-none bg-gradient-to-b from-background to-muted/50 shadow-2xl shadow-primary/20 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,color-mix(in_oklch,var(--primary)_15%,transparent),transparent)] pointer-events-none" />
         
         <DialogHeader className="relative z-10 pt-6">
           <div className="mx-auto size-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 animate-bounce">
@@ -90,9 +112,11 @@ export function AchievementUnlockModal({
           )}
           
           <Button 
+            type="button"
             variant="outline" 
             size="lg" 
             className="w-full h-12 rounded-xl border-border/40 hover:bg-muted"
+            onClick={handleShare}
           >
             <Share2 className="mr-2 size-4" />
             Compartir progreso

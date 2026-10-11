@@ -31,6 +31,7 @@ import {
   ClientStackPageHeader,
 } from "@/components/client/client-app-page-parts";
 import type { Exercise } from "@/lib/types";
+import { exName } from "@/lib/exercise-i18n";
 import {
   Empty,
   EmptyContent,
@@ -61,16 +62,25 @@ interface ClientRoutine {
 }
 
 function countTrainingDaysPerWeek(
-  routineDays: { is_rest_day: boolean | null }[] | undefined | null,
+  routineDays:
+    | { is_rest_day: boolean | null; routine_exercises?: { id: unknown }[] | null }[]
+    | undefined
+    | null,
   fallback: number,
 ): number {
   if (!routineDays?.length) return fallback;
-  const n = routineDays.filter((d) => !d.is_rest_day).length;
+  const n = routineDays.filter(
+    (d) =>
+      !d.is_rest_day &&
+      (!Array.isArray(d.routine_exercises) || d.routine_exercises.length > 0),
+  ).length;
   return n > 0 ? n : fallback;
 }
 
 type RoutineRowFromDb = Omit<RoutineSummary, "training_days_per_week"> & {
-  routine_days?: { is_rest_day: boolean | null }[] | null;
+  routine_days?:
+    | { is_rest_day: boolean | null; routine_exercises?: { id: unknown }[] | null }[]
+    | null;
 };
 
 function normalizeClientRoutineRow(row: {
@@ -177,7 +187,7 @@ export default function ClientRoutinesPage() {
               duration_weeks,
               days_per_week,
               description,
-              routine_days ( is_rest_day )
+              routine_days ( is_rest_day, routine_exercises ( id ) )
             )
           `,
           )
@@ -198,14 +208,19 @@ export default function ClientRoutinesPage() {
           );
           setSuggestions(progressSuggestions);
 
-          // Cargar días de entreno para el schedule override dialog
+          // Cargar días de entreno con ejercicios para el schedule override dialog
           const { data: rDays } = await supabase
             .from("routine_days")
-            .select("id, day_number, day_name, is_rest_day")
+            .select("id, day_number, day_name, is_rest_day, routine_exercises(id)")
             .eq("routine_id", clientRoutines[0].routine_id)
             .order("day_number", { ascending: true });
           setTrainDays(
-            (rDays ?? []).filter((d) => !d.is_rest_day)
+            (rDays ?? []).filter(
+              (d) =>
+                !d.is_rest_day &&
+                Array.isArray(d.routine_exercises) &&
+                d.routine_exercises.length > 0,
+            ),
           );
           setScheduleRoutineId(clientRoutines[0].id);
         }
@@ -228,11 +243,11 @@ export default function ClientRoutinesPage() {
     return (
       <>
         <ClientStackPageHeader
-          title="Mis rutinas"
+          title="Mis planes"
           subtitle="Sin rutinas asignadas · tu coach te asignará una pronto."
         />
         <div className={CLIENT_DATA_PAGE_SHELL}>
-          <Empty className="border-border/80 shadow-sm ring-1 ring-primary/5">
+          <Empty className="rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <Dumbbell />
@@ -264,7 +279,7 @@ export default function ClientRoutinesPage() {
         subtitle={routinesSubtitle} 
       />
       <div 
-        className={`${CLIENT_DATA_PAGE_SHELL} flex flex-col gap-8 lg:grid lg:grid-cols-12 lg:items-start pb-safe-area`}
+        className={`${CLIENT_DATA_PAGE_SHELL} flex flex-col gap-8 lg:grid lg:grid-cols-12 lg:items-start`}
       >
         <section className="order-1 flex min-w-0 flex-col gap-8 lg:order-2 lg:col-span-8">
           {routines.map((routine) => {
@@ -278,6 +293,7 @@ export default function ClientRoutinesPage() {
                 id: string;
                 sets: number;
                 reps: string;
+                is_overridden?: boolean;
                 exercises?: Exercise | Exercise[] | null;
               }>;
             } | null;
@@ -304,7 +320,7 @@ export default function ClientRoutinesPage() {
                       )}
                     </div>
                     {nw?.isComplete && (
-                      <Badge className="w-fit self-start sm:self-center font-black text-[10px] uppercase tracking-widest px-3 py-1.5 bg-green-500/10 text-green-700 border-none shadow-none rounded-lg">
+                      <Badge className="w-fit self-start sm:self-center font-black text-[10px] uppercase tracking-widest px-3 py-1.5 bg-green-500/10 text-green-700 dark:text-green-400 border-none shadow-none rounded-lg">
                         <CheckCircle2 className="size-3 mr-1.5" />
                         Completado
                       </Badge>
@@ -350,7 +366,7 @@ export default function ClientRoutinesPage() {
                   {/* Next Session Area */}
                   {nw && (
                     <div className="flex flex-col gap-6 pt-8 border-t border-border/40">
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
                         <div className="size-2 rounded-full bg-primary animate-pulse" />
                         <h3 className="text-sm font-black uppercase tracking-[0.15em] text-foreground/80">Tu Próxima Cita</h3>
                         <Button
@@ -392,6 +408,7 @@ export default function ClientRoutinesPage() {
                                 {nw.exercises.map((exercise) => {
                                   const raw = exercise.exercises;
                                   const exDetails = Array.isArray(raw) ? raw[0] : raw;
+                                  const displayExName = exName(exDetails);
                                   return (
                                     <div
                                       key={exercise.id}
@@ -416,16 +433,23 @@ export default function ClientRoutinesPage() {
                                         <ExerciseMedia
                                           src={exDetails?.gif_url}
                                           fallbackSrc={exDetails?.image_url}
-                                          alt={exDetails?.name ?? "Ejercicio"}
+                                          alt={displayExName}
                                           variant="thumb"
                                           className="size-full object-cover group-hover:scale-110 transition-transform duration-500"
                                         />
                                         <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                                       </div>
                                       <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                        <span className="truncate text-sm font-black capitalize tracking-tight group-hover:text-primary transition-colors">
-                                          {exDetails?.name ?? "Ejercicio"}
-                                        </span>
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          <span className="truncate text-sm font-black capitalize tracking-tight group-hover:text-primary transition-colors">
+                                            {displayExName}
+                                          </span>
+                                          {exercise.is_overridden && (
+                                            <Badge variant="outline" className="shrink-0 h-4 px-1.5 text-[9px] font-bold uppercase tracking-wider border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                                              Cambiado
+                                            </Badge>
+                                          )}
+                                        </div>
                                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                            <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest tabular-nums">
                                              {exercise.sets} <span className="font-medium text-[8px] opacity-40">SET</span>
@@ -451,7 +475,7 @@ export default function ClientRoutinesPage() {
                                               setSwapDrawerOpen(true);
                                             }}
                                             className="rounded-full p-1 text-muted-foreground/40 hover:bg-amber-500/10 hover:text-amber-600 transition-colors"
-                                            aria-label={`Cambiar ${exDetails.name ?? 'ejercicio'} por alternativa`}
+                                            aria-label={`Cambiar ${displayExName} por alternativa`}
                                             title="Cambiar ejercicio"
                                           >
                                             <RefreshCw className="size-3.5" />
@@ -486,7 +510,7 @@ export default function ClientRoutinesPage() {
           })}
         </section>
 
-        <aside className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-4 lg:sticky lg:top-[max(1rem,env(safe-area-inset-top))] lg:self-start">
+        <aside className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-4 lg:sticky lg:top-[calc(112px+1.5rem)] lg:self-start">
           {suggestions.length > 0 ? (
             <Card className="overflow-hidden border-primary/20 bg-primary/5 shadow-md ring-1 ring-primary/5 rounded-3xl backdrop-blur-md">
               <CardHeader className="pb-4 pt-6 px-6">
@@ -564,16 +588,16 @@ export default function ClientRoutinesPage() {
           )}
           
           {/* Quick Tip / Motivation Card */}
-          <Card className="overflow-hidden border-border/40 shadow-sm rounded-3xl bg-linear-to-br from-indigo-500/10 via-purple-500/5 to-transparent border-t-indigo-500/20">
+          <Card className="overflow-hidden border-primary/20 shadow-sm rounded-3xl bg-linear-to-br from-primary/10 via-primary/5 to-transparent">
              <CardContent className="p-6">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="size-8 rounded-xl bg-indigo-500/20 flex items-center justify-center">
-                    <Info className="size-4 text-indigo-600" />
+                  <div className="size-8 rounded-xl bg-primary/15 flex items-center justify-center">
+                    <Info className="size-4 text-primary" />
                   </div>
-                  <span className="text-xs font-black uppercase tracking-widest text-indigo-700">Tip de hoy</span>
+                  <span className="text-xs font-black uppercase tracking-widest text-primary">Tip de hoy</span>
                 </div>
-                <p className="text-sm font-medium text-indigo-900/80 leading-relaxed">
-                  "La consistencia vence al talento cuando el talento no se esfuerza. Sigue tu plan al pie de la letra."
+                <p className="text-sm font-medium text-foreground/85 leading-relaxed">
+                  &ldquo;La consistencia vence al talento cuando el talento no se esfuerza. Sigue tu plan al pie de la letra.&rdquo;
                 </p>
              </CardContent>
           </Card>

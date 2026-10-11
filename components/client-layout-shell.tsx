@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 
 const ClientSidebar = dynamic(
@@ -13,6 +13,7 @@ const ClientSidebar = dynamic(
 export function ClientLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isMessagesRoute = pathname.includes('/messages')
+  const isActiveWorkoutRoute = pathname.startsWith('/client/workout/start')
 
   return (
     <SidebarProvider defaultOpen={true} className="flex-1 min-h-0">
@@ -20,17 +21,18 @@ export function ClientLayoutShell({ children }: { children: React.ReactNode }) {
       <SidebarInset className={isMessagesRoute ? 'min-h-0 flex-1' : ''}>
         <div
           id="main-content"
-          role="main"
           tabIndex={-1}
           className={
             isMessagesRoute
-              ? 'flex min-h-0 flex-1 flex-col overflow-hidden pb-[calc(60px+env(safe-area-inset-bottom))] md:pb-0'
-              : 'flex-1 overflow-auto pb-[calc(60px+env(safe-area-inset-bottom))] md:pb-0'
+              ? 'flex min-h-0 flex-1 flex-col overflow-hidden safe-area-pt pb-[calc(60px+env(safe-area-inset-bottom))] md:pb-0'
+              : isActiveWorkoutRoute
+                ? 'flex-1 overflow-auto safe-area-pt pb-[env(safe-area-inset-bottom)] md:pb-0'
+                : 'flex-1 overflow-auto safe-area-pt pb-[calc(60px+env(safe-area-inset-bottom))] md:pb-0'
           }
         >
           {children}
         </div>
-        <MobileBottomNav type="client" />
+        {!isActiveWorkoutRoute && <MobileBottomNav type="client" />}
       </SidebarInset>
     </SidebarProvider>
   )

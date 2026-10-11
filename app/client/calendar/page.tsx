@@ -24,8 +24,18 @@ import { CalendarDays } from "lucide-react";
 function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
-function toDateKey(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+function formatDateInTimezone(d: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const y = parts.find((p) => p.type === "year")?.value ?? "0000";
+  const m = parts.find((p) => p.type === "month")?.value ?? "01";
+  const day = parts.find((p) => p.type === "day")?.value ?? "01";
+  return `${y}-${m}-${day}`;
 }
 
 function clampMonthYear(y: number, m1: number) {
@@ -56,33 +66,83 @@ export default async function ClientCalendarPage({
 
   const sp = await searchParams;
   const now = new Date();
+  const hasExplicitMonth = sp.y != null || sp.m != null;
   const parsedY = sp.y != null ? Number(sp.y) : now.getFullYear();
   const parsedM = sp.m != null ? Number(sp.m) : now.getMonth() + 1;
-  const { year, monthIndex } = clampMonthYear(parsedY, parsedM);
+  let { year, monthIndex } = clampMonthYear(parsedY, parsedM);
 
   const supabase = await createClient();
 
   const { data: clientRecord } = await supabase
     .from("clients")
-    .select("id")
+    .select("id, coach_id")
     .eq("user_id", user.id)
     .single();
 
   if (!clientRecord) redirect("/client/dashboard");
 
-  const start = new Date(year, monthIndex, 1);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(year, monthIndex + 1, 1);
-  end.setHours(0, 0, 0, 0);
+  let timeZone = "America/Mexico_City";
+  if (clientRecord.coach_id) {
+    const { data: gymSettings } = await supabase
+      .from("gym_settings")
+      .select("timezone")
+      .eq("admin_id", clientRecord.coach_id)
+      .maybeSingle();
+    if (gymSettings?.timezone) {
+      timeZone = gymSettings.timezone;
+    }
+  }
 
-  const { data: sessions } = await supabase
+  // Widen UTC bounds by 1 day on each side so sessions near midnight in gym timezone are included
+  let start = new Date(Date.UTC(year, monthIndex, 0, 0, 0, 0));
+  let end = new Date(Date.UTC(year, monthIndex + 1, 2, 23, 59, 59));
+
+  let { data: sessions } = await supabase
     .from("workout_sessions")
     .select("id, started_at, total_volume_kg, status")
     .eq("client_id", clientRecord.id)
     .eq("status", "completed")
     .gte("started_at", start.toISOString())
-    .lt("started_at", end.toISOString())
+    .lte("started_at", end.toISOString())
     .order("started_at", { ascending: true });
+
+  if (!hasExplicitMonth && (!sessions || sessions.length === 0)) {
+    const { data: latestSession } = await supabase
+      .from("workout_sessions")
+      .select("started_at")
+      .eq("client_id", clientRecord.id)
+      .eq("status", "completed")
+      .not("started_at", "is", null)
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestSession?.started_at) {
+      const latestKey = formatDateInTimezone(
+        new Date(latestSession.started_at),
+        timeZone,
+      );
+      const [ly, lm] = latestKey.split("-").map(Number);
+      if (Number.isFinite(ly) && Number.isFinite(lm)) {
+        const clamped = clampMonthYear(ly, lm);
+        year = clamped.year;
+        monthIndex = clamped.monthIndex;
+        start = new Date(Date.UTC(year, monthIndex, 0, 0, 0, 0));
+        end = new Date(Date.UTC(year, monthIndex + 1, 2, 23, 59, 59));
+        const retry = await supabase
+          .from("workout_sessions")
+          .select("id, started_at, total_volume_kg, status")
+          .eq("client_id", clientRecord.id)
+          .eq("status", "completed")
+          .gte("started_at", start.toISOString())
+          .lte("started_at", end.toISOString())
+          .order("started_at", { ascending: true });
+        sessions = retry.data;
+      }
+    }
+  }
+
+  const monthPrefix = `${year}-${pad2(monthIndex + 1)}-`;
 
   const sessionsByDate: Record<
     string,
@@ -91,10 +151,14 @@ export default async function ClientCalendarPage({
 
   const dayKeys = new Set<string>();
   let totalVolMonth = 0;
+  let completedThisMonth = 0;
 
   for (const s of sessions || []) {
-    const d = new Date(s.started_at);
-    const key = toDateKey(d);
+    if (!s.started_at) continue;
+    const key = formatDateInTimezone(new Date(s.started_at), timeZone);
+    if (!key.startsWith(monthPrefix)) continue;
+
+    completedThisMonth += 1;
     dayKeys.add(key);
     if (!sessionsByDate[key]) {
       sessionsByDate[key] = { count: 0, totalVolumeKg: 0, lastSessionAt: null };
@@ -110,8 +174,6 @@ export default async function ClientCalendarPage({
     sessionsByDate[key].lastSessionAt = s.started_at;
   }
 
-  const list = sessions ?? [];
-  const completedThisMonth = list.length;
   const monthCaption = new Date(year, monthIndex, 1).toLocaleDateString("es", {
     month: "long",
     year: "numeric",
@@ -143,35 +205,34 @@ export default async function ClientCalendarPage({
   return (
     <>
       <ClientStackPageHeader title="Calendario" subtitle={calendarSubtitle} />
-      <div className={CLIENT_DATA_PAGE_SHELL}>
-        {!sessions || sessions.length === 0 ? (
-          <Empty className="border-border/80 shadow-sm ring-1 ring-primary/5">
+      <div className={`${CLIENT_DATA_PAGE_SHELL} flex flex-col gap-6`}>
+        <WorkoutCalendar
+          year={year}
+          monthIndex={monthIndex}
+          sessionsByDate={sessionsByDate}
+          monthStats={monthStats}
+          prevMonthHref={prevMonthHref}
+          nextMonthHref={nextMonthHref}
+        />
+
+        {completedThisMonth === 0 && (
+          <Empty className="rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5 py-6">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <CalendarDays />
               </EmptyMedia>
-              <EmptyTitle>Sin sesiones este mes</EmptyTitle>
+              <EmptyTitle>Sin sesiones registradas en {monthCaption}</EmptyTitle>
               <EmptyDescription>
-                Completa un entreno desde{" "}
-                <span className="font-medium">Mis rutinas</span> y tu calendario
-                se irá llenando automáticamente.
+                Usa las flechas del calendario para consultar otros meses o completa un entreno desde{" "}
+                <span className="font-medium">Mis rutinas</span>.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button asChild>
+              <Button asChild size="sm">
                 <Link href="/client/routines">Ir a mis rutinas</Link>
               </Button>
             </EmptyContent>
           </Empty>
-        ) : (
-          <WorkoutCalendar
-            year={year}
-            monthIndex={monthIndex}
-            sessionsByDate={sessionsByDate}
-            monthStats={monthStats}
-            prevMonthHref={prevMonthHref}
-            nextMonthHref={nextMonthHref}
-          />
         )}
       </div>
     </>

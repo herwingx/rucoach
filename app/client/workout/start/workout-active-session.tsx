@@ -17,12 +17,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   X,
   Play,
   Pause,
   SkipForward,
   Check,
   Trophy,
+  ChevronLeft,
   ChevronRight,
   Minus,
   Plus,
@@ -31,6 +40,9 @@ import {
   Trash2,
   History,
   Link2,
+  RefreshCw,
+  Flame,
+  MessageSquareText,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -43,6 +55,7 @@ import {
   Exercise,
 } from "@/lib/types";
 import { ExerciseDetailDrawer } from "@/components/client/exercise-detail-drawer";
+import { ExerciseSwapDrawer } from "@/components/client/exercise-swap-drawer";
 import { ExerciseMedia } from "@/components/client/exercise-media";
 import { Badge } from "@/components/ui/badge";
 import { completeWorkoutSession } from "@/app/actions/workout";
@@ -51,7 +64,6 @@ import {
   mergePRBaselines,
   suggestWeightForTargetReps,
 } from "@/lib/progression";
-import { ClientStackPageHeader } from "@/components/client/client-app-page-parts";
 import { cn } from "@/lib/utils";
 import { exerciseUsesExternalLoad } from "@/lib/exercise-tracking";
 import { exName } from "@/lib/exercise-i18n";
@@ -79,8 +91,13 @@ function formatElapsed(totalSeconds: number) {
 
 interface WorkoutActiveSessionProps {
   clientId: string;
+  clientRoutineId?: string | null;
   routineDay: RoutineDay & {
-    routine_exercises: (RoutineExercise & { exercises: any })[];
+    routine_exercises: (RoutineExercise & {
+      exercises: any;
+      is_overridden?: boolean;
+      override_reason?: string | null;
+    })[];
   };
   routineName: string;
   previousByExercise: Record<string, { weight_kg: number; reps: number }>;
@@ -111,13 +128,17 @@ interface WorkoutDraftV1 {
 
 export function WorkoutActiveSession({
   clientId,
+  clientRoutineId = null,
   routineDay,
   routineName,
   previousByExercise,
   personalRecords,
 }: WorkoutActiveSessionProps) {
   const router = useRouter();
-  const exercises = routineDay.routine_exercises || [];
+  const exercises = useMemo(
+    () => routineDay.routine_exercises || [],
+    [routineDay.routine_exercises],
+  );
   const loadPolicyByExerciseId = useMemo(() => {
     const m = new Map<string, boolean>();
     for (const re of exercises) {
@@ -179,6 +200,7 @@ export function WorkoutActiveSession({
   const [jumpTargetIndex, setJumpTargetIndex] = useState<number | null>(null);
 
   const [detailOpen, setDetailOpen] = useState(false);
+  const [swapOpen, setSwapOpen] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(
     null,
   );
@@ -190,6 +212,8 @@ export function WorkoutActiveSession({
   const [restoreDraft, setRestoreDraft] = useState<WorkoutDraftV1 | null>(null);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [finishModalOpen, setFinishModalOpen] = useState(false);
+  const [feelingScore, setFeelingScore] = useState<number>(3);
 
   const carouselRef = useRef<HTMLDivElement>(null);
   const thumbRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -234,21 +258,29 @@ export function WorkoutActiveSession({
 
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(draftKey);
+      const raw = localStorage.getItem(draftKey);
       if (!raw) {
         setDraftCheckpoint("ready");
         return;
       }
       const data = JSON.parse(raw) as WorkoutDraftV1;
       if (data.v !== 1 || data.routineDayId !== routineDay.id) {
-        sessionStorage.removeItem(draftKey);
+        try {
+          localStorage.removeItem(draftKey);
+        } catch {
+          /* noop */
+        }
         setDraftCheckpoint("ready");
         return;
       }
       setRestoreDraft(data);
       setRestoreOpen(true);
     } catch {
-      sessionStorage.removeItem(draftKey);
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {
+        /* noop */
+      }
       setDraftCheckpoint("ready");
     }
   }, [draftKey, routineDay.id]);
@@ -256,7 +288,11 @@ export function WorkoutActiveSession({
   useEffect(() => {
     if (draftCheckpoint !== "ready") return;
     if (!isDirty) {
-      sessionStorage.removeItem(draftKey);
+      try {
+        localStorage.removeItem(draftKey);
+      } catch {
+        /* noop */
+      }
       return;
     }
     const payload: WorkoutDraftV1 = {
@@ -269,7 +305,7 @@ export function WorkoutActiveSession({
     };
     const id = window.setTimeout(() => {
       try {
-        sessionStorage.setItem(draftKey, JSON.stringify(payload));
+        localStorage.setItem(draftKey, JSON.stringify(payload));
       } catch {
         // quota / private mode
       }
@@ -405,7 +441,15 @@ export function WorkoutActiveSession({
       const list = prev.get(id);
       if (!list) return prev;
       const updatedSets = [...list];
-      const set = updatedSets[setIndex];
+      const set = { ...updatedSets[setIndex] };
+      updatedSets[setIndex] = set;
+
+      if (set.completed) {
+        set.completed = false;
+        set.isPR = false;
+        return new Map(prev).set(id, updatedSets);
+      }
+
       const isPR = checkForPR(
         currentExercise.exercise_id,
         set.weight,
@@ -418,13 +462,17 @@ export function WorkoutActiveSession({
       if (isPR && loadPolicyByExerciseId.get(currentExercise.exercise_id)) {
         prToast = { weight: set.weight, reps: set.reps };
       }
-      // Only trigger rest if NOT moving to a superset partner (they go back-to-back)
-      const allCompleted = updatedSets.every(s => s.completed);
-      shouldRest = setIndex < updatedSets.length - 1 && !nextIsSameSuperset(currentExerciseIndex);
-      // If all sets done AND we're in a superset and next is a partner — no intra-superset rest
-      // Rest fires only after the last exercise in the superset group is fully done
+      // Trigger rest after any completed set, UNLESS:
+      // 1) All sets of this exercise are done AND next exercise is a superset partner (back-to-back)
+      // 2) All sets of this exercise are done AND this is the very last exercise of the session
+      const allCompleted = updatedSets.every((s) => s.completed);
+      const isLastExercise = currentExerciseIndex === exercises.length - 1;
       if (allCompleted && nextIsSameSuperset(currentExerciseIndex)) {
         shouldRest = false; // handled by auto-advance below
+      } else if (allCompleted && isLastExercise) {
+        shouldRest = false; // ready to finish the workout
+      } else {
+        shouldRest = restSec > 0;
       }
       return new Map(prev).set(id, updatedSets);
     });
@@ -439,9 +487,31 @@ export function WorkoutActiveSession({
       if (shouldRest) {
         setRestTime(restSec);
         setTotalRestTime(restSec);
+        setIsPaused(false);
         setIsResting(true);
       }
     });
+  };
+
+  const adjustRestTime = (deltaSec: number) => {
+    setRestTime((prev) => {
+      const next = Math.max(0, prev + deltaSec);
+      if (next > totalRestTime) {
+        setTotalRestTime(next);
+      }
+      if (next === 0) {
+        setIsResting(false);
+      }
+      return next;
+    });
+  };
+
+  const startManualRest = (seconds: number) => {
+    const sec = Math.max(15, seconds || 90);
+    setTotalRestTime(sec);
+    setRestTime(sec);
+    setIsPaused(false);
+    setIsResting(true);
   };
 
   const updateSetValue = (
@@ -581,6 +651,7 @@ export function WorkoutActiveSession({
         routineDayId: routineDay.id,
         sets: allCompletedSets,
         durationMinutes: duration,
+        rating: feelingScore,
         notes: workoutNote.trim() || undefined,
       });
 
@@ -591,8 +662,10 @@ export function WorkoutActiveSession({
         return;
       }
 
+      setFinishModalOpen(false);
+
       try {
-        sessionStorage.removeItem(draftKey);
+        localStorage.removeItem(draftKey);
       } catch {
         /* noop */
       }
@@ -643,7 +716,7 @@ export function WorkoutActiveSession({
   const discardWorkoutDraft = useCallback(() => {
     restoreDismissRef.current = "discard";
     try {
-      sessionStorage.removeItem(draftKey);
+      localStorage.removeItem(draftKey);
     } catch {
       /* noop */
     }
@@ -660,6 +733,57 @@ export function WorkoutActiveSession({
   const completedSetsCount = currentSets.filter((s) => s.completed).length;
   const allSetsCompleted =
     completedSetsCount === currentSets.length && currentSets.length > 0;
+
+  // ─── Global Session Progress Metrics ─────────────────────────────────────
+  const {
+    totalSessionSets,
+    completedSessionSets,
+    completedExercisesCount,
+    totalSessionVolume,
+  } = useMemo(() => {
+    let totalSets = 0;
+    let doneSets = 0;
+    let doneExercises = 0;
+    let volume = 0;
+    for (const re of exercises) {
+      const list = sets.get(re.id.toString());
+      const count = list ? list.length : Math.max(1, re.sets || 1);
+      const done = list ? list.filter((s) => s.completed).length : 0;
+      totalSets += count;
+      doneSets += done;
+      if (done === count && count > 0) {
+        doneExercises += 1;
+      }
+      if (list) {
+        for (const s of list) {
+          if (s.completed) {
+            volume += (s.weight || 0) * (s.reps || 0);
+          }
+        }
+      }
+    }
+    return {
+      totalSessionSets: totalSets,
+      completedSessionSets: doneSets,
+      completedExercisesCount: doneExercises,
+      totalSessionVolume: volume,
+    };
+  }, [exercises, sets]);
+
+  const requestFinishWorkout = useCallback(() => {
+    if (isFinishing) return;
+    if (completedSessionSets === 0) {
+      toast.error("Marca al menos una serie completada antes de terminar");
+      return;
+    }
+    setFinishModalOpen(true);
+  }, [isFinishing, completedSessionSets]);
+
+  const sessionProgressPct = useMemo(() => {
+    if (totalSessionSets <= 0) return 0;
+    const raw = Math.round((completedSessionSets / totalSessionSets) * 100);
+    return Math.min(100, Math.max(completedSessionSets > 0 ? raw : 4, raw));
+  }, [completedSessionSets, totalSessionSets]);
 
   // ─── Superset UI helpers for current exercise ────────────────────────────
   const currentSupersetGroup = currentExercise?.superset_group ?? null;
@@ -682,7 +806,7 @@ export function WorkoutActiveSession({
       goToExercise(currentExerciseIndex + 1);
     }, 600);
     return () => window.clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [allSetsCompleted, currentExerciseIndex]);
 
   const usesExternalLoad = currentExercise
@@ -715,57 +839,78 @@ export function WorkoutActiveSession({
   const restSeconds = currentExercise?.rest_seconds || 90;
 
   return (
-    <div
-      id="main-content"
-      role="main"
-      className="flex min-h-dvh flex-col overflow-x-clip bg-background"
-      tabIndex={-1}
-    >
-      <ClientStackPageHeader
-        sticky
-        title={routineDay.day_name ?? "Entrenamiento"}
-        subtitle={routineName}
-        backHref="/client/dashboard"
-        backLabel="Salir"
-        backIcon={<X className="size-5" aria-hidden />}
-        onBackClick={() => {
-          if (isDirty) setLeaveOpen(true);
-          else router.push("/client/dashboard");
-        }}
-        actions={
-          <div className="flex items-center gap-3">
-             <div
-              className="hidden sm:inline-flex h-11 items-center gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-4 text-sm font-black tabular-nums text-primary"
+    <div className="flex min-h-dvh flex-col overflow-x-clip bg-background">
+      {/* Compact Sticky Workout Header (Single Row on Mobile & Desktop + Live Progress Bar) */}
+      <header className="sticky top-0 z-40 border-b border-border/50 bg-background/85 backdrop-blur-xl safe-area-header-pt">
+        <div className="container mx-auto flex min-h-[64px] max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:min-h-[84px] sm:gap-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-9 sm:size-10 shrink-0 rounded-full hover:bg-primary/10 hover:text-primary transition-colors"
+              aria-label="Salir"
+              onClick={() => {
+                if (isDirty) setLeaveOpen(true);
+                else router.push("/client/dashboard");
+              }}
+            >
+              <X className="size-5" aria-hidden />
+            </Button>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-base font-black tracking-tight text-foreground sm:text-2xl">
+                  {routineDay.day_name ?? "Entrenamiento"}
+                </h1>
+                <span className="hidden rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-primary sm:inline-flex">
+                  {completedSessionSets}/{totalSessionSets} series
+                </span>
+              </div>
+              <p className="truncate text-[11px] font-medium text-muted-foreground sm:text-xs">
+                {routineName}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
+            <div
+              className="inline-flex h-9 sm:h-11 items-center gap-1.5 rounded-xl sm:rounded-2xl border border-primary/25 bg-primary/5 px-2.5 sm:px-4 text-xs sm:text-sm font-black tabular-nums text-primary"
               role="timer"
               aria-live="polite"
               aria-label={`Tiempo de sesión ${formatElapsed(elapsedSec)}`}
             >
-              <Timer className="size-4 shrink-0" aria-hidden />
+              <Timer className="size-3.5 sm:size-4 shrink-0" aria-hidden />
               {formatElapsed(elapsedSec)}
             </div>
             <Button
               variant="default"
-              size="lg"
-              onClick={finishWorkout}
+              size="sm"
+              onClick={requestFinishWorkout}
               disabled={isFinishing}
-              className="h-11 rounded-2xl px-6 font-black uppercase tracking-widest bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all"
+              className="h-9 sm:h-11 rounded-xl sm:rounded-2xl px-3.5 sm:px-6 text-[11px] sm:text-sm font-black uppercase tracking-wider sm:tracking-widest bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
             >
               {isFinishing ? "Guardando…" : "Terminar"}
             </Button>
           </div>
-        }
-      />
-
-      <div className="relative h-1.5 w-full bg-muted/30 overflow-hidden">
-        <div
-          className="absolute inset-y-0 left-0 bg-primary shadow-[0_0_15px_rgba(var(--primary),0.5)] transition-all duration-500 ease-out"
-          style={{
-            width: `${((currentExerciseIndex + 1) / Math.max(exercises.length, 1)) * 100}%`,
-          }}
-        >
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.3)_50%,transparent_100%)] animate-shimmer" />
         </div>
-      </div>
+
+        {/* Sticky Real-Time Set Progress Bar */}
+        <div
+          className="relative h-1.5 w-full bg-muted/40 overflow-hidden"
+          role="progressbar"
+          aria-valuenow={completedSessionSets}
+          aria-valuemin={0}
+          aria-valuemax={totalSessionSets}
+          aria-label={`Progreso de la sesión: ${completedSessionSets} de ${totalSessionSets} series completadas`}
+        >
+          <div
+            className="absolute inset-y-0 left-0 bg-primary shadow-sm shadow-primary/30 transition-all duration-500 ease-out"
+            style={{ width: `${sessionProgressPct}%` }}
+          >
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.35)_50%,transparent_100%)] animate-shimmer" />
+          </div>
+        </div>
+      </header>
 
       <AlertDialog
         open={restoreOpen}
@@ -775,7 +920,7 @@ export function WorkoutActiveSession({
           restoreDismissRef.current = null;
           if (reason === "apply" || reason === "discard") return;
           try {
-            sessionStorage.removeItem(draftKey);
+            localStorage.removeItem(draftKey);
           } catch {
             /* noop */
           }
@@ -851,154 +996,296 @@ export function WorkoutActiveSession({
       </AlertDialog>
 
       {isResting && (
-        <div className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-background/80 p-4 backdrop-blur-2xl animate-in fade-in duration-300 sm:p-8">
-           <div className="absolute inset-0 bg-linear-to-b from-primary/5 via-transparent to-primary/5 pointer-events-none" />
+        <div className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-background/85 p-4 backdrop-blur-2xl animate-in fade-in duration-300 sm:p-8">
+          <div className="absolute inset-0 bg-linear-to-b from-primary/5 via-transparent to-primary/5 pointer-events-none" />
 
           <div className="relative flex flex-col items-center">
             <div className="absolute -inset-4 bg-primary/20 blur-3xl rounded-full animate-pulse" />
             <CircularProgress
               value={restTime}
               max={totalRestTime}
-              size={240}
-              strokeWidth={4}
+              size={220}
+              strokeWidth={5}
               className="relative text-primary"
             >
-              <div className="flex flex-col items-center justify-center gap-2">
-                <span className="text-sm font-black uppercase tracking-[0.3em] text-primary/60">Descanso</span>
-                <span className="text-6xl font-black tabular-nums tracking-tighter sm:text-7xl">{restTime}</span>
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Segundos</span>
+              <div className="flex flex-col items-center justify-center gap-1.5">
+                <span className="text-xs font-black uppercase tracking-[0.28em] text-primary/70">
+                  Descanso
+                </span>
+                <span className="text-5xl font-black tabular-nums tracking-tighter sm:text-6xl">
+                  {restTime >= 60 ? formatElapsed(restTime) : restTime}
+                </span>
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest">
+                  {restTime >= 60 ? `${restTime}s restantes` : "Segundos"}
+                </span>
               </div>
             </CircularProgress>
           </div>
 
-          <div className="relative z-10 mt-10 flex w-full max-w-sm flex-col items-stretch gap-3 sm:mt-16 sm:max-w-none sm:flex-row sm:items-center sm:justify-center sm:gap-4">
+          {/* Quick Rest Adjustment + Play/Pause Controls */}
+          <div className="relative z-10 mt-8 flex items-center justify-center gap-3 sm:mt-10 sm:gap-4">
             <Button
+              type="button"
+              variant="outline"
+              onClick={() => adjustRestTime(-15)}
+              aria-label="Restar 15 segundos de descanso"
+              className="h-12 rounded-2xl border-border/80 bg-card/80 px-4 text-xs font-black tabular-nums hover:bg-secondary"
+            >
+              -15s
+            </Button>
+            <Button
+              type="button"
               variant="secondary"
               size="icon"
               onClick={() => setIsPaused(!isPaused)}
-              className="mx-auto size-14 rounded-3xl bg-secondary/80 transition-all hover:bg-secondary sm:mx-0 sm:size-16"
+              aria-label="Pausar/Reanudar temporizador"
+              className="size-14 rounded-3xl bg-secondary/90 transition-all hover:bg-secondary sm:size-16"
             >
               {isPaused ? (
-                <Play className="size-8 fill-current" />
+                <Play className="size-7 fill-current" />
               ) : (
-                <Pause className="size-8 fill-current" />
+                <Pause className="size-7 fill-current" />
               )}
             </Button>
             <Button
-              variant="default"
-              size="lg"
-              onClick={skipRest}
-              className="h-14 w-full rounded-3xl bg-primary px-6 font-black uppercase tracking-widest text-primary-foreground shadow-xl shadow-primary/30 transition-all hover:scale-[1.01] active:scale-95 sm:h-16 sm:w-auto sm:px-10 sm:hover:scale-105"
+              type="button"
+              variant="outline"
+              onClick={() => adjustRestTime(30)}
+              aria-label="Sumar 30 segundos de descanso"
+              className="h-12 rounded-2xl border-border/80 bg-card/80 px-4 text-xs font-black tabular-nums hover:bg-secondary"
             >
-              <SkipForward className="mr-3 size-6" />
-              Saltar
+              +30s
             </Button>
           </div>
 
-          <div className="mt-12 text-center relative z-10">
-             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-1">Próxima Serie</p>
-             <p className="text-lg font-black tracking-tight underline decoration-primary decoration-2 underline-offset-4">
-                Serie {completedSetsCount + 1} de {currentSets.length}
-             </p>
+          <div className="relative z-10 mt-4 flex w-full max-w-xs flex-col items-stretch gap-2.5 sm:mt-6">
+            <Button
+              type="button"
+              variant="default"
+              size="lg"
+              onClick={() => {
+                skipRest();
+                if (
+                  allSetsCompleted &&
+                  currentExerciseIndex < exercises.length - 1 &&
+                  !nextIsSameSuperset(currentExerciseIndex)
+                ) {
+                  nextExercise();
+                }
+              }}
+              className="h-13 w-full rounded-2xl bg-primary px-6 font-black uppercase tracking-widest text-primary-foreground shadow-xl shadow-primary/30 transition-all hover:scale-[1.01] active:scale-95 sm:h-14"
+            >
+              <SkipForward className="mr-2.5 size-5" />
+              {allSetsCompleted &&
+              currentExerciseIndex < exercises.length - 1 &&
+              !nextIsSameSuperset(currentExerciseIndex)
+                ? "Saltar e ir al siguiente"
+                : "Saltar descanso"}
+            </Button>
+          </div>
+
+          <div className="mt-8 text-center relative z-10 max-w-xs px-4">
+            {allSetsCompleted && currentExerciseIndex < exercises.length - 1 ? (
+              <>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/70 mb-1">
+                   Ejercicio completado · Siguiente
+                </p>
+                <p className="text-base font-black tracking-tight text-foreground line-clamp-2">
+                  {exName(exercises[currentExerciseIndex + 1]?.exercises)}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/70 mb-1">
+                  Próxima Serie
+                </p>
+                <p className="text-lg font-black tracking-tight underline decoration-primary decoration-2 underline-offset-4">
+                  Serie {Math.min(completedSetsCount + 1, currentSets.length)} de{" "}
+                  {currentSets.length}
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      <main className="container mx-auto flex w-full min-w-0 max-w-7xl flex-1 flex-col overflow-x-clip px-3 py-6 pb-28 sm:px-6 sm:py-8 sm:pb-8">
+      <div className="container mx-auto flex-1 max-w-7xl px-3.5 py-4 pb-16 sm:px-6 sm:py-6 lg:px-8">
+        {!currentExercise ? (
+          <Card className="mx-auto max-w-lg rounded-3xl border-border/60 bg-card/60 p-8 text-center shadow-sm">
+            <CardContent className="flex flex-col items-center gap-4 p-0">
+              <div className="flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Check className="size-7" />
+              </div>
+              <div className="space-y-1">
+                <h2 className="text-lg font-black tracking-tight">
+                  Sin ejercicios asignados para este día
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Este bloque no tiene ejercicios configurados todavía. Selecciona otro día desde Mis Rutinas o consulta a tu coach.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={() => router.push("/client/routines")}
+                className="h-11 rounded-xl px-6 font-bold"
+              >
+                Volver a Mis Rutinas
+              </Button>
+            </CardContent>
+          </Card>
+        ) : null}
+
         {currentExercise && (
-          <div className="grid w-full min-w-0 gap-5 sm:gap-6 lg:grid-cols-12 lg:items-start lg:gap-12">
-            <div className="flex w-full min-w-0 flex-col gap-5 sm:gap-6 lg:col-span-5">
-              <div className="flex w-full min-w-0 flex-col gap-3">
-                <div className="flex items-center justify-between">
-                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Tu Ruta de Hoy</span>
-                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                      {currentExerciseIndex + 1} / {exercises.length}
-                   </span>
+          <div className="grid w-full min-w-0 gap-4 sm:gap-6 lg:grid-cols-12 lg:items-start lg:gap-10">
+            {/* LEFT COLUMN: Route Stepper + Exercise Media + Desktop Session Note */}
+            <div className="flex w-full min-w-0 flex-col gap-3.5 sm:gap-5 lg:col-span-5 lg:sticky lg:top-[calc(88px+1.25rem)] lg:self-start">
+              {/* TU RUTA DE HOY */}
+              <div className="flex w-full min-w-0 flex-col gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/75">
+                    Tu Ruta de Hoy
+                  </span>
+                  <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider">
+                    <span className="text-muted-foreground">
+                      {completedExercisesCount}/{exercises.length} listos
+                    </span>
+                    <span className="text-border">·</span>
+                    <span className="text-primary">
+                      Ej. {currentExerciseIndex + 1}/{exercises.length}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="relative w-full min-w-0 max-w-full overflow-x-hidden">
-                  {/* Symmetrical Gradient Masks for premium scroll indication */}
-                  <div className="absolute left-0 top-0 bottom-4 z-10 w-8 bg-linear-to-r from-background to-transparent pointer-events-none opacity-0 sm:opacity-100" />
-                  <div className="absolute right-0 top-0 bottom-4 z-10 w-8 bg-linear-to-l from-background to-transparent pointer-events-none opacity-0 sm:opacity-100" />
-                  
+                  <div className="absolute left-0 top-0 bottom-3 z-10 w-6 bg-linear-to-r from-background to-transparent pointer-events-none opacity-0 sm:opacity-100" />
+                  <div className="absolute right-0 top-0 bottom-3 z-10 w-6 bg-linear-to-l from-background to-transparent pointer-events-none opacity-0 sm:opacity-100" />
+
                   <div
                     ref={carouselRef}
-                    className="flex w-full min-w-0 max-w-full touch-pan-x gap-4 overflow-x-auto overscroll-x-contain px-1 pb-4 pt-2 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-5 sm:pb-6"
+                    className="flex w-full min-w-0 max-w-full touch-pan-x gap-3 overflow-x-auto overscroll-x-contain px-1 pb-2.5 pt-1.5 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-4 sm:pb-4"
                     role="tablist"
                     aria-label="Ejercicios del día"
                   >
-                     {exercises.map((re, idx) => {
+                    {exercises.map((re, idx) => {
                       const ex = re.exercises as Exercise | undefined;
                       const active = idx === currentExerciseIndex;
                       const ssGroup = re.superset_group ?? null;
                       const ssColor = getSupersetColor(ssGroup);
                       const ssPos = getSupersetPosition(idx);
                       const isPrevSS = prevIsSameSuperset(idx);
-                  return (
-                    <div key={re.id} className="relative shrink-0 flex flex-col items-center">
-                      {/* Connecting line above — joins to previous in same superset */}
-                      {isPrevSS && ssColor && (
-                        <div className={cn('absolute -top-3 left-1/2 -translate-x-1/2 w-0.5 h-4 rounded-full', ssColor.connector)} />
-                      )}
-                      <button
-                        type="button"
-                        ref={(el) => {
-                          thumbRefs.current[idx] = el;
-                        }}
-                        role="tab"
-                        aria-selected={active}
-                        aria-label={`${exName(ex)}${ssGroup ? ` (Biserie ${ssGroup}${ssPos})` : ''}`}
-                        onClick={() => requestGoToExercise(idx)}
-                        className={cn(
-                          "group relative flex shrink-0 flex-col items-center gap-2 transition-all duration-300 snap-start",
-                          active ? "scale-105" : "opacity-40 hover:opacity-60"
-                        )}
-                      >
-                         <div className={cn(
-                           "relative size-16 shrink-0 overflow-hidden rounded-2xl border-2 transition-all duration-300 sm:size-20 shadow-none",
-                           active
-                             ? ssColor
-                               ? cn(ssColor.border, 'shadow-[0_0_20px_rgba(var(--primary),0.15)]')
-                               : 'border-primary shadow-[0_0_20px_rgba(var(--primary),0.2)]'
-                             : 'border-border/40'
-                         )}>
-                            <ExerciseMedia
-                              src={ex?.gif_url || ex?.image_url}
-                              alt=""
-                              variant="thumb"
-                              className="size-full"
-                              imgClassName="object-cover"
+
+                      const exList = sets.get(re.id.toString());
+                      const exTotal = exList ? exList.length : Math.max(1, re.sets || 1);
+                      const exDone = exList ? exList.filter((s) => s.completed).length : 0;
+                      const isExCompleted = exDone === exTotal && exTotal > 0;
+                      const isExPartial = exDone > 0 && !isExCompleted;
+
+                      return (
+                        <div key={re.id} className="relative shrink-0 flex flex-col items-center">
+                          {isPrevSS && ssColor && (
+                            <div
+                              className={cn(
+                                "absolute -top-2.5 left-1/2 -translate-x-1/2 w-0.5 h-3 rounded-full",
+                                ssColor.connector,
+                              )}
                             />
-                            {active && (
-                               <div className={cn('absolute inset-x-0 bottom-0 h-1 animate-pulse', ssColor ? ssColor.connector : 'bg-primary')} />
+                          )}
+                          <button
+                            type="button"
+                            ref={(el) => {
+                              thumbRefs.current[idx] = el;
+                            }}
+                            role="tab"
+                            aria-selected={active}
+                            aria-label={`${exName(ex)}${ssGroup ? ` (Biserie ${ssGroup}${ssPos})` : ""}${isExCompleted ? " (Completado)" : ""}`}
+                            onClick={() => requestGoToExercise(idx)}
+                            className={cn(
+                              "group relative flex shrink-0 flex-col items-center gap-1.5 transition-all duration-300 snap-start",
+                              active
+                                ? "scale-105"
+                                : isExCompleted
+                                  ? "opacity-90 hover:opacity-100"
+                                  : isExPartial
+                                    ? "opacity-75 hover:opacity-95"
+                                    : "opacity-45 hover:opacity-70",
                             )}
-                            {/* Superset group badge on thumbnail */}
-                            {ssGroup && (
-                              <div className={cn(
-                                'absolute top-1 left-1 flex size-5 items-center justify-center rounded-md text-[8px] font-black uppercase',
-                                ssColor ? cn(ssColor.bg, ssColor.text) : 'bg-primary/15 text-primary'
-                              )}>
-                                {ssGroup}{ssPos}
-                              </div>
-                            )}
-                         </div>
-                         <span className={cn(
-                           "text-[10px] font-black uppercase tracking-widest transition-colors",
-                           active
-                             ? ssColor ? ssColor.text : 'text-primary'
-                             : "text-muted-foreground"
-                         )}>
-                           {idx + 1}
-                         </span>
-                      </button>
-                    </div>
-                  );
-                  })}
+                          >
+                            <div
+                              className={cn(
+                                "relative size-14 shrink-0 overflow-hidden rounded-2xl border-2 transition-all duration-300 sm:size-18 shadow-none",
+                                active
+                                  ? ssColor
+                                    ? cn(ssColor.border, "shadow-md shadow-primary/30")
+                                    : "border-primary shadow-md shadow-primary/30"
+                                  : isExCompleted
+                                    ? "border-emerald-500/60 bg-emerald-500/5"
+                                    : isExPartial
+                                      ? "border-primary/50"
+                                      : "border-border/40",
+                              )}
+                            >
+                              <ExerciseMedia
+                                src={ex?.gif_url || ex?.image_url}
+                                alt=""
+                                variant="thumb"
+                                className="size-full"
+                                imgClassName="object-cover"
+                              />
+                              {active && (
+                                <div
+                                  className={cn(
+                                    "absolute inset-x-0 bottom-0 h-1 animate-pulse",
+                                    ssColor ? ssColor.connector : "bg-primary",
+                                  )}
+                                />
+                              )}
+                              {/* Superset group badge on thumbnail */}
+                              {ssGroup && (
+                                <div
+                                  className={cn(
+                                    "absolute top-1 left-1 flex size-4.5 items-center justify-center rounded-md text-[8px] font-black uppercase",
+                                    ssColor ? cn(ssColor.bg, ssColor.text) : "bg-primary/15 text-primary",
+                                  )}
+                                >
+                                  {ssGroup}
+                                  {ssPos}
+                                </div>
+                              )}
+                              {/* Completion status badge on thumbnail */}
+                              {isExCompleted ? (
+                                <div className="absolute top-1 right-1 flex size-4.5 items-center justify-center rounded-full bg-emerald-500 text-white shadow-xs">
+                                  <Check className="size-3" strokeWidth={3.5} />
+                                </div>
+                              ) : isExPartial ? (
+                                <div className="absolute top-1 right-1 rounded-md bg-primary px-1 py-0.5 text-[8px] font-black leading-none text-primary-foreground shadow-xs">
+                                  {exDone}/{exTotal}
+                                </div>
+                              ) : null}
+                            </div>
+                            <span
+                              className={cn(
+                                "text-[10px] font-black uppercase tracking-wider transition-colors",
+                                active
+                                  ? ssColor
+                                    ? ssColor.text
+                                    : "text-primary"
+                                  : isExCompleted
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : "text-muted-foreground",
+                              )}
+                            >
+                              {idx + 1}
+                            </span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-card shadow-xl ring-1 ring-primary/5 sm:rounded-[2.5rem] sm:shadow-2xl">
+              {/* EXERCISE MEDIA CARD WITH ACTIONS (Ver técnica / Cambiar / Rest Timer) */}
+              <div className="group relative overflow-hidden rounded-3xl border border-border/80 bg-card shadow-lg ring-1 ring-primary/5 sm:rounded-[2rem] sm:shadow-xl">
                 <button
                   type="button"
                   className="relative flex w-full flex-col outline-none overflow-hidden"
@@ -1007,88 +1294,154 @@ export function WorkoutActiveSession({
                     setDetailOpen(true);
                   }}
                 >
-                  <div className="relative aspect-4/3 max-h-[42vh] w-full bg-muted/20 sm:aspect-16/10 sm:max-h-[54vh] lg:aspect-4/3 lg:max-h-none">
+                  <div className="relative aspect-[16/10] max-h-[210px] w-full bg-muted/20 sm:aspect-[16/10] sm:max-h-[280px] lg:aspect-4/3 lg:max-h-[360px]">
                     <ExerciseMedia
                       src={currentExercise.exercises?.gif_url}
                       fallbackSrc={currentExercise.exercises?.image_url}
                       alt={exName(currentExercise.exercises)}
                       variant="fill"
-                      className="absolute inset-0 size-full transition-transform duration-700 group-hover:scale-110"
-                      imgClassName="object-contain p-2 sm:p-4"
+                      className="absolute inset-0 size-full transition-transform duration-700 group-hover:scale-105"
+                      imgClassName="object-contain p-2 pb-12 sm:p-4 sm:pb-14"
                     />
-                    <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <div className="absolute inset-0 bg-linear-to-t from-black/45 via-transparent to-transparent pointer-events-none" />
                   </div>
                 </button>
-                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2 sm:bottom-4 sm:left-4 sm:right-4 sm:gap-3">
-                  <Button
+
+                <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5 sm:bottom-3.5 sm:left-3.5 sm:right-3.5 sm:gap-2">
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="h-9 rounded-xl border border-border/50 bg-background/90 px-2.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-md transition-all hover:bg-background sm:h-10 sm:px-3.5"
+                      onClick={() => {
+                        setSelectedExercise(currentExercise.exercises);
+                        setDetailOpen(true);
+                      }}
+                    >
+                      <PlayCircle className="size-3.5 text-primary shrink-0" aria-hidden />
+                      <span>Ver técnica</span>
+                    </Button>
+
+                    {clientRoutineId && currentExercise.exercises && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-9 rounded-xl border border-border/50 bg-background/90 px-2.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-md transition-all hover:bg-background sm:h-10 sm:px-3"
+                        onClick={() => setSwapOpen(true)}
+                      >
+                        <RefreshCw className="size-3.5 text-muted-foreground shrink-0" aria-hidden />
+                        <span>Cambiar</span>
+                      </Button>
+                    )}
+                  </div>
+
+                  <button
                     type="button"
-                    variant="secondary"
-                    size="sm"
-                    className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-background/80 px-3 text-[10px] font-black uppercase tracking-wide backdrop-blur-md transition-all hover:bg-background sm:flex-none sm:px-4 sm:tracking-widest"
-                    onClick={() => {
-                      setSelectedExercise(currentExercise.exercises);
-                      setDetailOpen(true);
-                    }}
+                    onClick={() => startManualRest(restSeconds)}
+                    aria-label={`Iniciar descanso de ${restSeconds} segundos`}
+                    className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl bg-primary px-2.5 text-[10px] font-black uppercase tracking-wider text-primary-foreground shadow-md shadow-primary/25 transition-transform hover:scale-105 active:scale-95 sm:h-10 sm:px-3.5"
                   >
-                    <PlayCircle className="size-4 text-primary" aria-hidden />
-                    Ver técnica
-                  </Button>
-                  <Badge className="h-10 shrink-0 justify-center rounded-xl bg-primary/90 px-3 text-[10px] font-black uppercase tracking-wide text-primary-foreground shadow-xl shadow-primary/20 sm:px-4 sm:tracking-widest">
+                    <Timer className="size-3.5 shrink-0" aria-hidden />
                     {restSeconds}s Rest
-                  </Badge>
+                  </button>
                 </div>
               </div>
 
-              <Textarea
-                value={workoutNote}
-                onChange={(e) => setWorkoutNote(e.target.value)}
-                placeholder="Nota del entreno (opcional). ¿Cómo te has sentido?"
-                className="min-h-[72px] w-full text-base md:text-sm"
-                maxLength={2000}
-                aria-label="Notas del entrenamiento"
-              />
+              {/* Desktop-only session note (on mobile it sits below sets so sets stay above the fold) */}
+              <div className="hidden lg:block">
+                <Textarea
+                  value={workoutNote}
+                  onChange={(e) => setWorkoutNote(e.target.value)}
+                  placeholder="Nota del entreno (opcional). ¿Cómo te has sentido?"
+                  className="min-h-[72px] w-full rounded-2xl text-sm"
+                  maxLength={2000}
+                  aria-label="Notas del entrenamiento"
+                />
+              </div>
             </div>
 
-            <div className="flex w-full min-w-0 flex-col gap-4 sm:gap-6 lg:sticky lg:col-span-7 lg:self-start lg:pt-1">
+            {/* RIGHT COLUMN: Active Exercise Header + Prescriptions + Sets + Navigation */}
+            <div className="flex w-full min-w-0 flex-col gap-3.5 sm:gap-5 lg:col-span-7 lg:self-start lg:pt-1">
               <div className="flex flex-col gap-2">
-                 <div className="flex items-center gap-2">
-                    <div className="size-2 rounded-full bg-primary animate-pulse" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">En Curso</span>
-                    {/* Superset badge */}
-                    {isInSuperset && currentSupersetColor && (
-                      <div className={cn(
-                        'flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest',
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="size-2 rounded-full bg-primary animate-pulse" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/70">
+                    {allSetsCompleted ? "Ejercicio Completado" : "En Curso"}
+                  </span>
+                  {currentExercise.is_overridden && (
+                    <Badge
+                      variant="outline"
+                      className="rounded-full border-primary/30 bg-primary/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-primary"
+                    >
+                      Intercambiado
+                    </Badge>
+                  )}
+                  {isInSuperset && currentSupersetColor && (
+                    <div
+                      className={cn(
+                        "flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest",
                         currentSupersetColor.bg,
                         currentSupersetColor.text,
-                      )}>
-                        <Link2 className="size-2.5" />
-                        Biserie {currentSupersetGroup}{currentSupersetPos}
-                        {isLastOfSuperset && isFirstOfSuperset === false ? ' — Última' : ''}
-                      </div>
-                    )}
-                 </div>
-                <h2 className="text-balance text-xl font-black uppercase tracking-tight leading-tight sm:text-3xl">
+                      )}
+                    >
+                      <Link2 className="size-2.5" />
+                      Biserie {currentSupersetGroup}
+                      {currentSupersetPos}
+                      {isLastOfSuperset && isFirstOfSuperset === false ? " — Última" : ""}
+                    </div>
+                  )}
+                </div>
+
+                <h2 className="text-balance text-lg font-black uppercase tracking-tight leading-snug sm:text-3xl">
                   {exName(currentExercise.exercises)}
                 </h2>
-                <div className="flex flex-wrap items-center gap-3">
-                   <div className="px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20">
-                      <p className="text-xs font-black text-primary">
-                        PLAN: {currentExercise.sets} × {currentExercise.reps || "VAR."}
-                      </p>
-                   </div>
-                   {!usesExternalLoad && (
-                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 italic">Repeticiones únicamente</span>
-                   )}
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-1">
+                    <p className="text-xs font-black text-primary">
+                      PLAN: {currentExercise.sets} × {currentExercise.reps || "VAR."}
+                    </p>
+                  </div>
+                  {currentExercise.rpe ? (
+                    <div className="inline-flex items-center gap-1 rounded-xl border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-xs font-black text-amber-600 dark:text-amber-400">
+                      <Flame className="size-3.5" aria-hidden />
+                      RPE {currentExercise.rpe}
+                    </div>
+                  ) : null}
+                  <div className="rounded-xl border border-border/60 bg-muted/40 px-2.5 py-1 text-[11px] font-bold text-muted-foreground">
+                    {completedSetsCount}/{currentSets.length} series listas
+                  </div>
+                  {!usesExternalLoad && (
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 italic">
+                      Peso corporal / Repeticiones
+                    </span>
+                  )}
                 </div>
+
+                {currentExercise.notes ? (
+                  <div className="mt-1 flex items-start gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-xs text-foreground/90">
+                    <MessageSquareText className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                    <div className="min-w-0">
+                      <span className="font-black uppercase tracking-wider text-primary text-[10px] block">
+                        Indicación del Coach
+                      </span>
+                      <p className="leading-relaxed text-muted-foreground">
+                        {currentExercise.notes}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-3 sm:gap-4">
                 <div
                   className={cn(
-                    "hidden items-end gap-x-2 px-0.5 lg:grid",
+                    "hidden items-end lg:grid lg:gap-4 lg:px-5",
                     usesExternalLoad
-                      ? "grid-cols-[2.75rem_4rem_1fr_1fr_auto] lg:grid-cols-[2.75rem_4rem_1fr_1fr_3.5rem]"
-                      : "grid-cols-[2.75rem_4rem_1fr_auto] lg:grid-cols-[2.75rem_4rem_1fr_3.5rem]",
+                      ? "lg:grid-cols-[2.75rem_5.5rem_1fr_1fr_3rem]"
+                      : "lg:grid-cols-[2.75rem_5.5rem_1fr_3rem]",
                   )}
                   aria-hidden
                 >
@@ -1119,309 +1472,359 @@ export function WorkoutActiveSession({
                     <Card
                       key={`${currentExercise.id}-${set.setNumber}-${index}`}
                       className={cn(
-                        "group relative w-full max-w-full overflow-hidden transition-all duration-500 rounded-3xl border-border/80",
+                        "group relative w-full max-w-full overflow-hidden transition-all duration-300 rounded-2xl sm:rounded-3xl border-border/80",
                         set.completed &&
                           (set.isPR
-                            ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-lg shadow-primary/5 scale-[1.02]"
-                            : "border-primary/40 bg-muted/20 opacity-90")
+                            ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-md shadow-primary/5"
+                            : "border-emerald-500/40 bg-emerald-500/[0.03]"),
                       )}
                     >
-                      <CardContent className="w-full max-w-full p-4 sm:p-5">
-                        {/* MÓVIL: PREMIUM DATA POD */}
-                        <div className="flex flex-col gap-4 lg:hidden">
-                          <div className="flex flex-wrap items-start gap-3">
-                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <CardContent className="w-full max-w-full p-3.5 sm:p-5 lg:px-5">
+                        {/* MÓVIL: COMPACT 2-COLUMN ERGONOMIC POD */}
+                        <div className="flex flex-col gap-3 lg:hidden">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                              {/* Set number badge always keeps its setNumber so there is never a duplicate checkmark */}
                               <div
                                 className={cn(
-                                  "flex size-12 shrink-0 items-center justify-center rounded-2xl text-base font-black transition-all duration-500 sm:size-14 sm:text-lg",
+                                  "flex size-10 shrink-0 items-center justify-center rounded-xl text-sm font-black transition-colors sm:size-11 sm:text-base",
                                   set.completed
-                                    ? "bg-primary text-primary-foreground rotate-360 shadow-lg shadow-primary/30"
-                                    : "bg-muted border border-border/50 text-muted-foreground",
+                                    ? "bg-primary/15 text-primary border border-primary/30"
+                                    : "bg-muted border border-border/60 text-muted-foreground",
                                 )}
                               >
-                                {set.completed ? (
-                                  <Check className="size-6 sm:size-8" strokeWidth={3} />
-                                ) : (
-                                  set.setNumber
-                                )}
+                                {set.setNumber}
                               </div>
                               <div className="flex min-w-0 flex-col">
                                 <div className="flex items-center gap-1.5 overflow-hidden">
-                                   <History className="size-3 text-muted-foreground/40 shrink-0" />
-                                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 truncate">Meta (Pasada)</span>
+                                  <History className="size-3 text-muted-foreground/50 shrink-0" />
+                                  <span className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/70 truncate">
+                                    Meta anterior
+                                  </span>
                                 </div>
-                                  <span className={cn(
-                                    "text-base font-black tabular-nums tracking-tight sm:text-lg",
-                                   set.completed ? "text-primary italic" : "text-foreground"
-                                )}>
-                                   {previewLabel === "—" ? (
-                                      <span className="text-xs text-muted-foreground/40 uppercase">Sin registros</span>
-                                   ) : previewLabel}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={cn(
+                                      "text-sm font-black tabular-nums tracking-tight sm:text-base",
+                                      set.completed ? "text-primary" : "text-foreground",
+                                    )}
+                                  >
+                                    {previewLabel === "—" ? (
+                                      <span className="text-xs text-muted-foreground/50 uppercase">
+                                        Sin registros
+                                      </span>
+                                    ) : (
+                                      previewLabel
+                                    )}
+                                  </span>
+                                  {set.isPR && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-primary-foreground shadow-xs">
+                                      <Trophy className="size-2.5" />
+                                      PR
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                            <div className="ml-auto flex w-auto shrink-0 items-center gap-2 max-[360px]:w-full max-[360px]:justify-end">
-                               {canRemoveRow && !set.completed && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="size-11 rounded-xl text-muted-foreground hover:text-destructive transition-colors"
-                                    onClick={() => removeSet(index)}
-                                  >
-                                    <Trash2 className="size-5" />
-                                  </Button>
-                               )}
-                               <Button
-                                  variant={set.completed ? "secondary" : "default"}
+
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              {canRemoveRow && !set.completed && (
+                                <Button
+                                  variant="ghost"
                                   size="icon"
-                                  className={cn(
-                                  "size-12 rounded-2xl transition-all active:scale-90 sm:size-14",
-                                    !set.completed ? "bg-primary shadow-lg shadow-primary/20" : "bg-primary/10 text-primary"
-                                  )}
-                                  onClick={() => completeSet(index)}
-                                  disabled={set.completed}
-                               >
-                                 <Check className={cn("size-6 transition-transform sm:size-8", set.completed ? "scale-100" : "scale-110")} strokeWidth={4} />
-                               </Button>
+                                  aria-label="Eliminar serie"
+                                  className="size-10 rounded-xl text-muted-foreground hover:text-destructive transition-colors"
+                                  onClick={() => removeSet(index)}
+                                >
+                                  <Trash2 className="size-4.5" />
+                                </Button>
+                              )}
+                              <Button
+                                variant={set.completed ? "default" : "outline"}
+                                size="icon"
+                                aria-label={
+                                  set.completed ? "Desmarcar serie" : "Completar serie"
+                                }
+                                className={cn(
+                                  "size-11 rounded-xl transition-all active:scale-90 sm:size-12",
+                                  set.completed
+                                    ? "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-500/25"
+                                    : "border-primary/40 bg-primary text-primary-foreground shadow-md shadow-primary/20",
+                                )}
+                                onClick={() => completeSet(index)}
+                              >
+                                <Check className="size-5 sm:size-6" strokeWidth={3.5} />
+                              </Button>
                             </div>
                           </div>
 
-                            <div className="grid grid-cols-1 gap-3">
-                             {usesExternalLoad && (
-                                <div className="flex min-w-0 flex-col gap-2">
-                                   <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 ml-2">CARGA (KG)</label>
-                                  <div className="relative flex min-w-0 items-center">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                     className="absolute left-1 size-8 rounded-lg text-primary hover:bg-primary/10"
-                                        onClick={() => updateSetValue(index, "weight", -2.5)}
-                                        disabled={set.completed}
-                                      >
-                                     <Minus className="size-4" />
-                                      </Button>
-                                      <Input
-                                        type="number"
-                                        inputMode="decimal"
-                                        value={set.weight}
-                                        onChange={(e) => {
-                                          const val = parseFloat(e.target.value) || 0;
-                                          setSets((prev) => {
-                                            const id = currentExercise.id.toString();
-                                            const list = prev.get(id);
-                                            if (!list) return prev;
-                                            const copy = [...list];
-                                            copy[index] = { ...copy[index], weight: val };
-                                            return new Map(prev).set(id, copy);
-                                          });
-                                        }}
-                                        className="h-12 min-w-0 w-full rounded-2xl border-border/80 bg-muted/40 px-9 text-center text-lg font-black tabular-nums transition-all focus:bg-background focus:ring-primary/20"
-                                        disabled={set.completed}
-                                      />
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="absolute right-1 size-8 rounded-lg text-primary hover:bg-primary/10"
-                                        onClick={() => updateSetValue(index, "weight", 2.5)}
-                                        disabled={set.completed}
-                                      >
-                                        <Plus className="size-4" />
-                                      </Button>
-                                   </div>
-                                </div>
-                             )}
-                              <div className="flex min-w-0 flex-col gap-2">
-                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 ml-2">REPETICIONES</label>
+                          <div
+                            className={cn(
+                              "grid gap-2.5",
+                              usesExternalLoad ? "grid-cols-2" : "grid-cols-1",
+                            )}
+                          >
+                            {usesExternalLoad && (
+                              <div className="flex min-w-0 flex-col gap-1">
+                                <label className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground/70 pl-1">
+                                  Carga (kg)
+                                </label>
                                 <div className="relative flex min-w-0 items-center">
-                                   <Button
-                                     variant="ghost"
-                                     size="icon"
-                                     className="absolute left-1 size-8 rounded-lg text-primary hover:bg-primary/10"
-                                     onClick={() => updateSetValue(index, "reps", -1)}
-                                     disabled={set.completed}
-                                   >
-                                     <Minus className="size-4" />
-                                   </Button>
-                                   <Input
-                                     type="number"
-                                     inputMode="numeric"
-                                     value={set.reps}
-                                     onChange={(e) => {
-                                       const val = parseInt(e.target.value, 10) || 1;
-                                       setSets((prev) => {
-                                         const id = currentExercise.id.toString();
-                                         const list = prev.get(id);
-                                         if (!list) return prev;
-                                         const copy = [...list];
-                                         copy[index] = { ...copy[index], reps: val };
-                                         return new Map(prev).set(id, copy);
-                                       });
-                                     }}
-                                     className="h-12 min-w-0 w-full rounded-2xl border-border/80 bg-muted/40 px-9 text-center text-lg font-black tabular-nums transition-all focus:bg-background focus:ring-primary/20"
-                                     disabled={set.completed}
-                                   />
-                                   <Button
-                                     variant="ghost"
-                                     size="icon"
-                                     className="absolute right-1 size-8 rounded-lg text-primary hover:bg-primary/10"
-                                     onClick={() => updateSetValue(index, "reps", 1)}
-                                     disabled={set.completed}
-                                   >
-                                     <Plus className="size-4" />
-                                   </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label="Disminuir peso"
+                                    className="absolute left-0.5 size-9 rounded-lg text-primary hover:bg-primary/10"
+                                    onClick={() => updateSetValue(index, "weight", -2.5)}
+                                    disabled={set.completed}
+                                  >
+                                    <Minus className="size-3.5" />
+                                  </Button>
+                                  <Input
+                                    type="number"
+                                    inputMode="decimal"
+                                    aria-label="Peso en kilogramos"
+                                    value={set.weight}
+                                    onChange={(e) => {
+                                      const val = parseFloat(e.target.value) || 0;
+                                      setSets((prev) => {
+                                        const id = currentExercise.id.toString();
+                                        const list = prev.get(id);
+                                        if (!list) return prev;
+                                        const copy = [...list];
+                                        copy[index] = { ...copy[index], weight: val };
+                                        return new Map(prev).set(id, copy);
+                                      });
+                                    }}
+                                    className="h-11 min-w-0 w-full rounded-xl border-border/80 bg-muted/40 px-9 text-center text-base font-black tabular-nums transition-all focus:bg-background focus:ring-primary/20"
+                                    disabled={set.completed}
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label="Aumentar peso"
+                                    className="absolute right-0.5 size-9 rounded-lg text-primary hover:bg-primary/10"
+                                    onClick={() => updateSetValue(index, "weight", 2.5)}
+                                    disabled={set.completed}
+                                  >
+                                    <Plus className="size-3.5" />
+                                  </Button>
                                 </div>
-                             </div>
+                              </div>
+                            )}
+
+                            <div className="flex min-w-0 flex-col gap-1">
+                              <label className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground/70 pl-1">
+                                Repeticiones
+                              </label>
+                              <div className="relative flex min-w-0 items-center">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label="Disminuir repeticiones"
+                                  className="absolute left-0.5 size-9 rounded-lg text-primary hover:bg-primary/10"
+                                  onClick={() => updateSetValue(index, "reps", -1)}
+                                  disabled={set.completed}
+                                >
+                                  <Minus className="size-3.5" />
+                                </Button>
+                                <Input
+                                  type="number"
+                                  inputMode="numeric"
+                                  aria-label="Repeticiones"
+                                  value={set.reps}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10) || 1;
+                                    setSets((prev) => {
+                                      const id = currentExercise.id.toString();
+                                      const list = prev.get(id);
+                                      if (!list) return prev;
+                                      const copy = [...list];
+                                      copy[index] = { ...copy[index], reps: val };
+                                      return new Map(prev).set(id, copy);
+                                    });
+                                  }}
+                                  className="h-11 min-w-0 w-full rounded-xl border-border/80 bg-muted/40 px-9 text-center text-base font-black tabular-nums transition-all focus:bg-background focus:ring-primary/20"
+                                  disabled={set.completed}
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label="Aumentar repeticiones"
+                                  className="absolute right-0.5 size-9 rounded-lg text-primary hover:bg-primary/10"
+                                  onClick={() => updateSetValue(index, "reps", 1)}
+                                  disabled={set.completed}
+                                >
+                                  <Plus className="size-3.5" />
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
                         {/* DESKTOP: ROW VIEW */}
                         <div
                           className={cn(
-                            "hidden items-center gap-6 lg:grid",
+                            "hidden items-center lg:grid lg:gap-4",
                             usesExternalLoad
-                              ? "grid-cols-[auto_1fr_2fr_2fr_auto]"
-                              : "grid-cols-[auto_1fr_2fr_auto]",
+                              ? "lg:grid-cols-[2.75rem_5.5rem_1fr_1fr_3rem]"
+                              : "lg:grid-cols-[2.75rem_5.5rem_1fr_3rem]",
                           )}
                         >
-                           <div
-                             className={cn(
-                               "flex size-14 shrink-0 items-center justify-center rounded-2xl text-xl font-black transition-all",
-                               set.completed
-                                 ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                                 : "bg-muted border border-border/50 text-muted-foreground",
-                             )}
-                           >
-                             {set.completed ? <Check className="size-8" strokeWidth={3} /> : set.setNumber}
-                           </div>
+                          <div
+                            className={cn(
+                              "flex size-11 shrink-0 items-center justify-center rounded-2xl text-lg font-black transition-all",
+                              set.completed
+                                ? "bg-primary/15 text-primary border border-primary/30"
+                                : "bg-muted border border-border/50 text-muted-foreground",
+                            )}
+                          >
+                            {set.setNumber}
+                          </div>
 
-                           <div className="flex flex-col">
-                              <div className="flex items-center gap-1.5">
-                                 <History className="size-3 text-muted-foreground/40 shrink-0" />
-                                 <span className="text-[10px] font-black uppercase tracking-[0.22em] text-muted-foreground/60">Meta (Pasada)</span>
-                              </div>
-                              <span className="text-lg font-black tabular-nums tracking-tight">
-                                 {previewLabel === "—" ? (
-                                    <span className="text-xs text-muted-foreground/40 uppercase">Sin registros</span>
-                                 ) : previewLabel}
-                              </span>
-                           </div>
+                          <div className="flex flex-col items-center text-center">
+                            <span className="text-lg font-black tabular-nums tracking-tight">
+                              {previewLabel === "—" ? (
+                                <span className="text-xs text-muted-foreground/40 uppercase">
+                                  Sin registros
+                                </span>
+                              ) : (
+                                previewLabel
+                              )}
+                            </span>
+                          </div>
 
-                           {usesExternalLoad && (
-                             <div className="relative flex items-center">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="absolute left-1 size-9 rounded-lg text-primary hover:bg-primary/10"
-                                  onClick={() => updateSetValue(index, "weight", -2.5)}
-                                  disabled={set.completed}
-                                >
-                                  <Minus className="size-5" />
-                                </Button>
-                                <Input
-                                  type="number"
-                                  inputMode="decimal"
-                                  value={set.weight}
-                                  onChange={(e) => {
-                                    const val = parseFloat(e.target.value) || 0;
-                                    setSets((prev) => {
-                                      const id = currentExercise.id.toString();
-                                      const list = prev.get(id);
-                                      if (!list) return prev;
-                                      const copy = [...list];
-                                      copy[index] = { ...copy[index], weight: val };
-                                      return new Map(prev).set(id, copy);
-                                    });
-                                  }}
-                                  className="h-14 w-full rounded-2xl border-border/80 bg-muted/40 px-10 text-center text-xl font-black tabular-nums transition-all focus:bg-background focus:ring-primary/20"
-                                  disabled={set.completed}
-                                />
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="absolute right-1 size-9 rounded-lg text-primary hover:bg-primary/10"
-                                  onClick={() => updateSetValue(index, "weight", 2.5)}
-                                  disabled={set.completed}
-                                >
-                                  <Plus className="size-5" />
-                                </Button>
-                             </div>
-                           )}
-
-                           <div className="relative flex items-center">
+                          {usesExternalLoad && (
+                            <div className="relative flex items-center">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="absolute left-1 size-9 rounded-lg text-primary hover:bg-primary/10"
-                                onClick={() => updateSetValue(index, "reps", -1)}
+                                aria-label="Disminuir peso"
+                                className="absolute left-1 size-10 rounded-lg text-primary hover:bg-primary/10"
+                                onClick={() => updateSetValue(index, "weight", -2.5)}
                                 disabled={set.completed}
                               >
                                 <Minus className="size-5" />
                               </Button>
                               <Input
                                 type="number"
-                                inputMode="numeric"
-                                value={set.reps}
+                                inputMode="decimal"
+                                aria-label="Peso en kilogramos"
+                                value={set.weight}
                                 onChange={(e) => {
-                                  const val = parseInt(e.target.value, 10) || 1;
+                                  const val = parseFloat(e.target.value) || 0;
                                   setSets((prev) => {
                                     const id = currentExercise.id.toString();
                                     const list = prev.get(id);
                                     if (!list) return prev;
                                     const copy = [...list];
-                                    copy[index] = { ...copy[index], reps: val };
+                                    copy[index] = { ...copy[index], weight: val };
                                     return new Map(prev).set(id, copy);
                                   });
                                 }}
-                                className="h-14 w-full rounded-2xl border-border/80 bg-muted/40 px-10 text-center text-xl font-black tabular-nums transition-all focus:bg-background focus:ring-primary/20"
+                                className="h-14 w-full rounded-2xl border-border/80 bg-muted/40 px-12 text-center text-xl font-black tabular-nums transition-all focus:bg-background focus:ring-primary/20"
                                 disabled={set.completed}
                               />
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="absolute right-1 size-9 rounded-lg text-primary hover:bg-primary/10"
-                                onClick={() => updateSetValue(index, "reps", 1)}
+                                aria-label="Aumentar peso"
+                                className="absolute right-1 size-10 rounded-lg text-primary hover:bg-primary/10"
+                                onClick={() => updateSetValue(index, "weight", 2.5)}
                                 disabled={set.completed}
                               >
                                 <Plus className="size-5" />
                               </Button>
-                           </div>
+                            </div>
+                          )}
 
-                           <div className="flex items-center gap-3">
-                              {canRemoveRow && !set.completed && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="size-11 rounded-xl text-muted-foreground hover:text-destructive transition-colors"
-                                  onClick={() => removeSet(index)}
-                                >
-                                  <Trash2 className="size-5" />
-                                </Button>
-                              )}
+                          <div className="relative flex items-center">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Disminuir repeticiones"
+                              className="absolute left-1 size-10 rounded-lg text-primary hover:bg-primary/10"
+                              onClick={() => updateSetValue(index, "reps", -1)}
+                              disabled={set.completed}
+                            >
+                              <Minus className="size-5" />
+                            </Button>
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              aria-label="Repeticiones"
+                              value={set.reps}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10) || 1;
+                                setSets((prev) => {
+                                  const id = currentExercise.id.toString();
+                                  const list = prev.get(id);
+                                  if (!list) return prev;
+                                  const copy = [...list];
+                                  copy[index] = { ...copy[index], reps: val };
+                                  return new Map(prev).set(id, copy);
+                                });
+                              }}
+                              className="h-14 w-full rounded-2xl border-border/80 bg-muted/40 px-12 text-center text-xl font-black tabular-nums transition-all focus:bg-background focus:ring-primary/20"
+                              disabled={set.completed}
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label="Aumentar repeticiones"
+                              className="absolute right-1 size-10 rounded-lg text-primary hover:bg-primary/10"
+                              onClick={() => updateSetValue(index, "reps", 1)}
+                              disabled={set.completed}
+                            >
+                              <Plus className="size-5" />
+                            </Button>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-1.5">
+                            {canRemoveRow && !set.completed && (
                               <Button
-                                 variant={set.completed ? "secondary" : "default"}
-                                 size="icon"
-                                 className={cn(
-                                   "size-14 rounded-2xl transition-all active:scale-90 shadow-xl",
-                                   !set.completed ? "bg-primary shadow-primary/20" : "bg-primary/10 text-primary shadow-none"
-                                 )}
-                                 onClick={() => completeSet(index)}
-                                 disabled={set.completed}
+                                variant="ghost"
+                                size="icon"
+                                aria-label="Eliminar serie"
+                                className="size-9 rounded-xl text-muted-foreground hover:text-destructive transition-colors"
+                                onClick={() => removeSet(index)}
                               >
-                                 <Check className="size-8" strokeWidth={4} />
+                                <Trash2 className="size-4" />
                               </Button>
-                           </div>
+                            )}
+                            <Button
+                              variant={set.completed ? "default" : "outline"}
+                              size="icon"
+                              aria-label={
+                                set.completed ? "Desmarcar serie" : "Completar serie"
+                              }
+                              className={cn(
+                                "size-12 rounded-2xl transition-all active:scale-90 shadow-md",
+                                set.completed
+                                  ? "bg-emerald-500 hover:bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/20"
+                                  : "bg-primary text-primary-foreground border-primary/40 shadow-primary/20",
+                              )}
+                              onClick={() => completeSet(index)}
+                            >
+                              <Check className="size-6" strokeWidth={3.5} />
+                            </Button>
+                          </div>
                         </div>
 
                         {set.isPR && (
-                           <div className="mt-4 flex items-center gap-3 rounded-2xl bg-primary/10 border border-primary/20 p-3 animate-in slide-in-from-top-2 duration-500">
-                             <div className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-                                <Trophy className="size-6" />
-                             </div>
-                             <div className="flex flex-col">
-                                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">¡HISTÓRICO!</span>
-                                <span className="text-sm font-black tracking-tight leading-none uppercase">Nuevo Récord Personal</span>
-                             </div>
-                           </div>
+                          <div className="mt-3 hidden lg:flex items-center gap-3 rounded-2xl bg-primary/10 border border-primary/20 p-3 animate-in slide-in-from-top-2 duration-300">
+                            <div className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
+                              <Trophy className="size-5" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                                ¡HISTÓRICO!
+                              </span>
+                              <span className="text-xs font-black tracking-tight leading-none uppercase">
+                                Nuevo Récord Personal
+                              </span>
+                            </div>
+                          </div>
                         )}
                       </CardContent>
                     </Card>
@@ -1433,10 +1836,10 @@ export function WorkoutActiveSession({
                 <Button
                   type="button"
                   variant="secondary"
-                  className="min-h-12 w-full gap-2 font-semibold"
+                  className="min-h-11 w-full gap-2 rounded-2xl font-bold"
                   onClick={addSet}
                 >
-                  <Plus className="h-5 w-5" aria-hidden />
+                  <Plus className="h-4.5 w-4.5" aria-hidden />
                   Añadir serie
                 </Button>
                 {currentSets.length > Math.max(1, currentExercise.sets) ? (
@@ -1448,35 +1851,201 @@ export function WorkoutActiveSession({
                 ) : null}
               </div>
 
-              {allSetsCompleted &&
-                currentExerciseIndex < exercises.length - 1 &&
-                !nextIsSameSuperset(currentExerciseIndex) && (
+              {/* Prev / Next Exercise Navigation Controls */}
+              <div className="flex w-full min-w-0 items-center gap-2 pt-1 sm:gap-2.5">
+                {currentExerciseIndex > 0 && (
                   <Button
-                    className="h-14 w-full rounded-2xl bg-primary text-primary-foreground font-black uppercase tracking-wide shadow-xl shadow-primary/20 transition-all hover:scale-[1.01] active:scale-95 sm:h-16 sm:tracking-widest sm:hover:scale-105"
-                    size="lg"
-                    onClick={nextExercise}
+                    type="button"
+                    variant="outline"
+                    onClick={() => requestGoToExercise(currentExerciseIndex - 1)}
+                    className="h-12 shrink-0 rounded-2xl border-border/80 px-3.5 text-xs font-black uppercase tracking-wider sm:h-14 sm:px-5"
                   >
-                    Siguiente Ejercicio
-                    <ChevronRight className="ml-2 size-5 sm:ml-3 sm:size-6" strokeWidth={3} />
+                    <ChevronLeft className="mr-1 size-4" />
+                    Anterior
                   </Button>
                 )}
 
-              {allSetsCompleted &&
-                currentExerciseIndex === exercises.length - 1 && (
+                {currentExerciseIndex < exercises.length - 1 ? (
                   <Button
-                    className="h-14 w-full rounded-2xl bg-primary text-primary-foreground font-black uppercase tracking-wide shadow-xl shadow-primary/20 transition-all hover:scale-[1.01] active:scale-95 sm:h-16 sm:tracking-widest sm:hover:scale-105"
-                    size="lg"
-                    onClick={finishWorkout}
-                    disabled={isFinishing}
+                    type="button"
+                    variant={allSetsCompleted ? "default" : "outline"}
+                    onClick={() =>
+                      allSetsCompleted
+                        ? nextExercise()
+                        : requestGoToExercise(currentExerciseIndex + 1)
+                    }
+                    className={cn(
+                      "h-12 min-w-0 flex-1 rounded-2xl px-3.5 text-xs font-black uppercase tracking-wider transition-all sm:h-14 sm:px-5 sm:text-sm sm:tracking-widest",
+                      allSetsCompleted
+                        ? "bg-primary text-primary-foreground shadow-xl shadow-primary/20 hover:scale-[1.01] active:scale-95"
+                        : "border-border/80 text-foreground hover:bg-muted/60",
+                    )}
                   >
-                    Finalizar Entrenamiento
-                    <Trophy className="ml-2 size-5 sm:ml-3 sm:size-6" />
+                    <span className="truncate">Siguiente Ejercicio</span>
+                    <ChevronRight className="ml-1 size-4.5 shrink-0 sm:ml-1.5 sm:size-5" strokeWidth={2.5} />
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={requestFinishWorkout}
+                    disabled={isFinishing}
+                    className={cn(
+                      "h-12 min-w-0 flex-1 rounded-2xl px-3.5 text-xs font-black uppercase tracking-wider transition-all sm:h-14 sm:px-5 sm:text-sm sm:tracking-widest",
+                      allSetsCompleted
+                        ? "bg-primary text-primary-foreground shadow-xl shadow-primary/20 hover:scale-[1.01] active:scale-95"
+                        : "bg-primary/90 text-primary-foreground",
+                    )}
+                  >
+                    <span className="truncate">
+                      {isFinishing ? "Guardando…" : "Finalizar Entrenamiento"}
+                    </span>
+                    <Trophy className="ml-1.5 size-4.5 shrink-0 sm:ml-2 sm:size-5" />
                   </Button>
                 )}
+              </div>
+
+              {/* Mobile Session Note (placed below sets so active exercise & sets stay above the fold) */}
+              <div className="pt-2 lg:hidden">
+                <Textarea
+                  value={workoutNote}
+                  onChange={(e) => setWorkoutNote(e.target.value)}
+                  placeholder="Nota del entreno (opcional). ¿Cómo te has sentido hoy?"
+                  className="min-h-[68px] w-full rounded-2xl text-sm"
+                  maxLength={2000}
+                  aria-label="Notas del entrenamiento"
+                />
+              </div>
             </div>
           </div>
         )}
-      </main>
+      </div>
+
+      {/* Finish Workout & Effort / Feeling Score Dialog */}
+      <Dialog open={finishModalOpen} onOpenChange={setFinishModalOpen}>
+        <DialogContent className="sm:max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-black tracking-tight">
+              <Trophy className="size-5 text-primary" />
+              Finalizar entrenamiento
+            </DialogTitle>
+            <DialogDescription>
+              Revisa tu resumen y califica cómo sentiste la sesión para que tu coach ajuste tus cargas.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-4 py-1">
+            {/* Session KPIs */}
+            <div className="grid grid-cols-3 gap-2 rounded-2xl border border-border/60 bg-muted/20 p-3 text-center">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Series
+                </p>
+                <p className="mt-0.5 text-base font-black tabular-nums text-foreground">
+                  {completedSessionSets}/{totalSessionSets}
+                </p>
+              </div>
+              <div className="border-x border-border/50 px-1">
+                <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Volumen
+                </p>
+                <p className="mt-0.5 text-base font-black tabular-nums text-primary">
+                  {totalSessionVolume.toLocaleString("es-MX")} kg
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Tiempo
+                </p>
+                <p className="mt-0.5 text-base font-black tabular-nums text-foreground">
+                  {formatElapsed(elapsedSec)}
+                </p>
+              </div>
+            </div>
+
+            {completedSessionSets < totalSessionSets && (
+              <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                Tienes{" "}
+                <span className="font-bold">
+                  {totalSessionSets - completedSessionSets} serie(s)
+                </span>{" "}
+                sin marcar. Solo se registrarán las series completadas.
+              </div>
+            )}
+
+            {/* Feeling Score 1-5 */}
+            <div className="space-y-2">
+              <label className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                ¿Cómo sentiste el entrenamiento hoy?
+              </label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[
+                  { score: 1, label: "Ligero" },
+                  { score: 2, label: "Bien" },
+                  { score: 3, label: "Exigente" },
+                  { score: 4, label: "Intenso" },
+                  { score: 5, label: "Al límite" },
+                ].map((opt) => {
+                  const selected = feelingScore === opt.score;
+                  return (
+                    <button
+                      key={opt.score}
+                      type="button"
+                      onClick={() => setFeelingScore(opt.score)}
+                      className={cn(
+                        "flex flex-col items-center justify-center gap-1 rounded-xl border py-2.5 px-1 transition-all",
+                        selected
+                          ? "border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/25 scale-[1.02]"
+                          : "border-border/60 bg-card hover:bg-muted/40 text-foreground",
+                      )}
+                    >
+                      <span className="text-sm font-black tabular-nums">
+                        {opt.score}
+                      </span>
+                      <span className="text-[9px] font-bold leading-tight text-center">
+                        {opt.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Session Note */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-black uppercase tracking-wider text-muted-foreground">
+                Nota para tu coach (opcional)
+              </label>
+              <Textarea
+                value={workoutNote}
+                onChange={(e) => setWorkoutNote(e.target.value)}
+                placeholder="¿Algún comentario sobre energía, técnica o cargas de hoy?"
+                className="min-h-[68px] rounded-xl text-sm"
+                maxLength={2000}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setFinishModalOpen(false)}
+              disabled={isFinishing}
+              className="rounded-xl font-bold"
+            >
+              Seguir entrenando
+            </Button>
+            <Button
+              type="button"
+              onClick={finishWorkout}
+              disabled={isFinishing}
+              className="rounded-xl font-black uppercase tracking-wider bg-primary text-primary-foreground"
+            >
+              {isFinishing ? "Guardando…" : "Confirmar y guardar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ExerciseDetailDrawer
         open={detailOpen}
@@ -1484,6 +2053,27 @@ export function WorkoutActiveSession({
         exercise={selectedExercise}
         variant="compact"
       />
+
+      {clientRoutineId && currentExercise?.exercises && (
+        <ExerciseSwapDrawer
+          open={swapOpen}
+          onOpenChange={setSwapOpen}
+          clientRoutineId={clientRoutineId}
+          originalRoutineExerciseId={Number(currentExercise.id)}
+          originalExercise={currentExercise.exercises as Exercise}
+          onSwapped={() => {
+            const id = currentExercise.id.toString();
+            setSets((prev) => {
+              const list = prev.get(id);
+              if (list && list.some((s) => s.completed)) return prev;
+              const next = new Map(prev);
+              next.delete(id);
+              return next;
+            });
+            router.refresh();
+          }}
+        />
+      )}
 
       <AchievementUnlockModal
         achievements={newlyUnlocked}

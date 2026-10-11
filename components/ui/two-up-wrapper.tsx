@@ -2,7 +2,6 @@
 
 import * as React from 'react'
 import { ImgComparisonSlider } from '@img-comparison-slider/react'
-import { cn } from '@/lib/utils'
 
 interface ImageCompareProps {
   beforeImage: string

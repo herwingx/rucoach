@@ -111,6 +111,7 @@ export interface RoutineExercise {
   order_index: number
   sets: number
   reps?: string
+  rpe?: number | string | null
   suggested_weight?: number
   duration_seconds?: number
   rest_seconds?: number

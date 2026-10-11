@@ -9,7 +9,7 @@ export function ClientRoutinesPageSkeleton() {
     <>
       <ClientStackPageHeaderSkeleton />
       <div
-        className={`${CLIENT_DATA_PAGE_SHELL} flex flex-col gap-8 lg:grid lg:grid-cols-12 lg:items-start pb-safe-area`}
+        className={`${CLIENT_DATA_PAGE_SHELL} flex flex-col gap-8 lg:grid lg:grid-cols-12 lg:items-start`}
         aria-busy="true"
         aria-label="Cargando rutinas"
       >
@@ -77,7 +77,7 @@ export function ClientRoutinesPageSkeleton() {
           </Card>
         </section>
 
-        <aside className="order-2 lg:order-1 lg:col-span-4 lg:sticky lg:top-[max(1rem,env(safe-area-inset-top))] lg:self-start">
+        <aside className="order-2 lg:order-1 lg:col-span-4 lg:sticky lg:top-[calc(112px+1.5rem)] lg:self-start">
           <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">
             <CardHeader className="pb-4 pt-6 px-6">
               <div className="flex items-center gap-2">

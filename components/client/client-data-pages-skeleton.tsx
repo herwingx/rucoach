@@ -5,7 +5,7 @@ import { CLIENT_DATA_PAGE_SHELL } from '@/components/client/client-app-page-part
 export function ClientStackPageHeaderSkeleton() {
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl safe-area-header-pt min-h-[76px] sm:min-h-[112px] flex items-center" aria-hidden>
-      <div className="w-full h-full flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:py-0 px-4 sm:px-6 md:px-8">
+      <div className="container flex min-h-[76px] flex-col justify-center gap-3 py-3 sm:min-h-[112px] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
         <div className="flex min-w-0 items-center gap-4 h-full">
           <div className="shrink-0 flex items-center h-full">
              <Skeleton className="size-10 sm:size-11 rounded-full" />
@@ -62,7 +62,7 @@ export function ClientWorkoutsPageSkeleton() {
           </Card>
         </section>
 
-        <aside className="order-2 lg:order-1 lg:col-span-4 lg:sticky lg:top-[max(1rem,env(safe-area-inset-top))] lg:self-start">
+        <aside className="order-2 lg:order-1 lg:col-span-4 lg:sticky lg:top-[calc(112px+1.5rem)] lg:self-start">
           <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">
             <CardHeader className="pb-4 pt-6 px-6">
               <div className="flex items-center gap-2">
@@ -95,8 +95,8 @@ export function ClientProgressPageSkeleton() {
         aria-busy="true"
         aria-label="Cargando progreso"
       >
-        <aside className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-4">
-          <Card className="overflow-hidden border-border/80 shadow-sm ring-1 ring-primary/5">
+        <aside className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-4 lg:sticky lg:top-[calc(112px+1.5rem)] lg:self-start">
+          <Card className="overflow-hidden rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
             <CardHeader className="pb-3">
               <Skeleton className="h-5 w-32" />
               <Skeleton className="h-3 w-full max-w-sm" />
@@ -108,9 +108,9 @@ export function ClientProgressPageSkeleton() {
           </Card>
         </aside>
 
-        <section className="order-1 flex min-w-0 flex-col gap-8 lg:order-2 lg:col-span-8">
-          <div className="grid gap-8 lg:grid-cols-5">
-            <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm lg:col-span-2">
+        <section className="order-1 flex min-w-0 flex-col gap-6 lg:order-2 lg:col-span-8">
+          <div className="grid gap-6">
+            <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">
               <CardHeader className="pb-4 pt-6 px-6 sm:px-8">
                 <Skeleton className="h-5 w-28 rounded-md" />
               </CardHeader>
@@ -118,7 +118,7 @@ export function ClientProgressPageSkeleton() {
                 <Skeleton className="h-[220px] w-full rounded-2xl" />
               </CardContent>
             </Card>
-            <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm lg:col-span-3">
+            <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">
               <CardHeader className="pb-4 pt-6 px-6 sm:px-8">
                 <Skeleton className="h-5 w-44 rounded-md" />
                 <Skeleton className="h-3 w-64 rounded-md opacity-60 mt-1.5" />
@@ -144,7 +144,7 @@ export function ClientMeasurementsPageSkeleton() {
         aria-busy="true"
         aria-label="Cargando medidas"
       >
-        <aside className="flex flex-col gap-8 lg:col-span-4 lg:sticky lg:top-[max(1rem,env(safe-area-inset-top))] lg:self-start">
+        <aside className="flex flex-col gap-8 lg:col-span-4 lg:sticky lg:top-[calc(112px+1.5rem)] lg:self-start">
           <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">
             <CardHeader className="flex flex-col gap-5 pb-6 pt-8 px-6">
               <div className="flex items-start gap-4">

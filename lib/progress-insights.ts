@@ -127,17 +127,19 @@ export function computeStrengthProgressInsight(
     )
     if (allPts.length === 0) continue
 
-    // Check for absolute PR in last 7 days
-    const maxWeight = Math.max(...allPts.map((p) => p.weight_kg))
-    const latestPt = allPts[allPts.length - 1]
-    const latestPtMs = new Date(latestPt.achieved_at).getTime()
+    // Check for absolute PR in last 7 days (requires a prior mark that was strictly beaten)
+    if (allPts.length >= 2) {
+      const priorMax = Math.max(...allPts.slice(0, -1).map((p) => p.weight_kg))
+      const latestPt = allPts[allPts.length - 1]
+      const latestPtMs = new Date(latestPt.achieved_at).getTime()
 
-    if (latestPt.weight_kg === maxWeight && latestPtMs >= sevenDaysAgoMs) {
-      if (!recentMilestone || latestPt.weight_kg > recentMilestone.weight_kg) {
-        recentMilestone = {
-          name: ex.name,
-          weight_kg: latestPt.weight_kg,
-          achieved_at: latestPt.achieved_at,
+      if (latestPt.weight_kg > priorMax && latestPtMs >= sevenDaysAgoMs) {
+        if (!recentMilestone || latestPt.weight_kg > recentMilestone.weight_kg) {
+          recentMilestone = {
+            name: ex.name,
+            weight_kg: latestPt.weight_kg,
+            achieved_at: latestPt.achieved_at,
+          }
         }
       }
     }

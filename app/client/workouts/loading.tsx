@@ -2,7 +2,7 @@ import { ClientWorkoutsPageSkeleton } from "@/components/client/client-data-page
 
 export default function Loading() {
   return (
-    <div id="main-content" role="main" tabIndex={-1}>
+    <div>
       <ClientWorkoutsPageSkeleton />
     </div>
   );

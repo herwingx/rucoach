@@ -16,11 +16,8 @@ import {
   XP_REWARDS,
 } from "@/lib/gamification";
 import { exerciseUsesExternalLoad } from "@/lib/exercise-tracking";
-import {
-  didCompleteMicrocycle,
-  sortRoutineDaysByDayNumber,
-  getNextRoutineDayIndex,
-} from "@/lib/next-routine-day";
+import { didCompleteMicrocycle } from "@/lib/next-routine-day";
+import { notifyUser } from "@/lib/push";
 
 interface SetData {
   exerciseId: string;
@@ -99,7 +96,7 @@ export async function completeWorkoutSession(data: WorkoutCompletionData) {
   // Get user ID and total_sessions from client
   const { data: client, error: clientFetchError } = await supabase
     .from("clients")
-    .select("user_id, total_sessions")
+    .select("user_id, coach_id, full_name, total_sessions")
     .eq("id", data.clientId)
     .single();
 
@@ -260,29 +257,47 @@ export async function completeWorkoutSession(data: WorkoutCompletionData) {
     });
 
     await supabase.from("pr_events").insert(prEvents);
-  }
 
-  for (const prSet of prSets) {
-    const estimated1RM = calculate1RM(prSet.weight, prSet.reps);
-    const exerciseName = nameById.get(prSet.exerciseId) ?? undefined;
-
-    const { error: prError } = await supabase.from("personal_records").upsert(
+    const bestPrByExercise = new Map<
+      string,
       {
-        client_id: data.clientId,
-        exercise_id: prSet.exerciseId,
-        exercise_name: exerciseName ?? "",
-        weight_kg: prSet.weight,
-        reps: prSet.reps,
-        estimated_1rm: estimated1RM,
-        achieved_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "client_id,exercise_id",
-      },
-    );
+        client_id: string;
+        exercise_id: string;
+        exercise_name: string;
+        weight_kg: number;
+        reps: number;
+        estimated_1rm: number;
+        achieved_at: string;
+      }
+    >();
+    const achievedAtIso = new Date().toISOString();
+    for (const prSet of prSets) {
+      const estimated1RM = calculate1RM(prSet.weight, prSet.reps);
+      const prev = bestPrByExercise.get(prSet.exerciseId);
+      if (!prev || estimated1RM >= prev.estimated_1rm) {
+        bestPrByExercise.set(prSet.exerciseId, {
+          client_id: data.clientId,
+          exercise_id: prSet.exerciseId,
+          exercise_name: nameById.get(prSet.exerciseId) ?? "",
+          weight_kg: prSet.weight,
+          reps: prSet.reps,
+          estimated_1rm: estimated1RM,
+          achieved_at: achievedAtIso,
+        });
+      }
+    }
 
-    if (prError) {
-      console.error("Error upserting personal record:", prError);
+    const prUpsertPayload = Array.from(bestPrByExercise.values());
+    if (prUpsertPayload.length > 0) {
+      const { error: prError } = await supabase
+        .from("personal_records")
+        .upsert(prUpsertPayload, {
+          onConflict: "client_id,exercise_id",
+        });
+
+      if (prError) {
+        console.error("Error upserting personal records:", prError);
+      }
     }
   }
 
@@ -300,7 +315,17 @@ export async function completeWorkoutSession(data: WorkoutCompletionData) {
     );
   }
 
-  // --- PROGRESS WEEK LOGIC ---
+  // --- PROGRESS WEEK LOGIC & CLEAR OVERRIDE ---
+  try {
+    await supabase
+      .from("client_routines")
+      .update({ override_next_day_id: null })
+      .eq("client_id", data.clientId)
+      .eq("is_active", true);
+  } catch (err) {
+    console.error("[completeWorkoutSession] clear override_next_day_id error", err);
+  }
+
   if (data.routineDayId) {
     try {
       const { data: rd } = await supabase
@@ -377,6 +402,25 @@ export async function completeWorkoutSession(data: WorkoutCompletionData) {
 
   // Check for new achievements
   const newAchievements = await checkAchievements(client.user_id);
+
+  // Notify Coach via Web Push
+  if (client.coach_id) {
+    const clientName = client.full_name || "Tu asesorado";
+    const prBadge =
+      prSets.length > 0
+        ? ` · 🏆 ${prSets.length} PR${prSets.length > 1 ? "s" : ""}`
+        : "";
+    const volText =
+      totalVolume > 0
+        ? `${Math.round(totalVolume).toLocaleString("es-MX")} kg`
+        : `${uniqueExercises} ejercicios`;
+    await notifyUser(client.coach_id, {
+      title: `💪 Entreno completado · ${clientName}`,
+      body: `Completó ${data.sets.length} series (${volText})${prBadge}.`,
+      url: `/admin/clients/${data.clientId}`,
+      tag: `workout-${data.clientId}`,
+    });
+  }
 
   return {
     success: true,
@@ -514,7 +558,9 @@ export async function getWorkoutSessionSummary(sessionId: string) {
 
   const { data: logs, error: logsError } = await supabase
     .from("exercise_logs")
-    .select("exercise_id, exercise_name, set_number, weight_kg, reps, is_pr")
+    .select(
+      "exercise_id, exercise_name, set_number, weight_kg, reps, rpe, is_warmup, is_pr, exercises(name, name_es)",
+    )
     .eq("workout_session_id", sessionId)
     .order("exercise_id", { ascending: true })
     .order("set_number", { ascending: true });

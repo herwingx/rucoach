@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { LayoutDashboard, Dumbbell, Activity, MessageCircle, Menu, Users, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'

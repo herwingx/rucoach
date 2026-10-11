@@ -28,7 +28,7 @@ export function sortRoutineDaysByDayNumber<T extends RoutineDayLike>(days: T[]):
   return [...days].sort((a, b) => (a.day_number ?? 0) - (b.day_number ?? 0))
 }
 
-function isTrainableRoutineDay(d: RoutineDayLike | undefined): boolean {
+export function isTrainableRoutineDay(d: RoutineDayLike | undefined): boolean {
   if (!d) return false
   if (d.is_rest_day === true) return false
   const re = d.routine_exercises

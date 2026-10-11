@@ -8,7 +8,9 @@ import { PhotoCompare } from "@/components/photos/photo-compare";
 import type { ProgressPhoto } from "@/components/photos/photo-card";
 import { LayoutGrid, Diff, UploadCloud } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
+import { deleteR2Object } from "@/app/actions/r2-storage";
+import { R2_PUBLIC_URL } from "@/lib/constants";
 
 export function PhotosContent({
   clientId,
@@ -19,23 +21,19 @@ export function PhotosContent({
 }) {
   const [photos, setPhotos] = useState<ProgressPhoto[]>(initialPhotos);
   const [activeTab, setActiveTab] = useState("gallery");
-  const { toast } = useToast();
 
-  const onUploadSuccess = useCallback(
-    (newPhoto: ProgressPhoto) => {
-      setPhotos((prev) => [newPhoto, ...prev]);
-      setActiveTab("gallery");
-      toast({
-        title: "¡Foto guardada!",
-        description: "Tu progreso ha sido actualizado correctamente.",
-      });
-    },
-    [toast],
-  );
+  const onUploadSuccess = useCallback((newPhoto: ProgressPhoto) => {
+    setPhotos((prev) => [newPhoto, ...prev]);
+    setActiveTab("gallery");
+    toast.success("¡Foto guardada!", {
+      description: "Tu progreso ha sido actualizado correctamente.",
+    });
+  }, []);
 
   const onDeleteSuccess = useCallback(
     async (deletedId: string) => {
       try {
+        const photoToDelete = photos.find((p) => p.id === deletedId);
         const supabase = createClient();
         const { error } = await supabase
           .from("progress_photos")
@@ -44,20 +42,30 @@ export function PhotosContent({
 
         if (error) throw error;
 
+        if (photoToDelete?.photo_url) {
+          try {
+            const urlStr = photoToDelete.photo_url;
+            let key: string | null = null;
+            if (urlStr.startsWith(R2_PUBLIC_URL)) {
+              key = urlStr.slice(R2_PUBLIC_URL.length).replace(/^\/+/, "");
+            } else if (urlStr.includes(".r2.dev/")) {
+              key = new URL(urlStr).pathname.replace(/^\/+/, "");
+            }
+            if (key) {
+              await deleteR2Object(key);
+            }
+          } catch (r2Err) {
+            console.warn("[PhotosContent] R2 delete warning:", r2Err);
+          }
+        }
+
         setPhotos((prev) => prev.filter((p) => p.id !== deletedId));
-        toast({
-          title: "Foto eliminada",
-          variant: "destructive",
-        });
-      } catch (err) {
-        toast({
-          title: "Error al eliminar",
-          description: "No se pudo eliminar la foto de la base de datos.",
-          variant: "destructive",
-        });
+        toast.success("Foto eliminada");
+      } catch {
+        toast.error("No se pudo eliminar la foto de la base de datos.");
       }
     },
-    [toast],
+    [photos],
   );
 
   return (

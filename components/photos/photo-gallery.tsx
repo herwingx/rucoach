@@ -1,10 +1,11 @@
 'use client'
 
 import * as React from 'react'
+import Image from 'next/image'
 import { PhotoCard, type ProgressPhoto } from './photo-card'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Search, Filter, Camera, LayoutGrid, List } from 'lucide-react'
+import { Search, Filter, Camera, LayoutGrid, List, Calendar, Weight } from 'lucide-react'
 import {
   Accordion,
   AccordionContent,
@@ -23,8 +24,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+
+const VIEW_LABELS: Record<string, string> = {
+  front: 'Frente',
+  side: 'Perfil',
+  back: 'Espalda',
+  other: 'Otra',
+}
+
+function parseTakenDate(dateStr: string): Date {
+  return new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`)
+}
 
 interface PhotoGalleryProps {
   photos: ProgressPhoto[]
@@ -42,6 +61,15 @@ export function PhotoGallery({
   const [filter, setFilter] = React.useState<string>('all')
   const [search, setSearch] = React.useState('')
   const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid')
+  const [viewingPhoto, setViewingPhoto] = React.useState<ProgressPhoto | null>(null)
+
+  const handleViewPhoto = React.useCallback(
+    (photo: ProgressPhoto) => {
+      if (onView) onView(photo)
+      setViewingPhoto(photo)
+    },
+    [onView],
+  )
 
   const filteredPhotos = React.useMemo(() => {
     return photos
@@ -52,17 +80,21 @@ export function PhotoGallery({
         return (
           p.notes?.toLowerCase().includes(searchLower) ||
           p.view_type?.toLowerCase().includes(searchLower) ||
-          format(new Date(p.taken_at), 'MMMM', { locale: es }).includes(searchLower)
+          format(parseTakenDate(p.taken_at), 'MMMM', { locale: es }).includes(searchLower)
         )
       })
-      .sort((a, b) => new Date(b.taken_at).getTime() - new Date(a.taken_at).getTime())
+      .sort(
+        (a, b) =>
+          parseTakenDate(b.taken_at).getTime() -
+          parseTakenDate(a.taken_at).getTime(),
+      )
   }, [photos, filter, search])
 
   // Group by Month and Year
   const groupedPhotos = React.useMemo(() => {
     const groups: Record<string, ProgressPhoto[]> = {}
     filteredPhotos.forEach((photo) => {
-      const monthYear = format(new Date(photo.taken_at), 'MMMM yyyy', { locale: es })
+      const monthYear = format(parseTakenDate(photo.taken_at), 'MMMM yyyy', { locale: es })
       if (!groups[monthYear]) groups[monthYear] = []
       groups[monthYear].push(photo)
     })
@@ -175,7 +207,7 @@ export function PhotoGallery({
                       key={photo.id}
                       photo={photo}
                       onDelete={onDeleteSuccess}
-                      onView={onView}
+                      onView={handleViewPhoto}
                       showActions={showActions}
                     />
                   ))}
@@ -191,6 +223,57 @@ export function PhotoGallery({
           </div>
         )}
       </div>
+
+      <Dialog
+        open={Boolean(viewingPhoto)}
+        onOpenChange={(open) => {
+          if (!open) setViewingPhoto(null)
+        }}
+      >
+        <DialogContent className="max-w-lg rounded-3xl overflow-hidden p-4 sm:p-6">
+          {viewingPhoto && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center justify-between gap-2 pr-6">
+                  <span>
+                    {VIEW_LABELS[viewingPhoto.view_type || ''] ||
+                      viewingPhoto.view_type ||
+                      'Progreso'}
+                  </span>
+                  {viewingPhoto.weight_kg && (
+                    <span className="inline-flex items-center gap-1 text-sm font-bold text-primary">
+                      <Weight className="size-4" />
+                      {viewingPhoto.weight_kg} kg
+                    </span>
+                  )}
+                </DialogTitle>
+                <DialogDescription className="flex items-center gap-1.5 text-xs">
+                  <Calendar className="size-3.5" />
+                  {format(
+                    parseTakenDate(viewingPhoto.taken_at),
+                    "d 'de' MMMM, yyyy",
+                    { locale: es },
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-muted">
+                <Image
+                  src={viewingPhoto.photo_url}
+                  alt="Vista detallada de progreso"
+                  fill
+                  className="object-contain"
+                  sizes="(max-width: 768px) 95vw, 500px"
+                />
+              </div>
+              {viewingPhoto.notes && (
+                <p className="text-sm italic text-muted-foreground bg-muted/30 p-3 rounded-xl border">
+                  &ldquo;{viewingPhoto.notes}&rdquo;
+                </p>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

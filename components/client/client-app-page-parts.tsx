@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -13,7 +14,7 @@ export function ClientStackPageHeader({
   title,
   subtitle,
   kicker,
-  backHref = '/client/dashboard',
+  backHref = null,
   backLabel = 'Volver',
   backIcon,
   onBackClick,
@@ -40,7 +41,7 @@ export function ClientStackPageHeader({
         className,
       )}
     >
-      <div className="w-full h-full flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:py-0 px-4 sm:px-6 md:px-8">
+      <div className="container flex min-h-[76px] flex-col justify-center gap-3 py-3 sm:min-h-[112px] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-0">
         {/* Leading icon + title always on the same row */}
         <div className="flex min-w-0 items-center gap-4 h-full">
           {/* Back arrow or App logo */}
@@ -73,7 +74,7 @@ export function ClientStackPageHeader({
             ) : (
               <div className="flex items-center md:hidden">
                 <div className="size-11 rounded-xl overflow-hidden ring-1 ring-border/50 shadow-md shrink-0 bg-primary/10 flex items-center justify-center p-1.5">
-                  <img src="/android-chrome-192x192.png" alt="Logo" className="size-full object-contain" />
+                  <Image src="/android-chrome-192x192.png" alt="Logo RU Coach" width={36} height={36} className="size-full object-contain p-1" />
                 </div>
               </div>
             )}
@@ -114,7 +115,7 @@ export function ClientStackPageHeader({
 
 export function ClientIncompleteProfileCard() {
   return (
-    <Card className="overflow-hidden border-border/80 shadow-sm ring-1 ring-primary/5">
+    <Card className="overflow-hidden rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
       <CardHeader>
         <CardTitle className="text-base sm:text-lg">Perfil incompleto</CardTitle>
         <CardDescription>

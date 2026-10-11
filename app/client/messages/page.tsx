@@ -105,7 +105,7 @@ export default async function ClientMessagesPage() {
           subtitle="Tu chat directo con el coach · avisos, dudas y seguimiento."
         />
         <div className={CLIENT_DATA_PAGE_SHELL}>
-          <Empty className="border-border/80 shadow-sm ring-1 ring-primary/5">
+          <Empty className="rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <UserRoundSearch />

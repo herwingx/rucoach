@@ -60,7 +60,7 @@ export function ExerciseMedia({ src, fallbackSrc, alt, className, imgClassName, 
       {!loaded && (
         <Skeleton className="absolute inset-0 z-10 rounded-none" aria-hidden />
       )}
-      {/* eslint-disable-next-line @next/next/no-img-element -- GIF locales / externos; onError necesario */}
+      { }
       <img
         src={currentSrc}
         alt={alt}

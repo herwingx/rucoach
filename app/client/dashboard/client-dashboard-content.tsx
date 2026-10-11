@@ -70,8 +70,8 @@ export function ClientDashboardContent({
         subtitle="Sigue tu plan, supera tus marcas y desbloquea el siguiente nivel."
         backHref={null}
       />
-      <div className={`${CLIENT_DATA_PAGE_SHELL} grid gap-8 lg:grid-cols-12 pb-safe-area`}>
-        <aside className="flex flex-col gap-8 lg:col-span-12 xl:col-span-4 lg:sticky lg:top-[max(1rem,env(safe-area-inset-top))] lg:self-start">
+      <div className={`${CLIENT_DATA_PAGE_SHELL} grid gap-8 lg:grid-cols-12`}>
+        <aside className="flex flex-col gap-8 lg:col-span-12 xl:col-span-4 xl:sticky xl:top-[calc(112px+1.5rem)] xl:self-start">
           <LevelProgress
             levelInfo={levelInfo}
             username={profile?.username || profile?.full_name}
@@ -86,17 +86,7 @@ export function ClientDashboardContent({
         </aside>
 
         <section className="flex min-w-0 flex-col gap-8 lg:col-span-12 xl:col-span-8">
-          <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">
-             <CardHeader className="pb-2 pt-6 px-6 sm:px-8">
-                <div className="flex items-center gap-2">
-                   <div className="size-2 rounded-full bg-primary" />
-                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Análisis de Rendimiento</span>
-                </div>
-             </CardHeader>
-             <CardContent className="px-2 sm:px-6 pb-6">
-                <ClientWorkoutChart data={chartData} />
-             </CardContent>
-          </Card>
+          <ClientWorkoutChart data={chartData} />
 
           <NextWorkoutCard
             routineDay={nextWorkoutRoutineDay as any}

@@ -197,3 +197,66 @@ export function sortAchievementsForDisplay(
     return (a.xp_reward || 0) - (b.xp_reward || 0)
   })
 }
+
+export function achievementActionMeta(a: Achievement): {
+  href: string
+  label: string
+  tip: string
+} {
+  switch (a.requirement_type) {
+    case 'sessions':
+      return {
+        href: '/client/routines',
+        label: 'Ir a mi rutina',
+        tip: 'Cada sesión completada suma 1 punto a este hito y otorga XP base + bono por volumen.',
+      }
+    case 'streak':
+      return {
+        href: '/client/routines',
+        label: 'Mantener racha hoy',
+        tip: 'Entrena en días consecutivos según tu plan semanal para mantener activa tu racha.',
+      }
+    case 'pr':
+    case 'lift_bench_bw':
+    case 'lift_squat_bw15':
+    case 'lift_deadlift_bw2':
+      return {
+        href: '/client/progress',
+        label: 'Ver mis cargas y PRs',
+        tip: 'Aplica sobrecarga progresiva controlada en tus ejercicios principales para superar tu marca.',
+      }
+    case 'volume':
+    case 'lifetime_volume':
+      return {
+        href: '/client/routines',
+        label: 'Iniciar entrenamiento',
+        tip: 'Completa todas las series efectivas prescritas por tu coach para acumular tonelaje.',
+      }
+    case 'measurement_months':
+      return {
+        href: '/client/measurements',
+        label: 'Registrar medidas',
+        tip: 'Registra tu peso y perímetros corporales mes a mes para evaluar tu recomposición corporal.',
+      }
+    case 'messages':
+      return {
+        href: '/client/messages',
+        label: 'Escribir a mi coach',
+        tip: 'Comparte feedback de tus sesiones o dudas técnicas con tu coach en el chat.',
+      }
+    case 'early_workouts':
+      return {
+        href: '/client/routines',
+        label: 'Ver rutina matutina',
+        tip: 'Inicia y completa tu entrenamiento antes de las 8:00 AM para sumar a este desafío.',
+      }
+    case 'level':
+    default:
+      return {
+        href: '/client/routines',
+        label: 'Sumar XP entrenando',
+        tip: 'Gana XP completando entrenamientos, rompiendo récords personales y desbloqueando hitos.',
+      }
+  }
+}
+

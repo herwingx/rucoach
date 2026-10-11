@@ -33,8 +33,9 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { cn } from '@/lib/utils'
+import Image from 'next/image'
 import Link from 'next/link'
-import { SidebarTrigger } from '@/components/ui/sidebar'
+import { toast } from 'sonner'
 import {
   MessageCircle,
   ChevronLeft,
@@ -56,11 +57,18 @@ import {
 
 const EMOJI_PICKER = ['💪', '🔥', '⭐', '🎯', '👍', '❤️', '👏', '✨']
 
-const QUICK_REPLIES = [
+const ADMIN_QUICK_REPLIES = [
   { text: '¡Excelente sesión!', icon: Trophy },
   { text: '¿Cómo te fue el entreno?', icon: Dumbbell },
   { text: 'Recuerda hidratarte.', icon: Sparkles },
   { text: 'Avísame si algo duele al hacer el movimiento.', icon: MessageCircle },
+] as const
+
+const CLIENT_QUICK_REPLIES = [
+  { text: '¡Listo el entreno de hoy!', icon: Trophy },
+  { text: 'Tengo una duda con un ejercicio', icon: Dumbbell },
+  { text: 'Sentí una molestia entrenando', icon: MessageCircle },
+  { text: '¿Cómo ves mi progreso?', icon: Sparkles },
 ] as const
 
 /* ------------------------------------------------------------------ */
@@ -88,6 +96,7 @@ export interface ChatViewProps {
     lastAt?: string
     unread: number
   }[]
+  initialSelectedUserId?: string | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -153,7 +162,13 @@ function PageHeaderLeadingIcon() {
   return (
     <div className="flex items-center md:hidden">
       <div className="size-11 rounded-xl overflow-hidden ring-1 ring-border/50 shadow-md shrink-0 bg-primary/10 flex items-center justify-center p-1.5">
-        <img src="/android-chrome-192x192.png" alt="Logo" className="size-full object-contain" />
+        <Image
+          src="/android-chrome-192x192.png"
+          alt="Logo RU Coach"
+          width={36}
+          height={36}
+          className="size-full object-contain p-1"
+        />
       </div>
     </div>
   )
@@ -162,6 +177,24 @@ function PageHeaderLeadingIcon() {
 /* ------------------------------------------------------------------ */
 /*  Conversation row — sidebar item for admin inbox                    */
 /* ------------------------------------------------------------------ */
+
+function stripMarkdownBold(text: string): string {
+  return text.replace(/\*\*(.*?)\*\*/g, '$1')
+}
+
+function renderFormattedMessage(text: string) {
+  const parts = text.split(/(\*\*.*?\*\*)/g)
+  return parts.map((part, idx) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return (
+        <strong key={idx} className="font-bold">
+          {part.slice(2, -2)}
+        </strong>
+      )
+    }
+    return part
+  })
+}
 
 const ConversationRow = memo(function ConversationRow({
   c,
@@ -200,7 +233,7 @@ const ConversationRow = memo(function ConversationRow({
             ) : null}
           </div>
           <p className="truncate text-xs text-muted-foreground">
-            {c.lastMessage || 'Sin mensajes todavía'}
+            {c.lastMessage ? stripMarkdownBold(c.lastMessage) : 'Sin mensajes todavía'}
           </p>
         </div>
         {c.unread > 0 ? (
@@ -235,7 +268,7 @@ const MessageBubble = memo(function MessageBubble({
         )}
       >
         <p className="wrap-break-word whitespace-pre-wrap text-[15px] leading-relaxed sm:text-sm">
-          {m.content}
+          {renderFormattedMessage(m.content)}
         </p>
         <div
           className={cn(
@@ -291,7 +324,7 @@ function ThreadPane({
   currentUserId,
   role,
   isAdmin,
-  messages,
+  messages: _messages,
   messagesLoading,
   messageRows,
   input,
@@ -321,6 +354,9 @@ function ThreadPane({
   setEmojiOpen: (v: boolean) => void
   onBack?: () => void
 }) {
+  const quickReplies =
+    role === 'client' ? CLIENT_QUICK_REPLIES : ADMIN_QUICK_REPLIES
+
   return (
     <div className="flex w-full min-h-0 flex-1 flex-col relative overflow-hidden">
       {/* ─── Thread header ─── */}
@@ -330,22 +366,23 @@ function ThreadPane({
           Then avatar + peer info */}
       <header className="shrink-0 flex items-center gap-3 border-b border-border/50 bg-background/80 backdrop-blur-xl safe-area-header-pt min-h-[76px] sm:min-h-[112px]">
         <div className="flex items-center gap-4 py-4 sm:py-0 px-4 sm:px-6 md:px-8 h-full w-full">
-          {/* Leading icon */}
-          <div className="shrink-0 flex items-center h-full">
-            {isAdmin && onBack && (
-              /* Admin mobile: back to inbox */
+          {/* Leading icon (back chevron on admin mobile, or RU Coach logo on client mobile) */}
+          {isAdmin && onBack ? (
+            <div className="shrink-0 flex items-center h-full md:hidden">
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="-ml-3 size-10 sm:size-11 rounded-full hover:bg-primary/10 hover:text-primary transition-all duration-300 md:hidden"
+                className="-ml-3 size-10 sm:size-11 rounded-full hover:bg-primary/10 hover:text-primary transition-all duration-300"
                 onClick={onBack}
                 aria-label="Volver a la lista de conversaciones"
               >
                 <ChevronLeft className="size-6 sm:size-7" strokeWidth={2.5} />
               </Button>
-            )}
-          </div>
+            </div>
+          ) : !isAdmin ? (
+            <PageHeaderLeadingIcon />
+          ) : null}
 
           {/* Peer info */}
           <Avatar className="size-10 shrink-0 ring-2 ring-primary/15 sm:size-11">
@@ -415,15 +452,15 @@ function ThreadPane({
       </div>
 
       {/* ─── Composer footer ─── */}
-      <footer className="shrink-0 border-t border-border bg-background safe-area-pb">
+      <footer className="shrink-0 border-t border-border bg-background md:safe-area-pb">
         <div className="container">
           <div className="mx-auto flex max-w-2xl flex-col gap-3 py-3">
             {/* Quick replies */}
             <div
-              className="no-scrollbar flex gap-2 overflow-x-auto pb-0.5"
+              className="no-scrollbar flex gap-2 overflow-x-auto md:flex-wrap pb-0.5"
               aria-label="Respuestas rápidas"
             >
-              {QUICK_REPLIES.map((qr) => (
+              {quickReplies.map((qr) => (
                 <Button
                   key={qr.text}
                   type="button"
@@ -518,13 +555,36 @@ export function ChatView({
   role,
   otherUser,
   conversations,
+  initialSelectedUserId,
 }: ChatViewProps) {
   const supabase = useRef(createClient()).current
   const isAdmin = role === 'admin'
+  const [conversationsState, setConversationsState] = useState(conversations)
+
+  useEffect(() => {
+    setConversationsState(conversations)
+  }, [conversations])
+
+  const validInitialId = useMemo(() => {
+    if (!initialSelectedUserId) return null
+    return conversations.some((c) => c.id === initialSelectedUserId)
+      ? initialSelectedUserId
+      : null
+  }, [initialSelectedUserId, conversations])
+
   const [selectedUserId, setSelectedUserId] = useState<string | null>(() =>
-    role === 'client' ? otherUser?.id ?? null : null,
+    role === 'client'
+      ? otherUser?.id ?? null
+      : validInitialId ?? conversations[0]?.id ?? null,
   )
-  const [adminMobilePane, setAdminMobilePane] = useState<'inbox' | 'thread'>('inbox')
+  const [adminMobilePane, setAdminMobilePane] = useState<'inbox' | 'thread'>(
+    () => (validInitialId ? 'thread' : 'inbox'),
+  )
+  const adminMobilePaneRef = useRef(adminMobilePane)
+  useEffect(() => {
+    adminMobilePaneRef.current = adminMobilePane
+  }, [adminMobilePane])
+
   const [messages, setMessages] = useState<Message[]>([])
   const [messagesLoading, setMessagesLoading] = useState(false)
   const [inboxQuery, setInboxQuery] = useState('')
@@ -535,9 +595,15 @@ export function ChatView({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    if (!isAdmin || conversations.length === 0) return
-    setSelectedUserId((prev) => prev ?? conversations[0].id)
-  }, [isAdmin, conversations])
+    if (!isAdmin || !validInitialId) return
+    setSelectedUserId(validInitialId)
+    setAdminMobilePane('thread')
+  }, [isAdmin, validInitialId])
+
+  useEffect(() => {
+    if (!isAdmin || conversationsState.length === 0) return
+    setSelectedUserId((prev) => prev ?? conversationsState[0].id)
+  }, [isAdmin, conversationsState])
 
   useEffect(() => {
     if (role === 'client' && otherUser) {
@@ -547,13 +613,13 @@ export function ChatView({
 
   const filteredConversations = useMemo(() => {
     const q = inboxQuery.trim().toLowerCase()
-    if (!q) return conversations
-    return conversations.filter(
+    if (!q) return conversationsState
+    return conversationsState.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         (c.lastMessage ?? '').toLowerCase().includes(q),
     )
-  }, [conversations, inboxQuery])
+  }, [conversationsState, inboxQuery])
 
   const peer =
     role === 'client'
@@ -561,8 +627,11 @@ export function ChatView({
       : selectedUserId
         ? {
             id: selectedUserId,
-            name: conversations.find((c) => c.id === selectedUserId)?.name ?? 'Cliente',
-            avatarUrl: conversations.find((c) => c.id === selectedUserId)?.avatarUrl,
+            name:
+              conversationsState.find((c) => c.id === selectedUserId)?.name ??
+              'Cliente',
+            avatarUrl: conversationsState.find((c) => c.id === selectedUserId)
+              ?.avatarUrl,
           }
         : null
 
@@ -582,6 +651,11 @@ export function ChatView({
     setMessagesLoading(true)
     setMessages([])
 
+    const shouldMarkReadNow = () =>
+      !isAdmin ||
+      adminMobilePaneRef.current === 'thread' ||
+      (typeof window !== 'undefined' && window.innerWidth >= 768)
+
     const load = async () => {
       const pairFilter = `and(from_user_id.eq.${currentUserId},to_user_id.eq.${selectedUserId}),and(from_user_id.eq.${selectedUserId},to_user_id.eq.${currentUserId})`
       const { data: rows } = await supabase
@@ -596,7 +670,12 @@ export function ChatView({
       const chronological = [...(rows ?? [])].reverse()
       setMessages(chronological)
       setMessagesLoading(false)
-      markMessagesAsRead(selectedUserId)
+      if (shouldMarkReadNow()) {
+        setConversationsState((prev) =>
+          prev.map((c) => (c.id === selectedUserId ? { ...c, unread: 0 } : c)),
+        )
+        void markMessagesAsRead(selectedUserId)
+      }
     }
 
     void load()
@@ -609,10 +688,39 @@ export function ChatView({
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
           const m = payload.new as Message
-          if (
-            (m.from_user_id === currentUserId && m.to_user_id === selectedUserId) ||
-            (m.from_user_id === selectedUserId && m.to_user_id === currentUserId)
-          ) {
+          const involvesMe =
+            m.from_user_id === currentUserId || m.to_user_id === currentUserId
+          if (!involvesMe) return
+
+          const peerId =
+            m.from_user_id === currentUserId ? m.to_user_id : m.from_user_id
+          const isCurrentThread = peerId === selectedUserId
+          const threadVisible = shouldMarkReadNow()
+
+          if (isAdmin) {
+            setConversationsState((prev) =>
+              prev
+                .map((c) => {
+                  if (c.id !== peerId) return c
+                  const shouldIncrementUnread =
+                    m.to_user_id === currentUserId &&
+                    (!isCurrentThread || !threadVisible)
+                  return {
+                    ...c,
+                    lastMessage: m.content,
+                    lastAt: m.created_at,
+                    unread: shouldIncrementUnread
+                      ? (c.unread || 0) + 1
+                      : isCurrentThread && threadVisible
+                        ? 0
+                        : c.unread,
+                  }
+                })
+                .sort((a, b) => (b.lastAt || '').localeCompare(a.lastAt || '')),
+            )
+          }
+
+          if (isCurrentThread) {
             setMessages((prev) => {
               if (prev.some((x) => x.id === m.id)) return prev
               const next = [...prev, m]
@@ -620,8 +728,20 @@ export function ChatView({
                 ? next.slice(-CHAT_THREAD_MESSAGE_LIMIT)
                 : next
             })
-            if (m.to_user_id === currentUserId) void markMessagesAsRead(selectedUserId)
+            if (m.to_user_id === currentUserId && threadVisible) {
+              void markMessagesAsRead(selectedUserId)
+            }
           }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => {
+          const updated = payload.new as Message
+          setMessages((prev) =>
+            prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)),
+          )
         },
       )
       .subscribe()
@@ -630,7 +750,15 @@ export function ChatView({
       cancelled = true
       void supabase.removeChannel(channel)
     }
-  }, [selectedUserId, currentUserId])
+  }, [selectedUserId, currentUserId, isAdmin])
+
+  useEffect(() => {
+    if (!isAdmin || adminMobilePane !== 'thread' || !selectedUserId) return
+    setConversationsState((prev) =>
+      prev.map((c) => (c.id === selectedUserId ? { ...c, unread: 0 } : c)),
+    )
+    void markMessagesAsRead(selectedUserId)
+  }, [isAdmin, adminMobilePane, selectedUserId])
 
   useEffect(() => {
     if (messagesLoading) return
@@ -641,6 +769,10 @@ export function ChatView({
   const handleSelectConversation = useCallback((id: string) => {
     setSelectedUserId(id)
     setAdminMobilePane('thread')
+    setConversationsState((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)),
+    )
+    void markMessagesAsRead(id)
   }, [])
 
   const handleSend = useCallback(async () => {
@@ -649,14 +781,40 @@ export function ChatView({
     setSending(true)
     setInput('')
     try {
-      await sendMessage(selectedUserId, text)
+      const inserted = await sendMessage(selectedUserId, text)
+      if (inserted) {
+        setMessages((prev) => {
+          if (prev.some((x) => x.id === inserted.id)) return prev
+          const next = [...prev, inserted as Message]
+          return next.length > CHAT_THREAD_MESSAGE_LIMIT
+            ? next.slice(-CHAT_THREAD_MESSAGE_LIMIT)
+            : next
+        })
+        if (isAdmin) {
+          setConversationsState((prev) =>
+            prev
+              .map((c) =>
+                c.id === selectedUserId
+                  ? {
+                      ...c,
+                      lastMessage: inserted.content,
+                      lastAt: inserted.created_at,
+                      unread: 0,
+                    }
+                  : c,
+              )
+              .sort((a, b) => (b.lastAt || '').localeCompare(a.lastAt || '')),
+          )
+        }
+      }
     } catch {
       setInput(text)
+      toast.error('No se pudo enviar el mensaje. Intenta de nuevo.')
     } finally {
       setSending(false)
       textareaRef.current?.focus()
     }
-  }, [input, selectedUserId, sending])
+  }, [input, selectedUserId, sending, isAdmin])
 
   const messageRows = useMemo(() => buildMessageRows(messages), [messages])
 
@@ -664,17 +822,20 @@ export function ChatView({
   if (role === 'client' && !otherUser) return null
 
   /* ── Admin with zero conversations ── */
-  if (isAdmin && conversations.length === 0) {
+  if (isAdmin && conversationsState.length === 0) {
     return (
       <div className="flex h-full w-full min-h-0 flex-1 flex-col relative overflow-hidden">
         {/* Consistent AdminPageHeader-style header */}
-        <header className="shrink-0 border-b border-border bg-background/80 backdrop-blur-md safe-area-header-pt">
-          <div className="container flex items-center gap-3 py-3 sm:py-4">
-            <div className="shrink-0">
-              <PageHeaderLeadingIcon />
-            </div>
+        <header className="shrink-0 border-b border-border/50 bg-background/80 backdrop-blur-xl safe-area-header-pt min-h-[76px] sm:min-h-[112px] flex items-center">
+          <div className="flex items-center gap-4 px-4 py-4 sm:px-6 md:px-8 sm:py-0 w-full">
+            <PageHeaderLeadingIcon />
             <div className="min-w-0 flex flex-col justify-center">
-              <h1 className="text-xl font-black tracking-tight text-pretty sm:text-2xl text-foreground leading-tight">Mensajes</h1>
+              <h1 className="text-xl font-black tracking-tight text-pretty sm:text-2xl text-foreground leading-[1.1]">
+                Mensajes
+              </h1>
+              <p className="mt-1 line-clamp-1 text-xs text-muted-foreground/90 font-medium">
+                Tus conversaciones con clientes
+              </p>
             </div>
           </div>
         </header>
@@ -735,31 +896,34 @@ export function ChatView({
         aria-label="Lista de conversaciones"
       >
         {/* Inbox header — matches AdminPageHeader structure */}
-        <header className="shrink-0 border-b border-border/50 bg-background/80 backdrop-blur-xl safe-area-header-pt min-h-[76px] sm:min-h-[112px] flex flex-col justify-center">
-          <div className="flex flex-col gap-3 px-4 py-3 sm:px-6">
-            <div className="flex items-center gap-3">
-              <div className="shrink-0">
-                <PageHeaderLeadingIcon />
-              </div>
-              <h1 className="text-xl font-black tracking-tight text-pretty sm:text-2xl text-foreground leading-tight">
+        <header className="shrink-0 border-b border-border/50 bg-background/80 backdrop-blur-xl safe-area-header-pt min-h-[76px] sm:min-h-[112px] flex items-center">
+          <div className="flex items-center gap-4 px-4 py-4 sm:px-6 sm:py-0 w-full">
+            <PageHeaderLeadingIcon />
+            <div className="min-w-0 flex flex-col justify-center">
+              <h1 className="text-xl font-black tracking-tight text-pretty sm:text-2xl text-foreground leading-[1.1]">
                 Mensajes
               </h1>
-            </div>
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden
-              />
-              <Input
-                value={inboxQuery}
-                onChange={(e) => setInboxQuery(e.target.value)}
-                placeholder="Buscar asesorado…"
-                className="h-10 pl-9"
-                aria-label="Buscar conversación"
-              />
+              <p className="mt-1 line-clamp-1 text-xs text-muted-foreground/90 font-medium">
+                Tus conversaciones con clientes
+              </p>
             </div>
           </div>
         </header>
+        <div className="p-3 border-b border-border/50 bg-background/40 shrink-0">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              value={inboxQuery}
+              onChange={(e) => setInboxQuery(e.target.value)}
+              placeholder="Buscar asesorado…"
+              className="h-10 pl-9"
+              aria-label="Buscar conversación"
+            />
+          </div>
+        </div>
         <ul className="flex-1 overflow-y-auto overscroll-contain" role="list">
           {filteredConversations.length === 0 ? (
             <li className="px-4 py-8 text-center text-sm text-muted-foreground">

@@ -16,10 +16,10 @@ export default function WorkoutStartLoading() {
         <Skeleton className="h-full w-1/4 rounded-none" />
       </div>
 
-      <main className="container min-w-0 flex-1 py-8">
+      <div className="container mx-auto flex-1 max-w-7xl px-4 py-6 pb-28 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-12 lg:items-start lg:gap-12">
           {/* Left Column: Exercises/Carousel */}
-          <div className="flex flex-col gap-6 lg:col-span-5">
+          <div className="flex flex-col gap-6 lg:col-span-5 lg:sticky lg:top-[calc(112px+1.5rem)] lg:self-start">
             <div className="flex items-center justify-between gap-2 px-1">
               <Skeleton className="size-11 shrink-0 rounded-xl" />
               <Skeleton className="h-3 w-40 rounded-md opacity-40 uppercase tracking-widest" />
@@ -55,7 +55,7 @@ export default function WorkoutStartLoading() {
           </div>
 
           {/* Right Column: Sets Table */}
-          <div className="flex min-w-0 flex-col gap-6 lg:sticky lg:col-span-7 lg:self-start lg:pt-1">
+          <div className="flex min-w-0 flex-col gap-6 lg:col-span-7 lg:self-start lg:pt-1">
             <div className="space-y-2.5">
               <Skeleton className="h-9 w-3/4 rounded-xl" />
               <Skeleton className="h-4 w-48 rounded-md opacity-60" />
@@ -82,7 +82,7 @@ export default function WorkoutStartLoading() {
             <Skeleton className="h-14 w-full rounded-2xl mt-2" />
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

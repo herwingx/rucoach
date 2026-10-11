@@ -61,6 +61,8 @@ export default async function ClientDashboard() {
     null;
   let latestCompletedRoutineDayId: string | null = null;
   let clientCurrentWeek = 1;
+  let activeClientRoutineId: string | null = null;
+  let overrideNextDayId: string | null = null;
 
   if (client?.id) {
     const [sessionsRes, prsRes, crRes, lastCompletedDayRes] = await Promise.all(
@@ -78,7 +80,7 @@ export default async function ClientDashboard() {
           .gte("achieved_at", startOfMonth.toISOString()),
         supabase
           .from("client_routines")
-          .select("routine_id, current_week")
+          .select("id, routine_id, current_week, override_next_day_id")
           .eq("client_id", client.id)
           .eq("is_active", true)
           .limit(1)
@@ -100,8 +102,12 @@ export default async function ClientDashboard() {
     latestCompletedRoutineDayId =
       lastCompletedDayRes.data?.routine_day_id ?? null;
 
-    // Store current_week to check for completion
+    // Store current_week and override info
     clientCurrentWeek = crRes.data?.current_week ?? 1;
+    activeClientRoutineId = crRes.data?.id ?? null;
+    overrideNextDayId =
+      (crRes.data as { override_next_day_id?: string | null } | null)
+        ?.override_next_day_id ?? null;
   }
 
   // Batch 3: routine with full details (need routineId)
@@ -135,24 +141,42 @@ export default async function ClientDashboard() {
   // Calculate level info
   const levelInfo = calculateLevel(profile?.xp_points || 0);
 
-  // Calculate total volume from sessions
-  const totalVolume =
-    workoutSessions?.reduce((sum, s) => sum + (s.total_volume_kg || 0), 0) || 0;
-
-  // Completed sessions only (for chart and count)
+  // Completed sessions only (for volume, chart and count)
   const completedSessions = (workoutSessions || []).filter(
     (s: any) => s.status === "completed" && s.started_at,
   );
+
+  // Calculate total volume from completed sessions
+  const totalVolume = completedSessions.reduce(
+    (sum, s) => sum + (s.total_volume_kg || 0),
+    0,
+  );
+
+  const formatDateInTimezone = (date: Date, tz: string): string => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(date);
+    } catch {
+      return date.toISOString().slice(0, 10);
+    }
+  };
+
   const totalWorkoutsCompleted = completedSessions.length;
   const chartDataMap = new Map<string, number>();
   for (let i = 89; i >= 0; i--) {
     const d = new Date(nowInTz);
     d.setDate(d.getDate() - i);
-    d.setHours(0, 0, 0, 0);
-    chartDataMap.set(d.toISOString().slice(0, 10), 0);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    chartDataMap.set(`${yyyy}-${mm}-${dd}`, 0);
   }
   for (const s of completedSessions) {
-    const dateStr = (s.started_at || "").slice(0, 10);
+    const dateStr = formatDateInTimezone(new Date(s.started_at!), timeZone);
     if (chartDataMap.has(dateStr)) {
       chartDataMap.set(dateStr, (chartDataMap.get(dateStr) || 0) + 1);
     }
@@ -167,10 +191,33 @@ export default async function ClientDashboard() {
       (s) => s.status === "completed" && s.routine_day_id,
     )?.routine_day_id ??
     null;
-  const nextWorkoutRoutineDay = getNextRoutineDay(
-    (assignedRoutine?.routine_days ?? []) as RoutineDay[],
-    lastCompletedWithDayId,
-  );
+  const routineDaysList = (assignedRoutine?.routine_days ?? []) as RoutineDay[];
+  const overriddenDay = overrideNextDayId
+    ? routineDaysList.find(
+        (d) =>
+          d.id === overrideNextDayId &&
+          !d.is_rest_day &&
+          Array.isArray(d.routine_exercises) &&
+          d.routine_exercises.length > 0,
+      ) ?? null
+    : null;
+  const nextWorkoutRoutineDay =
+    overriddenDay ??
+    getNextRoutineDay(routineDaysList, lastCompletedWithDayId);
+
+  if (
+    activeClientRoutineId &&
+    nextWorkoutRoutineDay?.routine_exercises?.length
+  ) {
+    const { applyExerciseOverrides } = await import(
+      "@/app/actions/routine-overrides"
+    );
+    nextWorkoutRoutineDay.routine_exercises = await applyExerciseOverrides(
+      activeClientRoutineId,
+      nextWorkoutRoutineDay.routine_exercises,
+      supabase,
+    );
+  }
 
   return (
     <ClientDashboardContent

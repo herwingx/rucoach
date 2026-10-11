@@ -1,30 +1,34 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import dynamic from 'next/dynamic'
-
-const Line = dynamic(() => import('recharts').then((mod) => mod.Line as any), { ssr: false }) as typeof import('recharts').Line
-const LineChart = dynamic(() => import('recharts').then((mod) => mod.LineChart as any), { ssr: false }) as typeof import('recharts').LineChart
-const PolarAngleAxis = dynamic(() => import('recharts').then((mod) => mod.PolarAngleAxis as any), { ssr: false }) as typeof import('recharts').PolarAngleAxis
-const PolarGrid = dynamic(() => import('recharts').then((mod) => mod.PolarGrid as any), { ssr: false }) as typeof import('recharts').PolarGrid
-const Radar = dynamic(() => import('recharts').then((mod) => mod.Radar as any), { ssr: false }) as typeof import('recharts').Radar
-const RadarChart = dynamic(() => import('recharts').then((mod) => mod.RadarChart as any), { ssr: false }) as typeof import('recharts').RadarChart
-const XAxis = dynamic(() => import('recharts').then((mod) => mod.XAxis as any), { ssr: false }) as typeof import('recharts').XAxis
-const YAxis = dynamic(() => import('recharts').then((mod) => mod.YAxis as any), { ssr: false }) as typeof import('recharts').YAxis
-
+import * as React from 'react'
+import { crosshair, defineChart, dot, lineY } from '@tanstack/charts'
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from '@/components/ui/chart'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+  angleGrid,
+  focusGroupAngle,
+  polar,
+  radialArea,
+  radialDot,
+  radialGrid,
+  radialLine,
+} from '@tanstack/charts/polar'
+import { Chart } from '@tanstack/charts/react'
+import { scaleLinear } from '@tanstack/charts/scales/linear'
+import { scalePoint } from '@tanstack/charts/scales/point'
+import { tooltip } from '@tanstack/charts/tooltip'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { MeasurementRow } from './measurements-types'
+import {
+  closedLinearCurve,
+  monotoneXCurve,
+  ruCoachChartTheme,
+} from '@/components/charts/tanstack-chart-utils'
 
-type Metric = 'weight' | 'waist' | 'fat'
+type Metric = 'balance' | 'weight' | 'waist' | 'fat'
 
 const METRIC_META: Record<
-  Metric,
+  Exclude<Metric, 'balance'>,
   { label: string; unit: string; colorVar: string }
 > = {
   weight: { label: 'Peso', unit: 'kg', colorVar: 'var(--chart-1)' },
@@ -32,168 +36,396 @@ const METRIC_META: Record<
   fat: { label: 'Grasa corporal', unit: '%', colorVar: 'var(--chart-3)' },
 }
 
+const BODY_KPI_DEFS: Array<{
+  key: keyof MeasurementRow
+  label: string
+  unit: string
+}> = [
+  { key: 'weight', label: 'Peso', unit: 'kg' },
+  { key: 'waist_cm', label: 'Cintura', unit: 'cm' },
+  { key: 'body_fat_pct', label: '% Grasa', unit: '%' },
+  { key: 'chest_cm', label: 'Pecho', unit: 'cm' },
+  { key: 'hip_cm', label: 'Cadera', unit: 'cm' },
+  { key: 'arm_cm', label: 'Brazo', unit: 'cm' },
+  { key: 'thigh_cm', label: 'Muslo', unit: 'cm' },
+]
+
+type RadarDatum = {
+  slot: string
+  date: string
+  fullDate: string
+  value: number
+  rawDisplay?: string
+  initialDisplay?: string
+}
+
+function parseRecordedDate(dateStr: string): Date {
+  return new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`)
+}
+
 export function MeasurementsRadarChart({
   measurements,
 }: {
   measurements: MeasurementRow[]
 }) {
-  const [metric, setMetric] = useState<Metric>('weight')
+  const chartIdPrefix = React.useId().replace(/:/g, '')
 
-  const { chartData, chartConfig, title } = useMemo(() => {
-    const meta = METRIC_META[metric]
-    const sorted = [...(measurements || [])].sort(
-      (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
-    )
+  const sortedMeasurements = React.useMemo(
+    () =>
+      [...(measurements || [])].sort(
+        (a, b) =>
+          parseRecordedDate(a.recorded_at).getTime() -
+          parseRecordedDate(b.recorded_at).getTime(),
+      ),
+    [measurements],
+  )
 
-    // Radar: usamos los últimos 6 registros para que se vea “premium” y no se vuelva ilegible.
-    const last = sorted.slice(-6)
+  const kpiRadarData = React.useMemo<RadarDatum[]>(() => {
+    const items: RadarDatum[] = []
+    for (const def of BODY_KPI_DEFS) {
+      let firstVal: number | null = null
+      let latestVal: number | null = null
+      for (const m of sortedMeasurements) {
+        const raw = m[def.key]
+        const n = raw !== null && raw !== undefined ? Number(raw) : Number.NaN
+        if (Number.isFinite(n) && n > 0) {
+          if (firstVal === null) firstVal = n
+          latestVal = n
+        }
+      }
+      if (firstVal !== null && latestVal !== null) {
+        const normalizedPct = Math.round((latestVal / firstVal) * 1000) / 10
+        items.push({
+          slot: `kpi-${String(def.key)}`,
+          date: def.label,
+          fullDate: def.label,
+          value: normalizedPct,
+          rawDisplay: `${latestVal} ${def.unit}`,
+          initialDisplay: `${firstVal} ${def.unit}`,
+        })
+      }
+    }
+    return items
+  }, [sortedMeasurements])
+
+  const hasMultiKpi = kpiRadarData.length >= 3
+  const [metric, setMetric] = React.useState<Metric>(() =>
+    hasMultiKpi ? 'balance' : 'weight',
+  )
+
+  React.useEffect(() => {
+    if (hasMultiKpi && metric === 'weight') {
+      setMetric('balance')
+    } else if (!hasMultiKpi && metric === 'balance') {
+      setMetric('weight')
+    }
+  }, [hasMultiKpi])
+
+  const activeMetricKey: Exclude<Metric, 'balance'> =
+    metric === 'balance' ? 'weight' : metric
+  const meta = METRIC_META[activeMetricKey]
+
+  const chartData = React.useMemo<RadarDatum[]>(() => {
+    if (metric === 'balance' && hasMultiKpi) {
+      return kpiRadarData
+    }
 
     const extract = (m: MeasurementRow) => {
-      if (metric === 'weight') return m.weight
-      if (metric === 'waist') return m.waist_cm
+      if (activeMetricKey === 'weight') return m.weight
+      if (activeMetricKey === 'waist') return m.waist_cm
       return m.body_fat_pct
     }
 
-    const rows = last
-      .map((m, idx) => {
-        const d = new Date(m.recorded_at)
-        const dayMonth = d.toLocaleDateString('es', { day: '2-digit', month: 'short' })
-        const rawLabel = dayMonth
-        const n = extract(m)
-        if (typeof n !== 'number' || !Number.isFinite(n)) return null
+    const valid = sortedMeasurements.filter((m) => {
+      const v = extract(m)
+      return typeof v === 'number' && Number.isFinite(v)
+    })
+    const last = valid.slice(-6)
 
-        // Si hay 2 registros el mismo día, mantenemos estabilidad con sufijo.
-        const prevIso = last[idx - 1]?.recorded_at
-        const label =
-          idx > 0 && prevIso === m.recorded_at ? `${rawLabel}#${idx + 1}` : rawLabel
+    const seenLabels = new Map<string, number>()
+    return last.map((m, idx) => {
+      const d = parseRecordedDate(m.recorded_at)
+      const baseLabel = format(d, 'dd MMM', { locale: es })
+      const count = (seenLabels.get(baseLabel) ?? 0) + 1
+      seenLabels.set(baseLabel, count)
+      const label = count > 1 ? `${baseLabel} (${count})` : baseLabel
+      return {
+        slot: `rad-${idx}`,
+        date: label,
+        fullDate: format(d, "d 'de' MMMM yyyy", { locale: es }),
+        value: Number(extract(m)),
+      }
+    })
+  }, [
+    metric,
+    hasMultiKpi,
+    kpiRadarData,
+    sortedMeasurements,
+    activeMetricKey,
+  ])
 
-        return { label, value: n }
-      })
-      .filter((r): r is { label: string; value: number } => !!r)
+  const cartesianDefinition = React.useMemo(() => {
+    const values = chartData.map((d) => d.value)
+    const minVal = values.length > 0 ? Math.min(...values) : 0
+    const maxVal = values.length > 0 ? Math.max(...values) : 100
+    const pad = Math.max(1, (maxVal - minVal) * 0.25)
 
-    const cfg = {
-      value: {
-        label: meta.label,
-        color: meta.colorVar,
+    return defineChart({
+      marks: [
+        lineY(chartData, {
+          x: 'date',
+          y: 'value',
+          key: 'slot',
+          curve: monotoneXCurve,
+          stroke: meta.colorVar,
+          strokeWidth: 2.5,
+        }),
+        dot(chartData, {
+          x: 'date',
+          y: 'value',
+          key: 'slot',
+          r: 4.5,
+          fill: meta.colorVar,
+          stroke: 'var(--background)',
+          strokeWidth: 1.5,
+        }),
+        crosshair({
+          x: true,
+          y: false,
+          stroke: meta.colorVar,
+          strokeOpacity: 0.35,
+          strokeDasharray: '4 4',
+        }),
+      ],
+      scales: {
+        x: {
+          scale: () => scalePoint<string>().padding(0.35),
+          axis: {
+            line: false,
+            ticks: { line: false, padding: 8 },
+            tickLabels: { fontSize: 11 },
+          },
+        },
+        y: {
+          scale: scaleLinear().domain([
+            Math.max(0, minVal - pad),
+            maxVal + pad,
+          ]),
+          nice: true,
+          grid: {
+            strokeDasharray: '3 3',
+            strokeOpacity: 0.45,
+          },
+          axis: false,
+        },
       },
-    } satisfies ChartConfig
+      margin: { top: 16, right: 20, bottom: 28, left: 20 },
+      theme: ruCoachChartTheme,
+      focus: 'nearest-x',
+      maxFocusDistance: Number.POSITIVE_INFINITY,
+      svgAnimation: true,
+      tooltip: {
+        use: tooltip,
+        content: (pts) => {
+          const pt = pts[0]
+          const d = pt?.datum
+          return {
+            title: d?.fullDate ?? d?.date ?? '',
+            rows: [
+              {
+                label: meta.label,
+                value: `${d?.value ?? '—'} ${meta.unit}`,
+                color: meta.colorVar,
+                active: true,
+              },
+            ],
+          }
+        },
+      },
+    })
+  }, [chartData, meta.colorVar, meta.label, meta.unit])
 
-    return {
-      chartData: rows,
-      chartConfig: cfg,
-      title: `Radar de ${meta.label} (últimos ${rows.length} registros)`,
-    }
-  }, [measurements, metric])
+  const polarDefinition = React.useMemo(() => {
+    const values = chartData.map((d) => d.value)
+    const minVal = values.length > 0 ? Math.min(...values) : 0
+    const maxVal = values.length > 0 ? Math.max(...values) : 100
+    const span = Math.max(10, maxVal - minVal)
+    const domainMin =
+      metric === 'balance'
+        ? Math.max(0, Math.min(60, minVal - 15))
+        : Math.max(0, minVal - span * 0.35)
+    const domainMax =
+      metric === 'balance'
+        ? Math.max(120, maxVal + 15)
+        : maxVal + span * 0.2
+    const activeColor =
+      metric === 'balance' ? 'var(--primary)' : meta.colorVar
 
-  const meta = METRIC_META[metric]
-  const pointCount = chartData.length
+    return defineChart({
+      marks: [
+        polar({
+          radiusRatio: 0.72,
+          inset: 10,
+          scales: {
+            angle: {
+              scale: scalePoint<string>().domain(chartData.map((d) => d.date)),
+              wrap: true,
+            },
+            radius: {
+              scale: scaleLinear().domain([domainMin, domainMax]),
+              nice: true,
+            },
+          },
+          guides: [
+            radialGrid({
+              ticks: 4,
+              shape: 'polygon',
+              stroke: 'var(--border)',
+              strokeOpacity: 0.65,
+            }),
+            angleGrid({
+              labels: true,
+              labelOffset: 14,
+              labelFontSize: 11,
+              labelFill: 'var(--muted-foreground)',
+              stroke: 'var(--border)',
+              strokeOpacity: 0.55,
+            }),
+          ],
+          marks: [
+            radialArea(chartData, {
+              angle: 'date',
+              radius: 'value',
+              radius1: domainMin,
+              key: 'slot',
+              curve: closedLinearCurve,
+              fill: activeColor,
+              fillOpacity: 0.28,
+            }),
+            radialLine(chartData, {
+              angle: 'date',
+              radius: 'value',
+              key: 'slot',
+              curve: closedLinearCurve,
+              stroke: activeColor,
+              strokeWidth: 2.25,
+            }),
+            radialDot(chartData, {
+              angle: 'date',
+              radius: 'value',
+              key: 'slot',
+              r: 4,
+              fill: activeColor,
+              stroke: 'var(--background)',
+              strokeWidth: 1.5,
+            }),
+          ],
+        }),
+      ],
+      scales: {
+        x: null,
+        y: null,
+      },
+      margin: { top: 18, right: 24, bottom: 18, left: 24 },
+      theme: ruCoachChartTheme,
+      focus: focusGroupAngle,
+      maxFocusDistance: Number.POSITIVE_INFINITY,
+      svgAnimation: true,
+      tooltip: {
+        use: tooltip,
+        content: (pts) => {
+          const pt = pts[0]
+          const d = pt?.datum as RadarDatum | undefined
+          if (metric === 'balance' && d?.rawDisplay) {
+            const rows = [
+              {
+                label: 'Actual',
+                value: d.rawDisplay,
+                color: 'var(--primary)',
+                active: true,
+              },
+            ]
+            if (d.initialDisplay && d.initialDisplay !== d.rawDisplay) {
+              rows.push({
+                label: 'Inicial',
+                value: `${d.initialDisplay} (${d.value}%)`,
+                color: 'var(--muted-foreground)',
+                active: false,
+              })
+            }
+            return {
+              title: d.fullDate,
+              rows,
+            }
+          }
+          return {
+            title: d?.fullDate ?? d?.date ?? '',
+            rows: [
+              {
+                label: meta.label,
+                value: `${d?.value ?? '—'} ${meta.unit}`,
+                color: meta.colorVar,
+                active: true,
+              },
+            ],
+          }
+        },
+      },
+    })
+  }, [chartData, meta.colorVar, meta.label, meta.unit, metric])
 
   return (
-    <Tabs value={metric} onValueChange={(v) => setMetric(v as Metric)}>
-      <TabsList className="flex w-fit flex-wrap gap-1">
-        <TabsTrigger value="weight">Peso</TabsTrigger>
-        <TabsTrigger value="waist">Cintura</TabsTrigger>
-        <TabsTrigger value="fat">Grasa</TabsTrigger>
-      </TabsList>
+    <div className="w-full space-y-4">
+      <div className="flex justify-center">
+        <Tabs value={metric} onValueChange={(v) => setMetric(v as Metric)}>
+          <TabsList
+            className={`grid h-9 w-full max-w-[320px] rounded-xl p-1 ${
+              hasMultiKpi ? 'grid-cols-4' : 'grid-cols-3'
+            }`}
+          >
+            {hasMultiKpi && (
+              <TabsTrigger value="balance" className="rounded-lg text-xs">
+                Balance
+              </TabsTrigger>
+            )}
+            <TabsTrigger value="weight" className="rounded-lg text-xs">
+              Peso
+            </TabsTrigger>
+            <TabsTrigger value="waist" className="rounded-lg text-xs">
+              Cintura
+            </TabsTrigger>
+            <TabsTrigger value="fat" className="rounded-lg text-xs">
+              % Grasa
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
 
-      <TabsContent value={metric} className="pt-4">
-        {pointCount === 0 ? (
-          <div className="rounded-xl border border-border/60 bg-muted/15 px-4 py-6 text-sm text-muted-foreground">
-            Aún no hay registros para generar el radar.
-          </div>
-        ) : pointCount < 3 ? (
-          <div className="flex flex-col gap-3">
-            <div className="text-sm text-muted-foreground">{title}</div>
-            <div className="rounded-xl border border-border/60 bg-muted/15 px-4 py-4 text-sm text-muted-foreground">
-              Con {pointCount} registro{pointCount === 1 ? '' : 's'} el radar se vuelve una línea.
-              Te muestro la evolución como gráfico simple.
-            </div>
-
-            <ChartContainer
-              config={chartConfig}
-              className="aspect-auto h-72 w-full min-h-72"
-            >
-              <LineChart
-                data={chartData}
-                margin={{ top: 12, right: 12, bottom: 0, left: 12 }}
-              >
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
-                <YAxis tickLine={false} axisLine={false} tickMargin={8} width={48} />
-
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      indicator="dot"
-                      formatter={(value) => {
-                        const n =
-                          typeof value === 'number' ? value : Number(value)
-                        const safe = Number.isFinite(n) ? n : 0
-                        return `${safe.toFixed(1)} ${meta.unit}`
-                      }}
-                    />
-                  }
-                />
-
-                <Line
-                  name={meta.label}
-                  type="monotone"
-                  dataKey="value"
-                  stroke="var(--color-value)"
-                  strokeWidth={2}
-                  dot={true}
-                  activeDot={{ r: 4 }}
-                />
-              </LineChart>
-            </ChartContainer>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            <div className="text-sm text-muted-foreground">{title}</div>
-
-            <ChartContainer
-              config={chartConfig}
-              className="aspect-auto h-72 w-full min-h-72"
-            >
-              <RadarChart
-                data={chartData}
-                outerRadius="75%"
-                margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
-              >
-                <ChartTooltip
-                  cursor={false}
-                  content={
-                    <ChartTooltipContent
-                      indicator="dot"
-                      nameKey="value"
-                      formatter={(value) => {
-                        const n =
-                          typeof value === 'number' ? value : Number(value)
-                        const safe = Number.isFinite(n) ? n : 0
-                        return `${safe.toFixed(1)} ${meta.unit}`
-                      }}
-                    />
-                  }
-                />
-                <PolarAngleAxis dataKey="label" tickLine={false} axisLine={false} />
-                <PolarGrid />
-                <Radar
-                  name={meta.label}
-                  dataKey="value"
-                  stroke="var(--color-value)"
-                  fill="var(--color-value)"
-                  fillOpacity={0.25}
-                />
-              </RadarChart>
-            </ChartContainer>
-
-            <div className="text-xs text-muted-foreground">
-              Compará tus últimos registros en formato radar para detectar cambios rápido.
-            </div>
-          </div>
-        )}
-      </TabsContent>
-    </Tabs>
+      {chartData.length === 0 ? (
+        <div className="flex h-52 items-center justify-center text-xs text-muted-foreground">
+          Sin datos suficientes para {meta.label.toLowerCase()}.
+        </div>
+      ) : chartData.length < 3 ? (
+        <Chart
+          definition={cartesianDefinition}
+          height={230}
+          idPrefix={`radar-line-${chartIdPrefix}`}
+          ariaLabel={`Gráfica lineal de ${meta.label}`}
+          className="w-full"
+        />
+      ) : (
+        <Chart
+          definition={polarDefinition}
+          height={250}
+          idPrefix={`radar-polar-${chartIdPrefix}`}
+          ariaLabel={
+            metric === 'balance'
+              ? 'Gráfica radar de composición corporal'
+              : `Gráfica radar de ${meta.label}`
+          }
+          className="w-full"
+        />
+      )}
+    </div>
   )
 }
-

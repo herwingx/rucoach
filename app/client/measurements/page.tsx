@@ -1,7 +1,7 @@
 import { getAuthUser } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Ruler, Scale, Sparkles } from "lucide-react";
+import { CalendarDays, Ruler, Scale, Sparkles } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -24,7 +24,15 @@ type MeasurementRow = {
   weight: number | null;
   waist_cm: number | null;
   body_fat_pct: number | null;
+  hip_cm: number | null;
+  chest_cm: number | null;
+  arm_cm: number | null;
+  thigh_cm: number | null;
 };
+
+function parseRecordedDate(dateStr: string): Date {
+  return new Date(dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`);
+}
 
 export default async function ClientMeasurementsPage() {
   const user = await getAuthUser();
@@ -53,14 +61,43 @@ export default async function ClientMeasurementsPage() {
 
   const measurementsRes = await supabase
     .from("body_measurements")
-    .select("id, recorded_at, weight, waist_cm, body_fat_pct")
+    .select(
+      "id, recorded_at, weight, waist_cm, body_fat_pct, hip_cm, chest_cm, arm_cm, thigh_cm",
+    )
     .eq("client_id", clientRecord.id)
-    .order("recorded_at", { ascending: true })
+    .order("recorded_at", { ascending: false })
     .limit(120);
 
-  const measurements = (measurementsRes.data || []) as MeasurementRow[];
+  const measurements = [
+    ...((measurementsRes.data || []) as MeasurementRow[]),
+  ].reverse();
   const latest =
     measurements.length > 0 ? measurements[measurements.length - 1] : null;
+
+  const findLatestMetric = <K extends keyof MeasurementRow>(key: K) => {
+    for (let i = measurements.length - 1; i >= 0; i--) {
+      const val = measurements[i][key];
+      if (val !== null && val !== undefined) {
+        return { value: val, recorded_at: measurements[i].recorded_at };
+      }
+    }
+    return null;
+  };
+
+  const latestWeight = findLatestMetric("weight");
+  const latestWaist = findLatestMetric("waist_cm");
+  const latestFat = findLatestMetric("body_fat_pct");
+  const latestHip = findLatestMetric("hip_cm");
+  const latestChest = findLatestMetric("chest_cm");
+  const latestArm = findLatestMetric("arm_cm");
+  const latestThigh = findLatestMetric("thigh_cm");
+
+  const hasPerimeters =
+    latestChest !== null ||
+    latestHip !== null ||
+    latestArm !== null ||
+    latestThigh !== null;
+
   const n = measurements.length;
   const measurementsSubtitle =
     n === 0
@@ -74,8 +111,8 @@ export default async function ClientMeasurementsPage() {
       <div
         className={`${CLIENT_DATA_PAGE_SHELL} grid gap-6 lg:grid-cols-12 lg:items-start`}
       >
-        <aside className="flex flex-col gap-6 lg:col-span-4 lg:sticky lg:top-[max(1rem,env(safe-area-inset-top))] lg:self-start">
-          <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 transition-all hover:shadow-lg">
+        <aside className="flex flex-col gap-6 lg:col-span-4 lg:sticky lg:top-[calc(112px+1.5rem)] lg:self-start">
+          <Card className="overflow-hidden rounded-3xl border-border/80 shadow-md ring-1 ring-primary/5 transition-all hover:shadow-lg">
             <CardHeader className="space-y-4 pb-6">
               <div className="flex items-center gap-4">
                 <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 transition-transform hover:scale-105">
@@ -113,14 +150,20 @@ export default async function ClientMeasurementsPage() {
                     </div>
                     <div className="mt-3 flex items-baseline gap-2">
                       <p className="text-4xl font-black tabular-nums tracking-tighter text-foreground">
-                        {latest.weight ?? "—"}<span className="text-lg font-bold text-muted-foreground ml-1">kg</span>
+                        {latestWeight?.value ?? "—"}<span className="text-lg font-bold text-muted-foreground ml-1">kg</span>
                       </p>
                     </div>
-                    <p className="mt-2 text-[11px] font-bold text-muted-foreground/80">
-                      📅 Actualizado el {new Date(latest.recorded_at).toLocaleDateString("es", {
-                        day: "numeric",
-                        month: "long",
-                      })}
+                    <p className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground/80">
+                      <CalendarDays className="size-3.5 text-primary shrink-0" aria-hidden />
+                      <span>
+                        Actualizado el{" "}
+                        {parseRecordedDate(
+                          latestWeight?.recorded_at ?? latest.recorded_at,
+                        ).toLocaleDateString("es", {
+                          day: "numeric",
+                          month: "long",
+                        })}
+                      </span>
                     </p>
                   </div>
 
@@ -130,7 +173,7 @@ export default async function ClientMeasurementsPage() {
                         Cintura
                       </p>
                       <p className="mt-2 text-2xl font-black tabular-nums tracking-tight text-foreground">
-                        {latest.waist_cm ?? "—"}<span className="text-sm font-bold text-muted-foreground ml-1">cm</span>
+                        {latestWaist?.value ?? "—"}<span className="text-sm font-bold text-muted-foreground ml-1">cm</span>
                       </p>
                     </div>
                     <div className="group rounded-2xl border bg-muted/20 p-5 transition-all hover:bg-muted/30">
@@ -138,12 +181,61 @@ export default async function ClientMeasurementsPage() {
                         Grasa %
                       </p>
                       <p className="mt-2 text-2xl font-black tabular-nums tracking-tight text-foreground">
-                        {latest.body_fat_pct != null
-                          ? `${latest.body_fat_pct}%`
+                        {latestFat?.value != null
+                          ? `${latestFat.value}%`
                           : "—"}
                       </p>
                     </div>
                   </div>
+
+                  {hasPerimeters && (
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div className="group rounded-2xl border bg-muted/15 p-4 transition-all hover:bg-muted/25">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
+                          Pecho
+                        </p>
+                        <p className="mt-1.5 text-xl font-black tabular-nums tracking-tight text-foreground">
+                          {latestChest?.value ?? "—"}
+                          <span className="text-xs font-bold text-muted-foreground ml-1">
+                            cm
+                          </span>
+                        </p>
+                      </div>
+                      <div className="group rounded-2xl border bg-muted/15 p-4 transition-all hover:bg-muted/25">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
+                          Cadera
+                        </p>
+                        <p className="mt-1.5 text-xl font-black tabular-nums tracking-tight text-foreground">
+                          {latestHip?.value ?? "—"}
+                          <span className="text-xs font-bold text-muted-foreground ml-1">
+                            cm
+                          </span>
+                        </p>
+                      </div>
+                      <div className="group rounded-2xl border bg-muted/15 p-4 transition-all hover:bg-muted/25">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
+                          Brazo
+                        </p>
+                        <p className="mt-1.5 text-xl font-black tabular-nums tracking-tight text-foreground">
+                          {latestArm?.value ?? "—"}
+                          <span className="text-xs font-bold text-muted-foreground ml-1">
+                            cm
+                          </span>
+                        </p>
+                      </div>
+                      <div className="group rounded-2xl border bg-muted/15 p-4 transition-all hover:bg-muted/25">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
+                          Muslo
+                        </p>
+                        <p className="mt-1.5 text-xl font-black tabular-nums tracking-tight text-foreground">
+                          {latestThigh?.value ?? "—"}
+                          <span className="text-xs font-bold text-muted-foreground ml-1">
+                            cm
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -151,7 +243,7 @@ export default async function ClientMeasurementsPage() {
         </aside>
 
         <section className="min-w-0 lg:col-span-8 space-y-6">
-          <div className="grid gap-6 xl:grid-cols-2 lg:items-start">
+          <div className="grid gap-6">
             <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
               <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
                 <div className="flex items-center gap-3">
@@ -171,6 +263,10 @@ export default async function ClientMeasurementsPage() {
                     weight: m.weight,
                     waist_cm: m.waist_cm,
                     body_fat_pct: m.body_fat_pct,
+                    hip_cm: m.hip_cm,
+                    chest_cm: m.chest_cm,
+                    arm_cm: m.arm_cm,
+                    thigh_cm: m.thigh_cm,
                   }))}
                 />
               </CardContent>
@@ -195,6 +291,10 @@ export default async function ClientMeasurementsPage() {
                     weight: m.weight,
                     waist_cm: m.waist_cm,
                     body_fat_pct: m.body_fat_pct,
+                    hip_cm: m.hip_cm,
+                    chest_cm: m.chest_cm,
+                    arm_cm: m.arm_cm,
+                    thigh_cm: m.thigh_cm,
                   }))}
                 />
               </CardContent>

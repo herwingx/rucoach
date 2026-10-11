@@ -57,8 +57,8 @@ export default async function ClientProgressPage() {
   const clientId = clientRecord.id as string;
 
   const [
-    { data: completedSessions },
-    { data: prRows },
+    { data: completedSessionsDesc },
+    { data: prRowsDesc },
     { data: exerciseLogRows },
   ] = await Promise.all([
     supabase
@@ -66,7 +66,7 @@ export default async function ClientProgressPage() {
       .select("started_at,total_volume_kg,status")
       .eq("client_id", clientId)
       .eq("status", "completed")
-      .order("started_at", { ascending: true })
+      .order("started_at", { ascending: false })
       .limit(60),
     supabase
       .from("pr_events")
@@ -74,19 +74,25 @@ export default async function ClientProgressPage() {
         "achieved_at,weight_kg,reps,exercise_id,exercises(name,name_es,primary_muscle,exercise_type,uses_external_load,equipment)",
       )
       .eq("client_id", clientId)
-      .order("achieved_at", { ascending: true })
+      .order("achieved_at", { ascending: false })
       .limit(250),
     supabase
       .from("exercise_logs")
       .select(
         `exercise_id, exercise_name, weight_kg, reps, is_warmup, workout_session_id,
+           exercises(name, name_es, exercise_type, uses_external_load, equipment),
            workout_sessions!inner(started_at, client_id, status)`,
       )
       .eq("workout_sessions.client_id", clientId)
-      .eq("workout_sessions.status", "completed"),
+      .eq("workout_sessions.status", "completed")
+      .order("workout_session_id", { ascending: false })
+      .limit(1000),
   ]);
 
-  const loadAwarePrRows = (prRows ?? []).filter((r) => {
+  const completedSessions = [...(completedSessionsDesc ?? [])].reverse();
+  const prRows = [...(prRowsDesc ?? [])].reverse();
+
+  const loadAwarePrRows = prRows.filter((r) => {
     const ex =
       r.exercises && !Array.isArray(r.exercises)
         ? (r.exercises as {
@@ -94,7 +100,9 @@ export default async function ClientProgressPage() {
             uses_external_load?: boolean | null;
             equipment?: string | null;
           })
-        : null;
+        : Array.isArray(r.exercises)
+          ? r.exercises[0]
+          : null;
     return exerciseUsesExternalLoad(
       ex?.exercise_type,
       ex?.uses_external_load,
@@ -102,7 +110,25 @@ export default async function ClientProgressPage() {
     );
   });
 
-  const fromLogs = buildExerciseProgressFromLogs(exerciseLogRows);
+  const loadAwareExerciseLogRows = (exerciseLogRows ?? []).filter((r) => {
+    const ex =
+      r.exercises && !Array.isArray(r.exercises)
+        ? (r.exercises as {
+            exercise_type?: string | null;
+            uses_external_load?: boolean | null;
+            equipment?: string | null;
+          })
+        : Array.isArray(r.exercises)
+          ? r.exercises[0]
+          : null;
+    return exerciseUsesExternalLoad(
+      ex?.exercise_type,
+      ex?.uses_external_load,
+      ex?.equipment,
+    );
+  });
+
+  const fromLogs = buildExerciseProgressFromLogs(loadAwareExerciseLogRows);
   const nameById = new Map(fromLogs.nameById);
   const pointsByExerciseId = mergePrEventsIntoPoints(
     fromLogs.pointsByExerciseId,
@@ -148,7 +174,7 @@ export default async function ClientProgressPage() {
       <div
         className={`${CLIENT_DATA_PAGE_SHELL} grid gap-6 lg:grid-cols-12 lg:items-start`}
       >
-        <aside className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-4 lg:sticky lg:top-[max(1rem,env(safe-area-inset-top))] lg:self-start">
+        <aside className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-4 lg:sticky lg:top-[calc(112px+1.5rem)] lg:self-start">
           <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
             <CardHeader className="pb-5 pt-6 px-6">
               <div className="flex items-center gap-4">

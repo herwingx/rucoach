@@ -19,9 +19,10 @@ export default async function WorkoutSummaryPage({
         <ClientStackPageHeader
           title="Resumen del entreno"
           subtitle="No se encontró la sesión"
+          backHref="/client/workouts"
         />
         <div className={CLIENT_DATA_PAGE_SHELL}>
-          <Card>
+          <Card className="rounded-3xl">
             <CardHeader>
               <CardTitle>Falta `sessionId`</CardTitle>
             </CardHeader>
@@ -42,9 +43,10 @@ export default async function WorkoutSummaryPage({
         <ClientStackPageHeader
           title="Resumen del entreno"
           subtitle="No se pudo cargar la sesión"
+          backHref="/client/workouts"
         />
         <div className={CLIENT_DATA_PAGE_SHELL}>
-          <Card>
+          <Card className="rounded-3xl">
             <CardHeader>
               <CardTitle>Error</CardTitle>
             </CardHeader>
@@ -84,7 +86,7 @@ export default async function WorkoutSummaryPage({
       <ClientStackPageHeader
         title="Sesión Finalizada"
         subtitle="¡Gran trabajo! Hemos guardado tu progreso y actualizado tus sugerencias. Revisa los detalles abajo."
-        backHref="/client/dashboard"
+        backHref="/client/workouts"
       />
       <div className={CLIENT_DATA_PAGE_SHELL}>
         <WorkoutSummaryClient
@@ -98,6 +100,7 @@ export default async function WorkoutSummaryPage({
           finishedAt={sessionRow.finished_at}
           initialFeelingNote={sessionRow.feeling_note}
           stats={summary.stats}
+          logs={summary.logs}
         />
       </div>
     </>

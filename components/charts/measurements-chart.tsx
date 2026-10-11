@@ -1,201 +1,320 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import dynamic from 'next/dynamic'
-
-const Area = dynamic(() => import('recharts').then((mod) => mod.Area as any), { ssr: false }) as typeof import('recharts').Area
-const AreaChart = dynamic(() => import('recharts').then((mod) => mod.AreaChart as any), { ssr: false }) as typeof import('recharts').AreaChart
-const CartesianGrid = dynamic(() => import('recharts').then((mod) => mod.CartesianGrid as any), { ssr: false }) as typeof import('recharts').CartesianGrid
-const XAxis = dynamic(() => import('recharts').then((mod) => mod.XAxis as any), { ssr: false }) as typeof import('recharts').XAxis
-const YAxis = dynamic(() => import('recharts').then((mod) => mod.YAxis as any), { ssr: false }) as typeof import('recharts').YAxis
-
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area'
-import { 
-  Scale, 
-  Ruler, 
-  Activity, 
-  TrendingUp, 
-  LayoutGrid,
-  History,
-  Calendar
-} from 'lucide-react'
+import * as React from 'react'
+import { areaY, crosshair, defineChart, dot, lineY } from '@tanstack/charts'
+import { Chart } from '@tanstack/charts/react'
+import { scaleLinear } from '@tanstack/charts/scales/linear'
+import { scalePoint } from '@tanstack/charts/scales/point'
+import { tooltip } from '@tanstack/charts/tooltip'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { Activity, Calendar, History, Ruler, Scale } from 'lucide-react'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import type { MeasurementRow } from './measurements-types'
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from '@/components/ui/chart'
-import { ChartAreaShadowFilter, useChartShadowFilterId } from '@/components/charts/chart-visual-utils'
+  createAreaGradient,
+  monotoneXCurve,
+  ruCoachChartTheme,
+} from '@/components/charts/tanstack-chart-utils'
 
-type MeasurementRow = {
-  recorded_at: string
-  weight?: number | null
-  waist_cm?: number | null
-  body_fat_pct?: number | null
-}
+export type { MeasurementRow }
 
 type Metric = 'weight' | 'waist' | 'fat'
 type ViewMode = 'raw' | 'monthly'
 
-const METRIC_COLORS: Record<Metric, string> = {
-  weight: 'var(--chart-1)',
-  waist: 'var(--chart-2)',
-  fat: 'var(--chart-3)',
+const METRIC_META: Record<
+  Metric,
+  {
+    label: string
+    unit: string
+    color: string
+    icon: typeof Scale
+  }
+> = {
+  weight: {
+    label: 'Peso',
+    unit: 'kg',
+    color: 'var(--chart-1)',
+    icon: Scale,
+  },
+  waist: {
+    label: 'Cintura',
+    unit: 'cm',
+    color: 'var(--chart-2)',
+    icon: Ruler,
+  },
+  fat: {
+    label: '% Grasa',
+    unit: '%',
+    color: 'var(--chart-3)',
+    icon: Activity,
+  },
 }
 
-export function MeasurementsChart({ measurements }: { measurements: MeasurementRow[] }) {
-  const [metric, setMetric] = useState<Metric>('weight')
-  const [viewMode, setViewMode] = useState<ViewMode>('raw')
-  const shadowFilterId = useChartShadowFilterId(`meas-${metric}`)
+type ChartRow = {
+  slot: string
+  label: string
+  value: number
+  count?: number
+  fullDate?: string
+}
 
-  const { chartData, chartConfig, title } = useMemo(() => {
+function extractMetric(row: MeasurementRow, metric: Metric): number | null {
+  const raw =
+    metric === 'weight'
+      ? row.weight
+      : metric === 'waist'
+        ? row.waist_cm
+        : row.body_fat_pct
+  if (raw === null || raw === undefined) return null
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : null
+}
+
+function parseRecordedDate(dateStr: string): Date {
+  return new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`)
+}
+
+export function MeasurementsChart({
+  measurements,
+}: {
+  measurements: MeasurementRow[]
+}) {
+  const [metric, setMetric] = React.useState<Metric>('weight')
+  const [viewMode, setViewMode] = React.useState<ViewMode>('raw')
+  const chartIdPrefix = React.useId().replace(/:/g, '')
+
+  const meta = METRIC_META[metric]
+
+  const chartData = React.useMemo<ChartRow[]>(() => {
     const sorted = [...(measurements || [])].sort(
-      (a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime(),
+      (a, b) =>
+        parseRecordedDate(a.recorded_at).getTime() -
+        parseRecordedDate(b.recorded_at).getTime(),
     )
 
-    const t =
-      metric === 'weight' ? 'Peso' : metric === 'waist' ? 'Cintura' : '% grasa corporal'
+    if (viewMode === 'raw') {
+      return sorted
+        .map((m, idx) => {
+          const val = extractMetric(m, metric)
+          if (val === null) return null
+          const d = parseRecordedDate(m.recorded_at)
+          return {
+            slot: `raw-${idx}`,
+            label: format(d, 'dd MMM', { locale: es }),
+            fullDate: format(d, "d 'de' MMMM yyyy", { locale: es }),
+            value: val,
+          }
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+    }
 
-    const cfg = {
-      value: {
-        label: t,
-        color: METRIC_COLORS[metric],
-      },
-    } satisfies ChartConfig
+    const buckets = new Map<string, { sum: number; n: number }>()
+    for (const m of sorted) {
+      const val = extractMetric(m, metric)
+      if (val === null) continue
+      const d = parseRecordedDate(m.recorded_at)
+      const ym = format(d, 'yyyy-MM')
+      const cur = buckets.get(ym) ?? { sum: 0, n: 0 }
+      cur.sum += val
+      cur.n += 1
+      buckets.set(ym, cur)
+    }
 
-    const rawRows = sorted
-      .map((m) => {
-        const date = new Date(m.recorded_at).toLocaleDateString()
-        const raw =
-          metric === 'weight' ? m.weight : metric === 'waist' ? m.waist_cm : m.body_fat_pct
-        const value = typeof raw === 'number' ? raw : null
-        return { date, value }
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([ym, { sum, n }], idx) => {
+        const [y, m] = ym.split('-').map(Number)
+        const d = new Date(y, (m || 1) - 1, 1)
+        return {
+          slot: `m-${idx}-${ym}`,
+          label: format(d, 'MMM yy', { locale: es }),
+          fullDate: format(d, 'MMMM yyyy', { locale: es }),
+          value: Math.round((sum / n) * 10) / 10,
+          count: n,
+        }
       })
-      .filter((r) => r.value != null && typeof r.value === 'number')
-
-    const rows =
-      viewMode === 'monthly'
-        ? (() => {
-            const monthMap = new Map<string, { sum: number; count: number; date: Date }>()
-            for (const m of sorted) {
-              const raw =
-                metric === 'weight' ? m.weight : metric === 'waist' ? m.waist_cm : m.body_fat_pct
-              const n = typeof raw === 'number' ? raw : null
-              if (n == null || !Number.isFinite(n)) continue
-              const d = new Date(m.recorded_at)
-              if (Number.isNaN(d.getTime())) continue
-              const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-              const prev = monthMap.get(key)
-              if (prev) {
-                monthMap.set(key, { ...prev, sum: prev.sum + n, count: prev.count + 1 })
-              } else {
-                monthMap.set(key, { sum: n, count: 1, date: d })
-              }
-            }
-            return Array.from(monthMap.values())
-              .sort((a, b) => a.date.getTime() - b.date.getTime())
-              .map((row) => ({
-                // Mes + año numérico (p. ej. "mar 2026"). Evita confundir con "día 26".
-                date: row.date.toLocaleDateString('es', { month: 'short', year: 'numeric' }),
-                value: row.sum / row.count,
-              }))
-          })()
-        : rawRows
-
-    return { chartData: rows, chartConfig: cfg, title: t }
   }, [measurements, metric, viewMode])
 
+  const labelBySlot = React.useMemo(() => {
+    const map = new Map<string, string>()
+    for (const row of chartData) map.set(row.slot, row.label)
+    return map
+  }, [chartData])
+
+  const definition = React.useMemo(() => {
+    const values = chartData.map((d) => d.value)
+    const minVal = values.length > 0 ? Math.min(...values) : 0
+    const maxVal = values.length > 0 ? Math.max(...values) : 100
+    const pad = Math.max(1, (maxVal - minVal) * 0.2)
+    const lowerBound = Math.max(0, Math.floor((minVal - pad) * 10) / 10)
+    const upperBound = Math.ceil((maxVal + pad) * 10) / 10
+
+    return defineChart({
+      marks: [
+        areaY(chartData, {
+          x: 'slot',
+          y2: 'value',
+          y1: lowerBound,
+          key: 'slot',
+          curve: monotoneXCurve,
+          fill: 'url(#meas-area-grad)',
+          fillOpacity: 1,
+        }),
+        lineY(chartData, {
+          x: 'slot',
+          y: 'value',
+          key: 'slot',
+          curve: monotoneXCurve,
+          stroke: meta.color,
+          strokeWidth: 2.5,
+        }),
+        dot(chartData, {
+          x: 'slot',
+          y: 'value',
+          key: 'slot',
+          r: 4,
+          fill: meta.color,
+          stroke: 'var(--background)',
+          strokeWidth: 1.5,
+        }),
+        crosshair({
+          x: true,
+          y: false,
+          stroke: meta.color,
+          strokeOpacity: 0.35,
+          strokeDasharray: '4 4',
+        }),
+      ],
+      scales: {
+        x: {
+          scale: () => scalePoint<string>().padding(0.25),
+          axis: {
+            line: false,
+            ticks: {
+              line: false,
+              padding: 8,
+              format: (val) => labelBySlot.get(String(val)) ?? String(val),
+            },
+            tickLabels: {
+              fontSize: 11,
+              thin: { minGap: 28 },
+            },
+          },
+        },
+        y: {
+          scale: scaleLinear().domain([lowerBound, upperBound]),
+          nice: true,
+          grid: {
+            strokeDasharray: '3 3',
+            strokeOpacity: 0.45,
+          },
+          axis: {
+            line: false,
+            ticks: {
+              line: false,
+              count: 4,
+              format: (v) =>
+                `${Number(v).toFixed(meta.unit === '%' ? 1 : 0)}${meta.unit}`,
+            },
+            tickLabels: { fontSize: 11 },
+          },
+        },
+      },
+      gradients: [
+        createAreaGradient('meas-area-grad', meta.color, 0.38, 0.02),
+      ],
+      margin: { top: 12, right: 14, bottom: 28, left: 42 },
+      theme: ruCoachChartTheme,
+      focus: 'nearest-x',
+      maxFocusDistance: Number.POSITIVE_INFINITY,
+      svgAnimation: true,
+      tooltip: {
+        use: tooltip,
+        content: (pts) => {
+          const pt = pts[0]
+          const d = pt?.datum
+          const rows = [
+            {
+              label: meta.label,
+              value: `${d?.value ?? '—'} ${meta.unit}`,
+              color: meta.color,
+              active: true,
+            },
+          ]
+          if (viewMode === 'monthly' && d?.count && d.count > 1) {
+            rows.push({
+              label: 'Promedio de',
+              value: `${d.count} mediciones`,
+              color: 'var(--muted-foreground)',
+              active: false,
+            })
+          }
+          return {
+            title: d?.fullDate ?? d?.label ?? '',
+            rows,
+          }
+        },
+      },
+    })
+  }, [chartData, labelBySlot, meta.color, meta.label, meta.unit, viewMode])
+
   return (
-    <Tabs value={metric} onValueChange={(v) => setMetric(v as Metric)}>
-      <ScrollArea className="w-full whitespace-nowrap">
-        <TabsList className="inline-flex w-auto bg-muted/50 p-1 h-11 rounded-xl border border-border/40 shadow-sm">
-          <TabsTrigger value="weight" className="rounded-lg px-3 py-1.5 data-[state=active]:shadow-sm gap-2 text-xs">
-            <Scale className="size-3.5" />
-            Peso
-          </TabsTrigger>
-          <TabsTrigger value="waist" className="rounded-lg px-3 py-1.5 data-[state=active]:shadow-sm gap-2 text-xs">
-            <Ruler className="size-3.5" />
-            Cintura
-          </TabsTrigger>
-          <TabsTrigger value="fat" className="rounded-lg px-3 py-1.5 data-[state=active]:shadow-sm gap-2 text-xs">
-            <Activity className="size-3.5" />
-            Grasa %
-          </TabsTrigger>
-        </TabsList>
-        <ScrollBar orientation="horizontal" className="invisible" />
-      </ScrollArea>
-
-
-      <TabsContent value={metric} className="pt-4">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="text-sm text-muted-foreground">{title}</div>
-            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-              <TabsList className="inline-flex w-auto bg-muted/50 p-1 h-9 rounded-lg border border-border/40 shadow-sm">
-                <TabsTrigger value="monthly" className="rounded-md px-2.5 py-1 data-[state=active]:shadow-sm gap-2 text-xs">
-                  <Calendar className="size-3" />
-                  Mensual
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2.5 items-center justify-between">
+        <Tabs
+          value={metric}
+          onValueChange={(v) => setMetric(v as Metric)}
+          className="w-full sm:w-auto"
+        >
+          <TabsList className="grid h-9 w-full grid-cols-3 rounded-xl p-1 sm:w-[270px]">
+            {(Object.keys(METRIC_META) as Metric[]).map((key) => {
+              const Icon = METRIC_META[key].icon
+              return (
+                <TabsTrigger
+                  key={key}
+                  value={key}
+                  className="gap-1.5 rounded-lg text-xs"
+                >
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
+                  {METRIC_META[key].label}
                 </TabsTrigger>
-                <TabsTrigger value="raw" className="rounded-md px-2.5 py-1 data-[state=active]:shadow-sm gap-2 text-xs">
-                  <History className="size-3" />
-                  Registro real
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+              )
+            })}
+          </TabsList>
+        </Tabs>
 
-          </div>
-          <ChartContainer config={chartConfig} className="aspect-auto h-72 w-full min-h-72">
-            <AreaChart
-              accessibilityLayer
-              data={chartData}
-              margin={{ left: 12, right: 12, top: 8, bottom: 0 }}
-            >
-              <defs>
-                <ChartAreaShadowFilter id={shadowFilterId} />
-              </defs>
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="date"
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                minTickGap={24}
-              />
-              <YAxis tickLine={false} axisLine={false} tickMargin={8} width={48} />
-              <ChartTooltip
-                cursor={false}
-                content={
-                  <ChartTooltipContent
-                    indicator="dot"
-                    formatter={(value) => {
-                      const u =
-                        metric === 'weight' ? 'kg' : metric === 'waist' ? 'cm' : '%'
-                      const n = typeof value === 'number' ? value : Number(value)
-                      const safe = Number.isFinite(n) ? n : 0
-                      return (
-                        <span className="text-foreground font-mono font-medium tabular-nums">
-                          {safe.toFixed(1)} {u}
-                        </span>
-                      )
-                    }}
-                  />
-                }
-              />
-              <Area
-                name={title}
-                type="linear"
-                dataKey="value"
-                fill="var(--color-value)"
-                fillOpacity={0.4}
-                stroke="var(--color-value)"
-                strokeWidth={2}
-                style={{ filter: `url(#${shadowFilterId})` }}
-              />
-            </AreaChart>
-          </ChartContainer>
+        <Tabs
+          value={viewMode}
+          onValueChange={(v) => setViewMode(v as ViewMode)}
+          className="w-full sm:w-auto"
+        >
+          <TabsList className="grid h-9 w-full grid-cols-2 rounded-xl p-1 sm:w-[200px]">
+            <TabsTrigger value="raw" className="gap-1.5 rounded-lg text-xs">
+              <History className="h-3.5 w-3.5 shrink-0" />
+              Registros
+            </TabsTrigger>
+            <TabsTrigger value="monthly" className="gap-1.5 rounded-lg text-xs">
+              <Calendar className="h-3.5 w-3.5 shrink-0" />
+              Mensual
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {chartData.length === 0 ? (
+        <div className="flex h-52 items-center justify-center text-xs text-muted-foreground">
+          Sin datos registrados para {meta.label.toLowerCase()}.
         </div>
-      </TabsContent>
-    </Tabs>
+      ) : (
+        <Chart
+          definition={definition}
+          height={240}
+          idPrefix={`meas-${chartIdPrefix}`}
+          ariaLabel={`Gráfica de evolución de ${meta.label}`}
+          className="w-full"
+        />
+      )}
+    </div>
   )
 }

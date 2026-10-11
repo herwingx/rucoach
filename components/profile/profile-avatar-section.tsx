@@ -79,7 +79,7 @@ export function ProfileAvatarSection({
   }
 
   return (
-    <Card>
+    <Card className="rounded-3xl border-border/80 shadow-md ring-1 ring-primary/5">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
       </CardHeader>

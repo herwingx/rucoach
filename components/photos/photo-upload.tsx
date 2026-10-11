@@ -111,6 +111,9 @@ export function PhotoUpload({
 
       const publicUrl = `${R2_PUBLIC_URL}/${path}`
 
+      const now = new Date()
+      const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
       const { data: row, error: insertError } = await supabase
         .from('progress_photos')
         .insert({
@@ -119,7 +122,7 @@ export function PhotoUpload({
           view_type: viewType,
           weight_kg: weightKg ? parseFloat(weightKg) : null,
           notes: notes || null,
-          taken_at: new Date().toISOString().slice(0, 10),
+          taken_at: localToday,
         })
         .select()
         .single()
@@ -178,7 +181,7 @@ export function PhotoUpload({
                   fill
                   className="object-contain rounded-2xl"
                 />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                <div className="absolute inset-0 bg-black/40 opacity-100 sm:opacity-0 sm:group-hover/preview:opacity-100 transition-opacity flex items-center justify-center gap-3">
                   <Button
                     type="button"
                     variant="secondary"

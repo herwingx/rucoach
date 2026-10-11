@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { format, subDays } from 'date-fns'
+import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Calendar as CalendarIcon } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
@@ -61,7 +61,7 @@ export function WorkoutsHistoryDateRangePicker({
             id="date"
             variant={'outline'}
             className={cn(
-              'w-full sm:w-[300px] justify-start text-left font-normal',
+              'w-full sm:w-[300px] justify-start rounded-xl text-left font-normal',
               !date && 'text-muted-foreground'
             )}
           >

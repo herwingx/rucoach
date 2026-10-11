@@ -15,7 +15,7 @@ export default function Loading() {
       >
         <div className="grid gap-6 lg:grid-cols-12 lg:items-start">
           <section className="flex flex-col gap-6 lg:col-span-7">
-            <Card className="overflow-hidden border-border/80 shadow-sm ring-1 ring-primary/5">
+            <Card className="overflow-hidden rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
               <CardHeader className="pb-2">
                 <Skeleton className="h-3 w-24" />
                 <Skeleton className="mt-2 h-7 w-[min(100%,18rem)]" />
@@ -47,8 +47,8 @@ export default function Loading() {
             </div>
           </section>
 
-          <aside className="flex flex-col gap-6 lg:sticky lg:top-[max(1rem,env(safe-area-inset-top))] lg:col-span-5 lg:self-start">
-            <Card className="overflow-hidden border-border/80 shadow-sm ring-1 ring-primary/5">
+          <aside className="flex flex-col gap-6 lg:sticky lg:top-[calc(112px+1.5rem)] lg:col-span-5 lg:self-start">
+            <Card className="overflow-hidden rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
               <CardHeader className="pb-3">
                 <Skeleton className="h-5 w-36" />
                 <Skeleton className="mt-1 h-3 w-full max-w-xs" />
@@ -59,7 +59,7 @@ export default function Loading() {
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden border-border/80 shadow-sm ring-1 ring-primary/5">
+            <Card className="overflow-hidden rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
               <CardHeader className="pb-3">
                 <Skeleton className="h-5 w-32" />
                 <Skeleton className="mt-1 h-3 w-full max-w-sm" />

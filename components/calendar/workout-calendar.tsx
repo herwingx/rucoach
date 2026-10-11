@@ -118,26 +118,26 @@ export function WorkoutCalendar({
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_minmax(280px,340px)]">
-      <Card className="overflow-hidden border-border/80 shadow-sm ring-1 ring-primary/5">
-        <CardHeader className="gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="overflow-hidden rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
+        <CardHeader className="flex flex-row items-center justify-between gap-3 pb-3 space-y-0">
           <div>
             <CardTitle className="text-base sm:text-lg">Calendario</CardTitle>
             <p className="mt-0.5 text-sm text-muted-foreground capitalize">{label}</p>
           </div>
-          <div className="flex items-center gap-1 sm:shrink-0">
-            <Button variant="outline" size="icon" className="size-10 rounded-lg" asChild>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button variant="outline" size="icon" className="size-10 rounded-xl" asChild>
               <Link href={prevMonthHref} aria-label="Mes anterior" prefetch>
                 <ChevronLeft className="size-4" aria-hidden />
               </Link>
             </Button>
-            <Button variant="outline" size="icon" className="size-10 rounded-lg" asChild>
+            <Button variant="outline" size="icon" className="size-10 rounded-xl" asChild>
               <Link href={nextMonthHref} aria-label="Mes siguiente" prefetch>
                 <ChevronRight className="size-4" aria-hidden />
               </Link>
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+        <CardContent className="flex flex-col gap-4 px-3 sm:px-6">
           <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
             {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((d) => (
               <div key={d} className="text-center text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
@@ -198,11 +198,11 @@ export function WorkoutCalendar({
       </Card>
 
       <div className="flex flex-col gap-5">
-        <Card className="overflow-hidden border-border/80 shadow-sm ring-1 ring-primary/5">
+        <Card className="overflow-hidden rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
           <CardHeader className="pb-3">
             <CardTitle className="text-base sm:text-lg">Detalle del día</CardTitle>
             <p className="text-xs text-muted-foreground sm:text-sm">
-              Mismo criterio de fecha que la cuadrícula (zona horaria local).
+              Resumen de tus sesiones completadas en la fecha seleccionada.
             </p>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -233,10 +233,11 @@ export function WorkoutCalendar({
                     </div>
 
                     <div className="rounded-2xl border border-border/40 bg-card p-5 shadow-sm ring-1 ring-primary/5">
-                      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1">
+                      <div className="flex items-baseline justify-between gap-2">
                         <span className="text-sm font-medium text-muted-foreground">Volumen total levantado</span>
-                        <span className="text-3xl font-black tabular-nums tracking-tight text-foreground">
-                          {Math.round(selectedInfo.totalVolumeKg).toLocaleString('es-ES')} <span className="text-lg text-muted-foreground font-semibold">kg</span>
+                        <span className="whitespace-nowrap text-2xl sm:text-3xl font-black tabular-nums tracking-tight text-foreground">
+                          {Math.round(selectedInfo.totalVolumeKg).toLocaleString('es-MX')}{' '}
+                          <span className="text-base sm:text-lg text-muted-foreground font-semibold">kg</span>
                         </span>
                       </div>
                       {monthStats.maxDayVolumeKg > 0 ? (
@@ -257,7 +258,7 @@ export function WorkoutCalendar({
                           <span className="font-medium">Promedio por sesión</span>
                           <span className="tabular-nums font-bold text-foreground text-sm bg-background px-2 py-0.5 rounded-md shadow-sm border">
                             {monthStats.sessionCount > 0
-                              ? `${Math.round(monthStats.avgVolumePerSession).toLocaleString('es-ES')} kg`
+                              ? `${Math.round(monthStats.avgVolumePerSession).toLocaleString('es-MX')} kg`
                               : '—'}
                           </span>
                         </li>
@@ -270,7 +271,7 @@ export function WorkoutCalendar({
                         <li className="flex justify-between items-center gap-2">
                           <span className="font-medium">Volumen acumulado</span>
                           <span className="tabular-nums font-bold text-foreground text-sm bg-background px-2 py-0.5 rounded-md shadow-sm border">
-                            {Math.round(monthStats.totalVolumeKg).toLocaleString('es-ES')} kg
+                            {Math.round(monthStats.totalVolumeKg).toLocaleString('es-MX')} kg
                           </span>
                         </li>
                       </ul>

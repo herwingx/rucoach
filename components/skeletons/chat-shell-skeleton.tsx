@@ -48,7 +48,7 @@ function InboxAsideSkeleton() {
  * Matches the real ThreadPane component header structure:
  * sticky header with container + leading icon + avatar + peer info.
  */
-function ThreadPaneSkeleton({ role }: { role: 'admin' | 'client' }) {
+function ThreadPaneSkeleton({ role: _role }: { role: 'admin' | 'client' }) {
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-busy="true" aria-label="Cargando chat">
       {/* Thread header — matches consistent app header */}

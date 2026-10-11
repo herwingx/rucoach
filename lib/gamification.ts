@@ -3,7 +3,6 @@ import { getAchievementsEarlyWorkoutTimezone } from '@/lib/constants'
 import { longestConsecutiveMonthStreak } from '@/lib/achievement-month-streak'
 import { liftBenchmarkKind } from '@/lib/achievement-rules'
 import {
-  normalizeAchievementFromDb,
   normalizeAchievementList,
   normalizeRequirementValue,
   normalizeUserAchievementsRows,
@@ -371,6 +370,34 @@ export async function awardXP(
   }
 }
 
+function datePartsInTz(
+  d: Date,
+  timeZone: string,
+): { y: number; m: number; day: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d)
+  const y = Number(parts.find((p) => p.type === 'year')?.value ?? 1970)
+  const m = Number(parts.find((p) => p.type === 'month')?.value ?? 1)
+  const day = Number(parts.find((p) => p.type === 'day')?.value ?? 1)
+  return { y, m, day }
+}
+
+function calendarDaysBetweenInTz(
+  earlier: Date,
+  later: Date,
+  timeZone = 'America/Mexico_City',
+): number {
+  const a = datePartsInTz(earlier, timeZone)
+  const b = datePartsInTz(later, timeZone)
+  const utcA = Date.UTC(a.y, a.m - 1, a.day)
+  const utcB = Date.UTC(b.y, b.m - 1, b.day)
+  return Math.round((utcB - utcA) / (1000 * 60 * 60 * 24))
+}
+
 // Update streak
 export async function updateStreak(userId: string): Promise<{ streakDays: number; streakBroken: boolean }> {
   const supabase = await createClient()
@@ -388,11 +415,15 @@ export async function updateStreak(userId: string): Promise<{ streakDays: number
   let newStreak = 1
   let streakBroken = false
 
-  if (lastWorkout) {
-    const daysSinceLastWorkout = Math.floor((now.getTime() - lastWorkout.getTime()) / (1000 * 60 * 60 * 24))
+  if (lastWorkout && !Number.isNaN(lastWorkout.getTime())) {
+    const daysSinceLastWorkout = calendarDaysBetweenInTz(
+      lastWorkout,
+      now,
+      'America/Mexico_City',
+    )
 
-    if (daysSinceLastWorkout === 0) {
-      newStreak = currentStreak
+    if (daysSinceLastWorkout <= 0) {
+      newStreak = Math.max(1, currentStreak)
     } else if (daysSinceLastWorkout === 1) {
       newStreak = currentStreak + 1
     } else {
@@ -442,24 +473,28 @@ async function buildAchievementMetrics(userId: string): Promise<ClientAchievemen
 export async function checkAchievements(userId: string): Promise<Achievement[]> {
   const supabase = await createClient()
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('streak_days, xp_points')
-    .eq('id', userId)
-    .single()
-
-  const { data: client } = await supabase
-    .from('clients')
-    .select('id, total_sessions')
-    .eq('user_id', userId)
-    .single()
-
-  const { data: rawAchievements } = await supabase.from('achievements').select('*')
-
-  const { data: unlockedAchievements } = await supabase
-    .from('user_achievements')
-    .select('achievement_id')
-    .eq('user_id', userId)
+  const [
+    { data: profile },
+    { data: client },
+    { data: rawAchievements },
+    { data: unlockedAchievements },
+  ] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('streak_days, xp_points')
+      .eq('id', userId)
+      .single(),
+    supabase
+      .from('clients')
+      .select('id, total_sessions')
+      .eq('user_id', userId)
+      .single(),
+    supabase.from('achievements').select('*'),
+    supabase
+      .from('user_achievements')
+      .select('achievement_id')
+      .eq('user_id', userId),
+  ])
 
   const unlockedIds = new Set(unlockedAchievements?.map((ua) => ua.achievement_id) || [])
   const newlyUnlocked: Achievement[] = []
@@ -512,17 +547,23 @@ export async function getUserAchievements(userId: string): Promise<{
 }> {
   const supabase = await createClient()
 
-  const { data: rawAll } = await supabase.from('achievements').select('*').order('xp_reward', { ascending: true })
+  try {
+    await checkAchievements(userId)
+  } catch (err) {
+    console.warn('[getUserAchievements] checkAchievements failed:', err)
+  }
 
-  const { data: rawUserRows } = await supabase
-    .from('user_achievements')
-    .select('*, achievements(*)')
-    .eq('user_id', userId)
+  const [{ data: rawAll }, { data: rawUserRows }, metrics] = await Promise.all([
+    supabase.from('achievements').select('*').order('xp_reward', { ascending: true }),
+    supabase
+      .from('user_achievements')
+      .select('*, achievements(*)')
+      .eq('user_id', userId),
+    buildAchievementMetrics(userId),
+  ])
 
   const allAchievements = normalizeAchievementList(rawAll)
   const userAchievements = normalizeUserAchievementsRows(rawUserRows as UserAchievement[] | null)
-
-  const metrics = await buildAchievementMetrics(userId)
 
   const unlockedIds = new Set(userAchievements.map((ua) => ua.achievement_id))
   const progress = new Map<string, number>()

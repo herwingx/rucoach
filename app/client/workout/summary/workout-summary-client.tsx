@@ -54,6 +54,21 @@ function writeAutoApplyPref(value: boolean) {
 
 type ProgressionPhase = "applying" | "done" | "error" | "manual" | "no_day";
 
+export interface SummaryExerciseLog {
+  exercise_id: string | null;
+  exercise_name?: string | null;
+  set_number: number | null;
+  weight_kg: number | null;
+  reps: number | null;
+  rpe?: number | null;
+  is_warmup?: boolean | null;
+  is_pr?: boolean | null;
+  exercises?:
+    | { name?: string | null; name_es?: string | null }
+    | { name?: string | null; name_es?: string | null }[]
+    | null;
+}
+
 export function WorkoutSummaryClient({
   sessionId,
   clientId,
@@ -65,6 +80,7 @@ export function WorkoutSummaryClient({
   finishedAt,
   initialFeelingNote,
   stats,
+  logs = [],
 }: {
   sessionId: string;
   clientId: string;
@@ -76,10 +92,22 @@ export function WorkoutSummaryClient({
   finishedAt: string | null;
   initialFeelingNote: string | null;
   stats: { totalSets: number; prsCount: number; totalVolume: number };
+  logs?: SummaryExerciseLog[];
 }) {
+  const isRecentSession = useMemo(() => {
+    if (!finishedAt) return false;
+    const diffMs = Date.now() - new Date(finishedAt).getTime();
+    return (
+      Number.isFinite(diffMs) && diffMs >= -60_000 && diffMs < 30 * 60 * 1000
+    );
+  }, [finishedAt]);
+
   const [autoApplyAfterSessions, setAutoApplyAfterSessions] = useState(true);
   const [progressionPhase, setProgressionPhase] = useState<ProgressionPhase>(
-    () => (routineDayId ? "applying" : "no_day"),
+    () => {
+      if (!routineDayId) return "no_day";
+      return isRecentSession ? "applying" : "done";
+    },
   );
   const [progressionError, setProgressionError] = useState<string | null>(null);
   const [isApplyingManual, setIsApplyingManual] = useState(false);
@@ -87,6 +115,47 @@ export function WorkoutSummaryClient({
 
   const [note, setNote] = useState(initialFeelingNote ?? "");
   const [isSavingNote, setIsSavingNote] = useState(false);
+
+  const groupedLogs = useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        key: string;
+        name: string;
+        sets: SummaryExerciseLog[];
+      }
+    >();
+
+    for (const log of logs) {
+      const key = log.exercise_id || log.exercise_name || "unknown";
+      const exRel = Array.isArray(log.exercises)
+        ? log.exercises[0]
+        : log.exercises;
+      const displayName =
+        exRel?.name_es ||
+        log.exercise_name ||
+        exRel?.name ||
+        "Ejercicio";
+
+      const existing = groups.get(key);
+      if (existing) {
+        existing.sets.push(log);
+      } else {
+        groups.set(key, {
+          key,
+          name: displayName,
+          sets: [log],
+        });
+      }
+    }
+
+    return Array.from(groups.values()).map((g) => ({
+      ...g,
+      sets: [...g.sets].sort(
+        (a, b) => Number(a.set_number ?? 0) - Number(b.set_number ?? 0),
+      ),
+    }));
+  }, [logs]);
 
   const volumeKg = useMemo(() => {
     if (totalVolumeKg != null && totalVolumeKg > 0)
@@ -148,6 +217,12 @@ export function WorkoutSummaryClient({
 
     if (ranAutoRef.current) return;
 
+    if (!isRecentSession) {
+      setProgressionPhase("done");
+      ranAutoRef.current = true;
+      return;
+    }
+
     try {
       if (sessionStorage.getItem(getAppliedStorageKey(sessionId))) {
         setProgressionPhase("done");
@@ -178,7 +253,7 @@ export function WorkoutSummaryClient({
         });
       }
     })();
-  }, [routineDayId, sessionId, runProgression]);
+  }, [routineDayId, sessionId, isRecentSession, runProgression]);
 
   const onAutoPrefChange = (checked: boolean) => {
     setAutoApplyAfterSessions(checked);
@@ -249,7 +324,6 @@ export function WorkoutSummaryClient({
   };
 
   const titleRoutine = routineName || "Tu rutina";
-  const subtitleDay = dayName ? `· ${dayName}` : null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -358,6 +432,102 @@ export function WorkoutSummaryClient({
             </CardContent>
           </Card>
 
+          {/* Exercise & Set Breakdown Card */}
+          <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/50 transition-all hover:bg-card">
+            <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                    <Layers className="size-5 text-primary" aria-hidden />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-bold tracking-tight">
+                      Desglose de Ejercicios y Series
+                    </CardTitle>
+                    <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+                      {groupedLogs.length}{" "}
+                      {groupedLogs.length === 1 ? "ejercicio" : "ejercicios"} ·{" "}
+                      {stats.totalSets}{" "}
+                      {stats.totalSets === 1 ? "serie" : "series"}
+                    </CardDescription>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 p-6">
+              {groupedLogs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No se encontraron series registradas para esta sesión.
+                </p>
+              ) : (
+                groupedLogs.map((group, idx) => (
+                  <div
+                    key={group.key}
+                    className="flex flex-col gap-3 rounded-2xl border border-border/50 bg-background/60 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-black text-primary tabular-nums">
+                          {idx + 1}
+                        </span>
+                        <h4 className="truncate text-sm font-black capitalize tracking-tight text-foreground">
+                          {group.name}
+                        </h4>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className="shrink-0 text-[10px] font-bold uppercase tracking-wider"
+                      >
+                        {group.sets.length}{" "}
+                        {group.sets.length === 1 ? "serie" : "series"}
+                      </Badge>
+                    </div>
+
+                    <div className="divide-y divide-border/40 rounded-xl border border-border/40 bg-card/50">
+                      {group.sets.map((s, sIdx) => {
+                        const w = Number(s.weight_kg ?? 0);
+                        const r = Number(s.reps ?? 0);
+                        return (
+                          <div
+                            key={`${group.key}-${s.set_number ?? sIdx}`}
+                            className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5 text-sm"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground tabular-nums">
+                                Serie {s.set_number ?? sIdx + 1}
+                              </span>
+                              {s.is_warmup && (
+                                <Badge
+                                  variant="outline"
+                                  className="h-5 px-1.5 text-[9px] font-bold uppercase tracking-wider border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                >
+                                  Calentamiento
+                                </Badge>
+                              )}
+                              {s.is_pr && (
+                                <Badge className="h-5 px-1.5 text-[9px] font-black uppercase tracking-wider bg-primary/15 text-primary border-none">
+                                  <Trophy className="mr-1 size-3" />
+                                  PR
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 font-black tabular-nums text-foreground">
+                              <span>
+                                {w > 0 ? `${w} kg` : "Peso corporal"}
+                              </span>
+                              <span className="text-muted-foreground/40">×</span>
+                              <span>{r} reps</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
           <div className="flex flex-col gap-4 sm:flex-row">
             <Button asChild className="h-12 flex-1 font-bold rounded-2xl shadow-sm transition-all active:scale-[0.98]">
               <Link href="/client/dashboard">Volver al inicio</Link>
@@ -372,7 +542,7 @@ export function WorkoutSummaryClient({
           </div>
         </section>
 
-        <aside className="flex flex-col gap-6 lg:sticky lg:top-[max(1rem,env(safe-area-inset-top))] lg:col-span-5 lg:self-start">
+        <aside className="flex flex-col gap-6 lg:sticky lg:top-[calc(112px+1.5rem)] lg:col-span-5 lg:self-start">
           {/* Performance Card */}
           <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/50 transition-all hover:bg-card">
             <CardHeader className="pb-4 pt-6 px-6">
@@ -442,9 +612,9 @@ export function WorkoutSummaryClient({
               {progressionPhase === "done" && (
                 <div className="flex flex-col gap-4">
                   <div className="flex items-start gap-4 rounded-2xl border border-green-500/20 bg-green-500/5 px-4 py-4 shadow-sm shadow-green-500/5">
-                    <CheckCircle2 className="size-6 shrink-0 text-green-600" aria-hidden />
+                    <CheckCircle2 className="size-6 shrink-0 text-green-600 dark:text-green-400" aria-hidden />
                     <div className="min-w-0">
-                      <p className="text-sm font-black uppercase tracking-widest text-green-700 leading-tight">
+                      <p className="text-sm font-black uppercase tracking-widest text-green-700 dark:text-green-300 leading-tight">
                         Sistema Actualizado
                       </p>
                       <p className="mt-2 text-xs font-medium text-muted-foreground leading-relaxed">

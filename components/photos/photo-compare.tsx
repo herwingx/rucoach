@@ -21,19 +21,25 @@ interface PhotoCompareProps {
   photos: ProgressPhoto[]
 }
 
+function parseTakenDate(dateStr: string): Date {
+  return new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`)
+}
+
 export function PhotoCompare({ photos }: PhotoCompareProps) {
   const [beforeId, setBeforeId] = React.useState<string | null>(null)
   const [afterId, setAfterId] = React.useState<string | null>(null)
 
   const sortedPhotos = React.useMemo(() => {
     return [...photos].sort(
-      (a, b) => new Date(a.taken_at).getTime() - new Date(b.taken_at).getTime()
+      (a, b) =>
+        parseTakenDate(a.taken_at).getTime() -
+        parseTakenDate(b.taken_at).getTime()
     )
   }, [photos])
 
   const availableMonths = React.useMemo(() => {
     const m = new Set<string>()
-    sortedPhotos.forEach(p => m.add(format(new Date(p.taken_at), 'yyyy-MM')))
+    sortedPhotos.forEach(p => m.add(format(parseTakenDate(p.taken_at), 'yyyy-MM')))
     return Array.from(m).sort().reverse()
   }, [sortedPhotos])
 
@@ -43,13 +49,18 @@ export function PhotoCompare({ photos }: PhotoCompareProps) {
   const before = photos.find((p) => p.id === beforeId)
   const after = photos.find((p) => p.id === afterId)
 
-  // Auto-select first and last if not set
+  // Auto-select first and last if not set or if selected photo was deleted
   React.useEffect(() => {
-    if (photos.length >= 2 && !beforeId && !afterId) {
+    if (sortedPhotos.length < 2) return
+    const hasBefore = beforeId && sortedPhotos.some((p) => p.id === beforeId)
+    const hasAfter = afterId && sortedPhotos.some((p) => p.id === afterId)
+    if (!hasBefore) {
       setBeforeId(sortedPhotos[0].id)
+    }
+    if (!hasAfter) {
       setAfterId(sortedPhotos[sortedPhotos.length - 1].id)
     }
-  }, [photos, sortedPhotos, beforeId, afterId])
+  }, [sortedPhotos, beforeId, afterId])
 
   if (photos.length < 2) {
     return (
@@ -74,7 +85,9 @@ export function PhotoCompare({ photos }: PhotoCompareProps) {
   ) => {
     const filtered = monthFilter === 'all' 
       ? sortedPhotos 
-      : sortedPhotos.filter(p => format(new Date(p.taken_at), 'yyyy-MM') === monthFilter)
+      : sortedPhotos.filter(p => format(parseTakenDate(p.taken_at), 'yyyy-MM') === monthFilter)
+
+    const currentPhoto = currentId ? photos.find(p => p.id === currentId) : null
 
     return (
       <div className="space-y-3">
@@ -83,9 +96,9 @@ export function PhotoCompare({ photos }: PhotoCompareProps) {
             <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">
               {label}
             </span>
-            {currentId && (
+            {currentPhoto && (
               <span className="text-xs font-semibold text-primary">
-                {format(new Date(photos.find(p => p.id === currentId)?.taken_at || ''), "d MMM, yyyy", { locale: es })}
+                {format(parseTakenDate(currentPhoto.taken_at), "d MMM, yyyy", { locale: es })}
               </span>
             )}
           </div>
@@ -134,7 +147,7 @@ export function PhotoCompare({ photos }: PhotoCompareProps) {
                     sizes="80px"
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-1.5 pt-4 text-[9px] font-bold text-white text-center">
-                    {format(new Date(photo.taken_at), 'dd/MM/yy')}
+                    {format(parseTakenDate(photo.taken_at), 'dd/MM/yy')}
                   </div>
                 </button>
               ))}
@@ -157,11 +170,11 @@ export function PhotoCompare({ photos }: PhotoCompareProps) {
       {/* Comparison Tool */}
       {before && after && (
         <div className="space-y-6">
-          <div className="relative overflow-hidden rounded-3xl border bg-card shadow-2xl">
+          <div className="relative overflow-hidden rounded-3xl border bg-card shadow-2xl max-w-md mx-auto w-full">
             <ImageCompareSlider
               beforeImage={before.photo_url}
               afterImage={after.photo_url}
-              className="aspect-[3/4] md:aspect-video w-full"
+              className="aspect-[3/4] max-w-md mx-auto w-full"
             />
           </div>
 
@@ -172,7 +185,7 @@ export function PhotoCompare({ photos }: PhotoCompareProps) {
                 <Calendar className="size-4" />
                 <span className="text-xs font-medium uppercase">Fecha Inicio</span>
               </div>
-              <p className="text-lg font-bold">{format(new Date(before.taken_at), "d 'de' MMMM", { locale: es })}</p>
+              <p className="text-lg font-bold">{format(parseTakenDate(before.taken_at), "d 'de' MMMM", { locale: es })}</p>
               {before.weight_kg && (
                 <div className="flex items-center gap-1.5 text-primary font-semibold">
                   <Weight className="size-4" />
@@ -186,7 +199,7 @@ export function PhotoCompare({ photos }: PhotoCompareProps) {
                 <Calendar className="size-4" />
                 <span className="text-xs font-medium uppercase">Fecha Actual</span>
               </div>
-              <p className="text-lg font-bold">{format(new Date(after.taken_at), "d 'de' MMMM", { locale: es })}</p>
+              <p className="text-lg font-bold">{format(parseTakenDate(after.taken_at), "d 'de' MMMM", { locale: es })}</p>
               {after.weight_kg && (
                 <div className="flex items-center gap-1.5 text-primary font-semibold">
                   <Weight className="size-4" />

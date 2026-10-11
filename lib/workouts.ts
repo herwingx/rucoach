@@ -37,7 +37,7 @@ export async function getWorkoutSessions(clientId: string, limit = 10) {
   return data || []
 }
 
-/** Sesiones con `started_at` dentro de un rango de fechas. */
+/** Sesiones completadas con `started_at` dentro de un rango de fechas. */
 export async function getWorkoutSessionsByDateRange(
   clientId: string,
   from: string, // YYYY-MM-DD
@@ -46,12 +46,10 @@ export async function getWorkoutSessionsByDateRange(
 ) {
   const supabase = await createClient()
 
-  // Ensure 'to' covers the end of the day by making it start of the next day,
-  // or handle at ISO level if timestamps are used.
-  // The simplest is to use date ranges: started_at >= from and started_at < (to + 1 day)
-  const toDate = new Date(to)
-  toDate.setDate(toDate.getDate() + 1)
-  const toNextDayIso = toDate.toISOString().split('T')[0]
+  // Ensure 'to' covers the end of the day in UTC-6 (Mexico) by extending +6h into the next UTC day.
+  const toDate = new Date(`${to.slice(0, 10)}T00:00:00.000Z`)
+  toDate.setUTCDate(toDate.getUTCDate() + 1)
+  const toNextDayIso = `${toDate.toISOString().split('T')[0]}T06:00:00.000Z`
 
   const { data, error } = await supabase
     .from('workout_sessions')
@@ -64,6 +62,7 @@ export async function getWorkoutSessionsByDateRange(
     `,
     )
     .eq('client_id', clientId)
+    .eq('status', 'completed')
     .gte('started_at', from)
     .lt('started_at', toNextDayIso)
     .order('started_at', { ascending: false, nullsFirst: false })

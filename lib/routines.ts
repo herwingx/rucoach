@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { Routine, Exercise } from '@/lib/types'
 
 // Routines
 export async function getRoutines() {

@@ -65,14 +65,30 @@ function useMediaQuery(query: string) {
   return matches
 }
 
+const EXERCISE_TYPE_LABELS: Record<string, string> = {
+  strength: 'Fuerza',
+  cardio: 'Cardio',
+  stretching: 'Movilidad',
+  mobility: 'Movilidad',
+  plyometrics: 'Pliometría',
+  weightlifting: 'Halterofilia',
+  powerlifting: 'Powerlifting',
+  strongman: 'Strongman',
+  calisthenics: 'Calistenia',
+  hypertrophy: 'Hipertrofia',
+}
+
 function ExerciseBadges({ exercise }: { exercise: Exercise }) {
   const targets = exTargetMuscles(exercise)
   const equipmentLabel = exEquipment(exercise)
+  const typeKey = exercise.exercise_type?.trim().toLowerCase() ?? ''
+  const typeLabel = EXERCISE_TYPE_LABELS[typeKey] || exercise.exercise_type
+
   return (
     <div className="mt-3 flex flex-wrap gap-2 items-center justify-center sm:justify-start">
-      {exercise.exercise_type ? (
+      {typeLabel ? (
         <Badge variant="outline" className="capitalize rounded-full px-3 py-0.5 text-[11px] font-medium border-border/60 bg-background/50 text-muted-foreground shadow-sm">
-          {exercise.exercise_type}
+          {typeLabel}
         </Badge>
       ) : null}
       {targets.length > 0 ? (
@@ -270,14 +286,14 @@ export function ExerciseDetailDrawer({
                       <ExerciseBadges exercise={exercise} />
                     </DialogHeader>
                     <div className="px-6 pb-6 lg:px-6 lg:pb-6">
-                      <div className="overflow-hidden rounded-2xl border border-border/60 bg-muted/50 dark:bg-muted/25">
+                      <div className="overflow-hidden rounded-2xl border border-border/60 bg-white dark:bg-[#f8f9fa]">
                         <ExerciseMedia
                           src={exercise.gif_url}
                           fallbackSrc={exercise.image_url}
                           alt={exName(exercise)}
                           variant="fill"
                           className="aspect-4/3 w-full lg:aspect-square lg:max-h-[min(52vh,520px)]"
-                          imgClassName="object-contain"
+                          imgClassName="object-contain p-2 mix-blend-multiply"
                         />
                       </div>
                     </div>

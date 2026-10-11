@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/auth-utils";
 import { revalidatePath } from "next/cache";
+import { notifyUser } from "@/lib/push";
 
 /** Misma lógica que /client/messages para saber con qué coach puede hablar el asesorado. */
 async function resolveCoachIdForClientUser(
@@ -51,12 +52,18 @@ async function assertCanSendMessage(
   if (role === "admin") {
     const { data } = await supabase
       .from("clients")
-      .select("id")
-      .eq("coach_id", fromUserId)
+      .select("id, coach_id")
       .eq("user_id", toUserId)
+      .or(`coach_id.eq.${fromUserId},coach_id.is.null`)
       .maybeSingle();
     if (!data) {
       throw new Error("No puedes enviar mensajes a este usuario.");
+    }
+    if (!data.coach_id) {
+      await supabase
+        .from("clients")
+        .update({ coach_id: fromUserId })
+        .eq("id", data.id);
     }
     return;
   }
@@ -93,15 +100,31 @@ export async function sendMessage(toUserId: string, content: string) {
   const role = profile?.role;
   await assertCanSendMessage(supabase, user.id, role, toUserId);
 
-  const { error } = await supabase.from("messages").insert({
-    from_user_id: user.id,
-    to_user_id: toUserId,
-    content: text,
-  });
+  const { data: inserted, error } = await supabase
+    .from("messages")
+    .insert({
+      from_user_id: user.id,
+      to_user_id: toUserId,
+      content: text,
+    })
+    .select("id, from_user_id, to_user_id, content, is_read, created_at")
+    .single();
 
   if (error) throw new Error(error.message);
+
+  await notifyUser(toUserId, {
+    title:
+      role === "admin"
+        ? "Nuevo mensaje de tu Coach"
+        : "Nuevo mensaje de asesorado",
+    body: text.slice(0, 100),
+    url: role === "admin" ? "/client/messages" : `/admin/messages?clientId=${user.id}`,
+    tag: `msg-${user.id}`,
+  });
+
   revalidatePath("/admin/messages");
   revalidatePath("/client/messages");
+  return inserted;
 }
 
 export async function markMessagesAsRead(fromUserId: string) {
@@ -114,7 +137,8 @@ export async function markMessagesAsRead(fromUserId: string) {
     .from("messages")
     .update({ is_read: true })
     .eq("to_user_id", user.id)
-    .eq("from_user_id", fromUserId);
+    .eq("from_user_id", fromUserId)
+    .eq("is_read", false);
 
   if (error) {
     console.error("[markMessagesAsRead]", error.message);

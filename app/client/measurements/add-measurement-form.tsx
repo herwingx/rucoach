@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Scale, Plus, Calendar } from "lucide-react";
+import { Scale, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { addMeasurement } from "@/app/actions/measurements";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
@@ -105,7 +104,7 @@ export function AddMeasurementForm() {
           Registrar nueva medida
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md rounded-3xl overflow-hidden border-none shadow-2xl p-0">
+      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto rounded-3xl border-none shadow-2xl p-0">
         <div className="bg-primary/5 p-6 border-b border-primary/10">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-2">

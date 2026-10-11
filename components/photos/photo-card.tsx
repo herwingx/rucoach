@@ -47,19 +47,34 @@ export function PhotoCard({
   className,
   showActions = true,
 }: PhotoCardProps) {
-  const date = new Date(photo.taken_at)
-  const formattedDate = format(date, "d 'de' MMMM, yyyy", { locale: es })
+  const date = new Date(
+    photo.taken_at.includes('T') ? photo.taken_at : `${photo.taken_at}T12:00:00`,
+  )
+  const formattedDate = format(date, 'd MMM yyyy', { locale: es })
   const viewLabel = VIEW_LABELS[photo.view_type || ''] || photo.view_type || 'General'
+
+  const handleDelete = () => {
+    if (!onDelete) return
+    if (window.confirm('¿Estás seguro de que deseas eliminar esta foto de progreso?')) {
+      onDelete(photo.id)
+    }
+  }
 
   return (
     <div
       className={cn(
-        'group relative overflow-hidden rounded-xl border bg-card transition-all hover:shadow-md',
+        'group relative overflow-hidden rounded-2xl border bg-card transition-all hover:shadow-md',
         className
       )}
     >
       {/* Image Container */}
-      <div className="relative aspect-[3/4] w-full overflow-hidden bg-muted">
+      <div
+        className={cn(
+          'relative aspect-[3/4] w-full overflow-hidden bg-muted',
+          onView && 'cursor-pointer',
+        )}
+        onClick={() => onView?.(photo)}
+      >
         <Image
           src={photo.photo_url}
           alt={`Progreso - ${viewLabel}`}
@@ -69,7 +84,10 @@ export function PhotoCard({
         />
         
         {/* Overlay Badges */}
-        <div className="absolute inset-x-0 top-0 flex items-start justify-between p-3 bg-gradient-to-b from-black/50 to-transparent opacity-0 transition-opacity group-hover:opacity-100">
+        <div
+          className="absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3 bg-gradient-to-b from-black/50 to-transparent opacity-100 sm:opacity-0 transition-opacity sm:group-hover:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+        >
           <Badge variant="secondary" className="bg-white/90 text-black hover:bg-white/90">
             {viewLabel}
           </Badge>
@@ -81,6 +99,7 @@ export function PhotoCard({
                   variant="secondary"
                   size="icon"
                   className="size-8 bg-white/90 text-black hover:bg-white"
+                  aria-label="Opciones de foto"
                 >
                   <MoreVertical className="size-4" />
                 </Button>
@@ -88,7 +107,7 @@ export function PhotoCard({
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
-                  onClick={() => onDelete(photo.id)}
+                  onClick={handleDelete}
                 >
                   <Trash2 className="mr-2 size-4" />
                   Eliminar
@@ -100,12 +119,15 @@ export function PhotoCard({
 
         {/* View/Zoom Button */}
         {onView && (
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 bg-black/20">
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity sm:group-hover:opacity-100 bg-black/20 pointer-events-none">
             <Button
               variant="secondary"
               size="sm"
-              className="rounded-full shadow-lg"
-              onClick={() => onView(photo)}
+              className="rounded-full shadow-lg pointer-events-auto"
+              onClick={(e) => {
+                e.stopPropagation()
+                onView(photo)
+              }}
             >
               <Eye className="mr-2 size-4" />
               Ver detalle
@@ -116,14 +138,14 @@ export function PhotoCard({
 
       {/* Info Content */}
       <div className="p-3 space-y-1.5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-1">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Calendar className="size-3" />
+            <Calendar className="size-3 shrink-0" />
             <span>{formattedDate}</span>
           </div>
           {photo.weight_kg && (
             <div className="flex items-center gap-1 text-xs font-semibold text-primary">
-              <Weight className="size-3" />
+              <Weight className="size-3 shrink-0" />
               <span>{photo.weight_kg} kg</span>
             </div>
           )}

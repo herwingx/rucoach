@@ -28,7 +28,7 @@ export function NextWorkoutCard({
 }: NextWorkoutCardProps) {
   if (isRoutineCompleted) {
     return (
-      <Card className="overflow-hidden border-success/30 shadow-sm bg-gradient-to-br from-success/5 via-background to-background rounded-[2rem]">
+      <Card className="overflow-hidden border-success/30 shadow-sm bg-gradient-to-br from-success/5 via-background to-background rounded-3xl">
         <CardContent className="p-8 sm:p-10 text-center flex flex-col items-center">
           <div className="size-20 rounded-full bg-success/20 ring-8 ring-success/5 flex items-center justify-center mb-8 animate-bounce">
             <Trophy className="size-10 text-success" />
@@ -48,7 +48,7 @@ export function NextWorkoutCard({
   if (!routineDay) {
     if (hasAssignedRoutine) {
       return (
-        <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-[2rem] bg-card/60 backdrop-blur-sm">
+        <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">
           <CardContent className="p-10 text-center">
             <div className="size-16 rounded-2xl bg-muted/20 mx-auto mb-6 flex items-center justify-center border border-dashed border-border">
               <Clock className="size-8 text-muted-foreground/40" />
@@ -62,7 +62,7 @@ export function NextWorkoutCard({
       )
     }
     return (
-      <Card className="overflow-hidden border-dashed border-border/60 bg-muted/5 rounded-[2rem]">
+      <Card className="overflow-hidden border-dashed border-border/60 bg-muted/5 rounded-3xl">
         <CardContent className="p-10 text-center">
           <div className="size-16 rounded-2xl bg-muted/20 mx-auto mb-6 flex items-center justify-center">
             <Dumbbell className="size-8 text-muted-foreground/20" />
@@ -80,7 +80,7 @@ export function NextWorkoutCard({
   const estimatedTime = exerciseCount * 10 // Realer estimate
 
   return (
-    <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-[2rem] bg-card/60 backdrop-blur-sm transition-all hover:bg-card">
+    <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm transition-all hover:bg-card">
       <CardHeader className="pb-6 pt-8 px-6 sm:px-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex flex-col gap-1.5">
@@ -137,17 +137,17 @@ export function NextWorkoutCard({
               {routineDay.routine_exercises.slice(0, 3).map((ex, i) => (
                 <div 
                   key={ex.id}
-                  className="group flex items-center justify-between p-3.5 rounded-2xl border border-border/40 bg-background/40 transition-all hover:bg-background hover:shadow-md hover:border-primary/20"
+                  className="group flex items-center justify-between gap-3 p-3.5 rounded-2xl border border-border/40 bg-background/40 transition-all hover:bg-background hover:shadow-md hover:border-primary/20"
                 >
-                  <div className="flex items-center gap-4">
-                    <span className="flex size-7 items-center justify-center rounded-lg bg-muted text-[10px] font-black text-muted-foreground/50 border border-border/40 group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/20 transition-colors">
+                  <div className="flex min-w-0 flex-1 items-center gap-4">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-[10px] font-black text-muted-foreground/50 border border-border/40 group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/20 transition-colors">
                       {i + 1}
                     </span>
-                    <span className="font-black text-sm tracking-tight text-foreground transition-colors group-hover:text-primary">
+                    <span className="truncate font-black text-sm tracking-tight text-foreground transition-colors group-hover:text-primary">
                       {ex.exercises?.name_es || ex.exercises?.name || 'Ejercicio'}
                     </span>
                   </div>
-                  <Badge variant="outline" className="h-6 rounded-lg font-black text-[9px] tabular-nums tracking-widest border-border/60 text-muted-foreground/60 group-hover:border-primary/20 group-hover:text-primary transition-colors">
+                  <Badge variant="outline" className="h-6 shrink-0 rounded-lg font-black text-[9px] tabular-nums tracking-widest border-border/60 text-muted-foreground/60 group-hover:border-primary/20 group-hover:text-primary transition-colors">
                     {ex.sets} SETS <span className="mx-1 text-muted-foreground/20">×</span> {ex.reps || 'VAR'}
                   </Badge>
                 </div>

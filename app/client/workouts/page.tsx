@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getAuthUser } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import {
@@ -55,18 +56,36 @@ export default async function ClientWorkoutsPage({
 
   const sp = await searchParams;
 
-  // Rango por defecto: últimos 7 días
+  // Rango por defecto: últimos 30 días (si no hay sesiones en 30d pero sí históricas y no hay filtro explícito, ampliamos a 365d)
   const today = new Date();
-  const sevenDaysAgo = new Date(today);
-  sevenDaysAgo.setDate(today.getDate() - 7);
+  let defaultFromDate = new Date(today);
+  defaultFromDate.setDate(today.getDate() - 30);
 
-  const fromIso = sp.from || sevenDaysAgo.toISOString().split("T")[0];
+  let fromIso = sp.from || defaultFromDate.toISOString().split("T")[0];
   const toIso = sp.to || today.toISOString().split("T")[0];
 
-  const [workoutSessions, stats] = await Promise.all([
+  const [initialWorkoutSessions, stats] = await Promise.all([
     getWorkoutSessionsByDateRange(clientRecord.id, fromIso, toIso),
     getClientStats(clientRecord.id),
   ]);
+  let workoutSessions = initialWorkoutSessions;
+
+  if (
+    !sp.from &&
+    !sp.to &&
+    (!workoutSessions || workoutSessions.length === 0) &&
+    (stats.totalSessions ?? 0) > 0
+  ) {
+    const yearAgo = new Date(today);
+    yearAgo.setDate(today.getDate() - 365);
+    defaultFromDate = yearAgo;
+    fromIso = yearAgo.toISOString().split("T")[0];
+    workoutSessions = await getWorkoutSessionsByDateRange(
+      clientRecord.id,
+      fromIso,
+      toIso,
+    );
+  }
 
   const rangeSessionCount = workoutSessions?.length ?? 0;
   const totalCompleted = stats.totalSessions ?? 0;
@@ -79,7 +98,7 @@ export default async function ClientWorkoutsPage({
         : `${rangeSessionCount} ${rangeSessionCount === 1 ? "sesión" : "sesiones"} encontradas${totalCompleted > rangeSessionCount ? ` · ${totalCompleted} en total histórico` : ""}.`;
 
   const historyAside = (
-    <aside className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-4 lg:sticky lg:top-[max(1rem,env(safe-area-inset-top))] lg:self-start">
+    <aside className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-4 lg:sticky lg:top-[calc(112px+1.5rem)] lg:self-start">
       <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
         <CardHeader className="pb-5 pt-6 px-6">
           <div className="flex items-center gap-4">
@@ -139,7 +158,7 @@ export default async function ClientWorkoutsPage({
       >
         <section className="order-1 flex min-w-0 flex-col gap-6 lg:order-2 lg:col-span-8">
           {totalCompleted === 0 ? (
-            <Card className="overflow-hidden border-border/80 shadow-sm ring-1 ring-primary/5">
+            <Card className="overflow-hidden rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
                   <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
@@ -188,10 +207,12 @@ export default async function ClientWorkoutsPage({
                 </div>
 
                 <div className="shrink-0 w-full md:w-auto">
-                  <WorkoutsHistoryDateRangePicker
-                    defaultFrom={sevenDaysAgo}
-                    defaultTo={today}
-                  />
+                  <Suspense fallback={null}>
+                    <WorkoutsHistoryDateRangePicker
+                      defaultFrom={defaultFromDate}
+                      defaultTo={today}
+                    />
+                  </Suspense>
                 </div>
               </CardHeader>
 
@@ -235,8 +256,8 @@ export default async function ClientWorkoutsPage({
                                   className={cn(
                                     "px-2.5 py-0.5 font-bold text-[10px] uppercase tracking-wider rounded-md",
                                     session.status === "completed" 
-                                      ? "bg-green-500/10 text-green-600 border border-green-500/20 shadow-sm shadow-green-500/10" 
-                                      : "bg-amber-500/10 text-amber-600 border border-amber-500/20 shadow-sm shadow-amber-500/10"
+                                      ? "bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 shadow-sm shadow-green-500/10" 
+                                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-sm shadow-amber-500/10"
                                   )}
                                 >
                                   {session.status === "completed" ? "Sesión Finalizada" : "En progreso"}
@@ -278,7 +299,7 @@ export default async function ClientWorkoutsPage({
                                 <span className="text-sm font-black tabular-nums text-foreground leading-tight">
                                   {session.exercises_completed ?? 0}
                                 </span>
-                                <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest">Sets</span>
+                                <span className="text-[10px] uppercase font-bold text-muted-foreground/60 tracking-widest">Ejercicios</span>
                               </div>
                             </div>
 
@@ -314,7 +335,7 @@ export default async function ClientWorkoutsPage({
                           {session.feeling_note ? (
                             <div className="mt-2 relative rounded-2xl bg-muted/15 px-5 py-4 border-l-4 border-primary/20 group-hover:bg-primary/5 transition-all">
                               <p className="text-sm font-medium italic leading-relaxed text-muted-foreground group-hover:text-foreground/80 transition-colors">
-                                "{session.feeling_note}"
+                                &ldquo;{session.feeling_note}&rdquo;
                               </p>
                             </div>
                           ) : null}

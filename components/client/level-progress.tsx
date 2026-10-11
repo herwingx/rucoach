@@ -22,10 +22,10 @@ export function LevelProgress({ levelInfo, username, avatarUrl }: LevelProgressP
   const levelName = getLevelName(levelInfo.level)
 
   return (
-    <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm transition-all hover:bg-card">
-      <CardContent className="p-6 sm:p-8">
-        <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:gap-8">
-          <div className="relative group">
+    <Card className="@container/level py-0 gap-0 overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm transition-all hover:bg-card">
+      <CardContent className="p-6 @md/level:p-8">
+        <div className="flex flex-col items-center gap-5 @md/level:flex-row @md/level:items-start @md/level:gap-8">
+          <div className="relative group shrink-0">
             <div className="absolute inset-x-0 bottom-0 top-0 bg-primary/20 blur-2xl rounded-full scale-0 group-hover:scale-125 transition-transform duration-500" />
             <CircularProgress
               value={levelInfo.progress}
@@ -60,39 +60,39 @@ export function LevelProgress({ levelInfo, username, avatarUrl }: LevelProgressP
             </div>
           </div>
 
-          <div className="flex w-full flex-1 flex-col gap-6 text-center sm:text-left">
-            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-col gap-1">
+          <div className="flex w-full min-w-0 flex-1 flex-col gap-5 text-center @md/level:text-left">
+            <div className="flex flex-col items-center gap-2 @md/level:flex-row @md/level:items-center @md/level:justify-between">
+              <div className="flex flex-col gap-1 min-w-0">
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60">Atleta de Élite</span>
-                <h3 className="text-2xl font-black tracking-tight text-foreground">{username || 'Tu progreso'}</h3>
+                <h3 className="text-2xl font-black tracking-tight text-foreground truncate">{username || 'Tu progreso'}</h3>
               </div>
-              <Badge className="mx-auto w-fit font-black text-[10px] uppercase tracking-widest px-3 py-1.5 bg-primary/10 text-primary border-none rounded-xl sm:mx-0">
+              <Badge className="w-fit shrink-0 font-black text-[10px] uppercase tracking-widest px-3 py-1.5 bg-primary/10 text-primary border-none rounded-xl">
                 {levelName}
               </Badge>
             </div>
 
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-muted-foreground/60">
-                <span className="inline-flex items-center gap-2">
-                  <Activity className="size-4 text-primary" aria-hidden />
-                  Experiencia Acumulada
+            <div className="flex flex-col gap-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-black uppercase tracking-wider text-muted-foreground/60">
+                <span className="inline-flex items-center gap-1.5">
+                  <Activity className="size-3.5 text-primary shrink-0" aria-hidden />
+                  Experiencia
                 </span>
                 <span className="tabular-nums text-foreground">
-                  {levelInfo.currentXP.toLocaleString()} <span className="text-muted-foreground/40 font-bold mx-1">/</span> {levelInfo.xpForNextLevel.toLocaleString()}
+                  {levelInfo.currentXP.toLocaleString()} <span className="text-muted-foreground/40 font-bold mx-0.5">/</span> {levelInfo.xpForNextLevel.toLocaleString()} XP
                 </span>
               </div>
               <div className="relative h-2.5 w-full bg-muted rounded-full overflow-hidden">
-                <Progress value={levelInfo.progress} className="size-full bg-primary" />
+                <Progress value={levelInfo.progress} className="size-full" />
                 <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.2)_50%,transparent_100%)] animate-shimmer" />
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                 <p className="text-xs font-medium text-muted-foreground italic">
                   Próximo objetivo: <span className="text-foreground font-black tabular-nums">{xpRemaining.toLocaleString()} XP</span>
                 </p>
-                <Button variant="ghost" size="sm" asChild className="h-9 px-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary/5 hover:text-primary transition-all">
-                  <Link href="/client/achievements" className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" asChild className="h-8 px-2.5 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-primary/5 hover:text-primary transition-all">
+                  <Link href="/client/achievements" className="flex items-center gap-1.5">
                     Ver mis hitos
-                    <ChevronRight className="size-4" />
+                    <ChevronRight className="size-3.5" />
                   </Link>
                 </Button>
               </div>
