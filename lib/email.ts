@@ -16,7 +16,10 @@ function getResend() {
   return resendInstance
 }
 
-const EMAIL_FROM = process.env.EMAIL_FROM || 'RU Coach <noreply@herwingx.com>'
+const EMAIL_FROM =
+  process.env.EMAIL_FROM ||
+  process.env.RESEND_FROM_EMAIL ||
+  'RU Coach <noreply@rucoach.app>'
 
 function getAppUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) {
@@ -25,7 +28,7 @@ function getAppUrl(): string {
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`
   }
-  return 'https://ru-coach.app'
+  return 'https://rucoach.app'
 }
 
 export function isEmailConfigured(): boolean {
@@ -95,7 +98,7 @@ export async function sendWelcomeEmail(params: {
 
     if (error) return { success: false, error: error.message }
     return { success: true }
-  } catch (err) {
+  } catch {
     return { success: false, error: 'Error al enviar bienvenida' }
   }
 }
@@ -128,7 +131,7 @@ export async function sendNewRoutineNotification(params: {
 
     if (error) return { success: false, error: error.message }
     return { success: true }
-  } catch (err) {
+  } catch {
     return { success: false, error: 'Error al enviar notificación de rutina' }
   }
 }
@@ -165,7 +168,7 @@ export async function sendPaymentConfirmation(params: {
 
     if (error) return { success: false, error: error.message }
     return { success: true }
-  } catch (err) {
+  } catch {
     return { success: false, error: 'Error al enviar confirmación de pago' }
   }
 }
@@ -176,10 +179,11 @@ export async function sendPaymentConfirmation(params: {
 export async function sendManualInvitationEmail(params: {
   to: string
   code: string
+  forRole?: 'admin' | 'client'
 }): Promise<{ success: boolean; error?: string }> {
   return sendClientInvitationEmail({
     to: params.to,
-    clientName: 'Atleta',
+    clientName: params.forRole === 'admin' ? 'Coach' : 'Atleta',
     code: params.code
   })
 }

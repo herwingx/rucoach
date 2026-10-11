@@ -1,7 +1,9 @@
 import { getAuthData } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { trySkipOnboardingForPreCreatedClient } from "@/app/actions/onboarding";
+import {
+  getOnboardingInitialData,
+  trySkipOnboardingForPreCreatedClient,
+} from "@/app/actions/onboarding";
 import { OnboardingFlow } from "./onboarding-flow";
 
 export default async function OnboardingPage() {
@@ -21,11 +23,20 @@ export default async function OnboardingPage() {
     redirect("/admin/onboarding");
   }
 
-  // Si el admin pre-creó el cliente con preferencias (goal, experience), omitir onboarding
+  // Si el admin pre-creó el cliente con TODOS sus datos biométricos y preferencias, omitir onboarding
   const skipResult = await trySkipOnboardingForPreCreatedClient(user.id);
   if (skipResult.skipped) {
     redirect("/client/dashboard");
   }
 
-  return <OnboardingFlow userId={user.id} userEmail={user.email || ""} />;
+  const initialData = await getOnboardingInitialData(user.id, user.email);
+
+  return (
+    <OnboardingFlow
+      userId={user.id}
+      userEmail={user.email || ""}
+      initialData={initialData}
+    />
+  );
 }
+

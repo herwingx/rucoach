@@ -18,7 +18,7 @@ interface BaseLayoutProps {
 }
 
 // Global Production URL with Fallback
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://rucoach-development.vercel.app";
+const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://rucoach.app").replace(/\/$/, "");
 
 export const BaseLayout = ({ previewText, children }: BaseLayoutProps) => (
   <Html lang="es">

@@ -99,10 +99,11 @@ export async function createInvitationCode(formData: FormData) {
     const result = await sendManualInvitationEmail({
       to: email.trim(),
       code,
+      forRole: roleToCreate,
     });
     emailSent = result.success;
     if (!result.success) {
-      console.warn("No se pudo enviar el correo de invitaci?n:", result.error);
+      console.warn("No se pudo enviar el correo de invitación:", result.error);
     }
   }
 

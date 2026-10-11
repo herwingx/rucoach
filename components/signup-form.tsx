@@ -1,7 +1,7 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useInvitationCode } from '@/app/actions/invitations'
+import { useInvitationCode as consumeInvitationCode } from '@/app/actions/invitations'
 import { Button } from '@/components/ui/button'
 import {
   Field,
@@ -30,6 +30,7 @@ function SignUpFormInner({
   const [signUpRole, setSignUpRole] = useState<'admin' | 'client'>('client')
   const [isValidating, setIsValidating] = useState(false)
   const [email, setEmail] = useState('')
+  const [lockedEmail, setLockedEmail] = useState<string | null>(null)
   const [password, setPassword] = useState('')
   const [repeatPassword, setRepeatPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -67,7 +68,10 @@ function SignUpFormInner({
           throw new Error('Respuesta inválida')
         }
         if (!res.ok) {
-          toast.error('No pudimos validar el código. Revisa que sea correcto e intenta de nuevo.')
+          toast.error(
+            result.error ||
+              'No pudimos validar el código. Revisa que sea correcto e intenta de nuevo.'
+          )
           setIsCodeValid(false)
           return
         }
@@ -79,10 +83,17 @@ function SignUpFormInner({
               ? '¡Código de coach válido! Serás el administrador.'
               : '¡Código de invitación válido!'
           )
-          if (result.invitation?.email) setEmail(result.invitation.email)
+          if (result.invitation?.email) {
+            setEmail(result.invitation.email)
+            setLockedEmail(result.invitation.email)
+          } else {
+            setLockedEmail(null)
+          }
         } else {
           setIsCodeValid(false)
-          toast.error('Código no válido. Verifica que esté bien escrito.')
+          toast.error(
+            result.error || 'Código no válido. Verifica que esté bien escrito.'
+          )
         }
       } catch (e) {
         if ((e as Error)?.name === 'AbortError') {
@@ -126,7 +137,9 @@ function SignUpFormInner({
         throw new Error('Respuesta inválida')
       }
       if (!res.ok) {
-        toast.error('No pudimos validar el código. Intenta de nuevo.')
+        toast.error(
+          result.error || 'No pudimos validar el código. Intenta de nuevo.'
+        )
         setIsCodeValid(false)
         return
       }
@@ -138,10 +151,17 @@ function SignUpFormInner({
             ? '¡Código de coach válido! Serás el administrador.'
             : '¡Código de invitación válido!'
         )
-        if (result.invitation?.email) setEmail(result.invitation.email)
+        if (result.invitation?.email) {
+          setEmail(result.invitation.email)
+          setLockedEmail(result.invitation.email)
+        } else {
+          setLockedEmail(null)
+        }
       } else {
         setIsCodeValid(false)
-        toast.error('Código no válido. Verifica que sea correcto.')
+        toast.error(
+          result.error || 'Código no válido. Verifica que sea correcto.'
+        )
       }
     } catch (e) {
       if ((e as Error)?.name === 'AbortError') {
@@ -160,6 +180,16 @@ function SignUpFormInner({
 
     if (!isCodeValid) {
       toast.error('Necesitas un código de invitación válido para continuar.')
+      return
+    }
+
+    if (
+      lockedEmail &&
+      email.trim().toLowerCase() !== lockedEmail.trim().toLowerCase()
+    ) {
+      toast.error(
+        'Debes registrarte con el correo al que fue enviada la invitación.'
+      )
       return
     }
 
@@ -197,7 +227,7 @@ function SignUpFormInner({
       }
 
       if (data.user) {
-        await useInvitationCode(invitationCode, data.user.id, signUpRole)
+        await consumeInvitationCode(invitationCode, data.user.id, signUpRole)
       }
 
       if (data.session) {
@@ -307,7 +337,8 @@ function SignUpFormInner({
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading || !!lockedEmail}
+                readOnly={!!lockedEmail}
               />
             </Field>
             <Field>

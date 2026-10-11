@@ -22,6 +22,8 @@ function VerifyOtpFormInner({
   const router = useRouter()
   const searchParams = useSearchParams()
   const emailVal = searchParams.get('email') || ''
+  const typeParam = searchParams.get('type')
+  const otpType = typeParam === 'recovery' ? 'recovery' : 'signup'
   
   const [email] = useState(emailVal)
   const [token, setToken] = useState('')
@@ -46,6 +48,22 @@ function VerifyOtpFormInner({
     const supabase = createClient()
 
     try {
+      if (otpType === 'recovery') {
+        const { error } = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: 'recovery',
+        })
+
+        if (error) {
+          throw error
+        }
+
+        toast.success('Código verificado. Crea tu nueva contraseña.')
+        router.push('/auth/reset-password')
+        return
+      }
+
       const { data, error } = await supabase.auth.verifyOtp({
         email,
         token,
@@ -92,17 +110,23 @@ function VerifyOtpFormInner({
     const supabase = createClient()
 
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email,
-      })
-
-      if (error) throw error
+      if (otpType === 'recovery') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password&type=recovery`,
+        })
+        if (error) throw error
+      } else {
+        const { error } = await supabase.auth.resend({
+          type: 'signup',
+          email,
+        })
+        if (error) throw error
+      }
 
       toast.success('Te hemos enviado un nuevo código de verificación.')
     } catch (error: any) {
       const msg = error.message || ''
-      console.error('[auth] resend signup OTP failed:', error)
+      console.error('[auth] resend OTP failed:', error)
       if (msg.includes('rate limit') || msg.includes('429')) {
         toast.error('Por favor, espera un minuto antes de pedir otro código.')
       } else {
@@ -116,10 +140,23 @@ function VerifyOtpFormInner({
   return (
     <div className={cn('flex flex-col gap-6 w-full items-center', className)} {...props}>
       <div className="flex flex-col items-center gap-2 text-center overflow-hidden">
-        <h1 className="text-2xl font-bold tracking-tight">Verifica tu correo</h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          {otpType === 'recovery' ? 'Recupera tu contraseña' : 'Verifica tu correo'}
+        </h1>
         <p className="text-sm text-balance text-muted-foreground">
-          Enviamos un código de verificación a <span className="font-medium text-foreground">{email || "tu correo"}</span>.
-          Ingrésalo abajo para activar tu cuenta.
+          {otpType === 'recovery' ? (
+            <>
+              Ingresa el código que enviamos a{' '}
+              <span className="font-medium text-foreground">{email || 'tu correo'}</span>{' '}
+              para restablecer tu contraseña.
+            </>
+          ) : (
+            <>
+              Enviamos un código de verificación a{' '}
+              <span className="font-medium text-foreground">{email || 'tu correo'}</span>.
+              Ingrésalo abajo para activar tu cuenta.
+            </>
+          )}
         </p>
       </div>
 
@@ -132,23 +169,23 @@ function VerifyOtpFormInner({
           autoFocus
         >
           <InputOTPGroup>
-            <InputOTPSlot index={0} className="w-9 h-12 sm:w-12 sm:h-14 text-xl sm:text-2xl font-semibold" />
-            <InputOTPSlot index={1} className="w-9 h-12 sm:w-12 sm:h-14 text-xl sm:text-2xl font-semibold" />
-            <InputOTPSlot index={2} className="w-9 h-12 sm:w-12 sm:h-14 text-xl sm:text-2xl font-semibold" />
-            <InputOTPSlot index={3} className="w-9 h-12 sm:w-12 sm:h-14 text-xl sm:text-2xl font-semibold" />
+            <InputOTPSlot index={0} className="w-8 sm:w-10 h-11 sm:h-12 text-base font-semibold" />
+            <InputOTPSlot index={1} className="w-8 sm:w-10 h-11 sm:h-12 text-base font-semibold" />
+            <InputOTPSlot index={2} className="w-8 sm:w-10 h-11 sm:h-12 text-base font-semibold" />
+            <InputOTPSlot index={3} className="w-8 sm:w-10 h-11 sm:h-12 text-base font-semibold" />
           </InputOTPGroup>
           <InputOTPSeparator />
           <InputOTPGroup>
-            <InputOTPSlot index={4} className="w-9 h-12 sm:w-12 sm:h-14 text-xl sm:text-2xl font-semibold" />
-            <InputOTPSlot index={5} className="w-9 h-12 sm:w-12 sm:h-14 text-xl sm:text-2xl font-semibold" />
-            <InputOTPSlot index={6} className="w-9 h-12 sm:w-12 sm:h-14 text-xl sm:text-2xl font-semibold" />
-            <InputOTPSlot index={7} className="w-9 h-12 sm:w-12 sm:h-14 text-xl sm:text-2xl font-semibold" />
+            <InputOTPSlot index={4} className="w-8 sm:w-10 h-11 sm:h-12 text-base font-semibold" />
+            <InputOTPSlot index={5} className="w-8 sm:w-10 h-11 sm:h-12 text-base font-semibold" />
+            <InputOTPSlot index={6} className="w-8 sm:w-10 h-11 sm:h-12 text-base font-semibold" />
+            <InputOTPSlot index={7} className="w-8 sm:w-10 h-11 sm:h-12 text-base font-semibold" />
           </InputOTPGroup>
         </InputOTP>
 
         <Button
           type="submit"
-          disabled={isLoading || token.length !== 8}
+          disabled={isLoading || token.length < 6}
           className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold transition-all duration-200"
         >
           {isLoading ? (
@@ -170,7 +207,7 @@ function VerifyOtpFormInner({
           variant="outline"
           onClick={handleResendCode}
           disabled={isResending || isLoading}
-          className="w-full text-muted-foreground"
+          className="w-full h-11 font-semibold text-muted-foreground"
         >
           {isResending ? 'Reenviando...' : 'Reenviar código de verificación'}
         </Button>

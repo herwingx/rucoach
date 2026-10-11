@@ -16,27 +16,29 @@ export default async function SignUpPage() {
         <div className="flex justify-center gap-2 md:justify-start">
           <Link href="/" className="flex items-center gap-2 font-medium">
             <div className="flex size-8 items-center justify-center rounded-md overflow-hidden">
-              <img
+              <Image
                 src="/android-chrome-512x512.png"
                 alt="Logo RU Coach"
-                className="size-full"
+                width={32}
+                height={32}
+                className="size-full object-contain"
               />
             </div>
             <div className="flex flex-col leading-none">
               <span className="text-xl font-black tracking-tighter uppercase">
                 RU Coach
               </span>
-              <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-widest mt-0.5">
+              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest mt-0.5">
                 Rodrigo Urbina
               </span>
             </div>
           </Link>
         </div>
-        <div className="flex flex-1 items-center justify-center">
-          <div className="w-full max-w-xs">
+        <main id="main-content" className="flex flex-1 items-center justify-center">
+          <div className="w-full max-w-sm">
             <SignupForm />
           </div>
-        </div>
+        </main>
         <div className="flex justify-center md:justify-start">
           <ThemeToggle />
         </div>

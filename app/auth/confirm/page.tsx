@@ -67,8 +67,20 @@ export default function AuthConfirmPage() {
             .eq("id", userId)
             .single();
           if (profile?.role) role = profile.role;
-          if (role === "admin" && profile?.onboarding_completed) {
-            router.replace("/admin/dashboard");
+          if (type === "email_change") {
+            router.replace(
+              role === "admin" ? "/admin/settings" : "/client/profile",
+            );
+            return;
+          }
+          if (profile?.onboarding_completed) {
+            router.replace(
+              role === "admin"
+                ? "/admin/dashboard"
+                : role === "receptionist"
+                  ? "/receptionist/dashboard"
+                  : "/client/dashboard",
+            );
             return;
           }
         }
@@ -84,15 +96,17 @@ export default function AuthConfirmPage() {
   }, [router]);
 
   return (
-    <div
+    <main
       id="main-content"
-      role="main"
-      className="flex min-h-dvh items-center justify-center"
+      className="flex min-h-svh items-center justify-center p-6"
       tabIndex={-1}
     >
-      <p className="text-muted-foreground">
-        {status === "loading" ? "Verificando tu correo..." : "Redirigiendo..."}
-      </p>
-    </div>
+      <div className="space-y-4 text-center">
+        <div className="size-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-muted-foreground">
+          {status === "loading" ? "Verificando tu correo..." : "Redirigiendo..."}
+        </p>
+      </div>
+    </main>
   );
 }

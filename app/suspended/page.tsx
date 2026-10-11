@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { AlertTriangle, LogOut, MessageCircle, Clock } from "lucide-react";
 import Link from "next/link";
 
@@ -30,6 +31,7 @@ export default async function SuspendedPage({
   const coachPhone = gym?.phone?.replace(/\D/g, ""); // Limpiar para WhatsApp
   const userEmail = profile?.email || user?.email || "";
   
+  const isPaused = status === "pending_payment";
   let title = "Acceso Restringido";
   let description = (
     <>
@@ -38,13 +40,12 @@ export default async function SuspendedPage({
     </>
   );
   let icon = <AlertTriangle className="size-10 text-destructive animate-pulse" />;
-  let colorClass = "destructive";
 
   // Preparar mensaje de WhatsApp
   const waBase = "https://wa.me/";
   let waText = `Hola Rodrigo, tengo un problema con mi acceso a la app (Estado: ${status || 'suspendido'}). Mi correo es: ${userEmail}`;
   
-  if (status === "pending_payment") {
+  if (isPaused) {
     title = "Falta Pago";
     description = (
       <>
@@ -53,7 +54,6 @@ export default async function SuspendedPage({
       </>
     );
     icon = <Clock className="size-10 text-amber-500 animate-pulse" />;
-    colorClass = "amber-500";
     waText = `Hola Rodrigo, acabo de registrar mi cuenta en la app y quería coordinar el pago de mi suscripción para activarla. Mi correo es: ${userEmail}`;
   } else if (status === "expired") {
     title = "Suscripción Vencida";
@@ -74,12 +74,27 @@ export default async function SuspendedPage({
     <div
       id="main-content"
       role="main"
-      className="min-h-dvh bg-background flex items-center justify-center p-6 safe-area-inset-top safe-area-inset-bottom"
+      className="relative min-h-dvh bg-background flex items-center justify-center p-6 safe-area-inset-top safe-area-inset-bottom"
       tabIndex={-1}
     >
-      <Card className={`w-full max-w-md text-center border-${colorClass}/20 shadow-2xl shadow-${colorClass}/10`}>
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+      <Card
+        className={`w-full max-w-md text-center shadow-2xl ${
+          isPaused
+            ? "border-amber-500/20 shadow-amber-500/10"
+            : "border-destructive/20 shadow-destructive/10"
+        }`}
+      >
         <CardHeader className="pb-4">
-          <div className={`mx-auto size-20 rounded-full bg-${colorClass}/10 flex items-center justify-center mb-6 ring-1 ring-${colorClass}/20`}>
+          <div
+            className={`mx-auto size-20 rounded-full flex items-center justify-center mb-6 ring-1 ${
+              isPaused
+                ? "bg-amber-500/10 ring-amber-500/20"
+                : "bg-destructive/10 ring-destructive/20"
+            }`}
+          >
             {icon}
           </div>
           <CardTitle className="text-3xl font-black uppercase tracking-tighter">
@@ -128,7 +143,7 @@ export default async function SuspendedPage({
           <div className="space-y-3">
             {coachPhone ? (
               <Button
-                className="w-full gap-2 h-12 text-base font-bold uppercase tracking-tight bg-[#25D366] hover:bg-[#20ba56] text-white border-0 shadow-lg shadow-[#25D366]/20"
+                className="w-full gap-2 h-12 rounded-xl text-base font-bold uppercase tracking-tight bg-[#25D366] hover:bg-[#20ba56] text-white border-0 shadow-lg shadow-[#25D366]/20"
                 asChild
               >
                 <a href={waLink} target="_blank" rel="noopener noreferrer">

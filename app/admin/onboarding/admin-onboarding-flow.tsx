@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,9 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Check, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { completeAdminOnboarding } from "@/app/actions/admin-onboarding";
@@ -37,8 +37,6 @@ export function AdminOnboardingFlow({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timezone, setTimezone] = useState("America/Mexico_City");
   const [currency, setCurrency] = useState("MXN");
-
-  const progress = 50;
 
   const handleComplete = async () => {
     setIsSubmitting(true);
@@ -68,32 +66,35 @@ export function AdminOnboardingFlow({
 
   return (
     <div className="min-h-dvh bg-background flex flex-col">
-      <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
-        <div className="container py-4">
+      <header className="h-16 border-b border-border/50 bg-background/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="container max-w-4xl mx-auto h-full flex items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-xl overflow-hidden shadow-sm ring-1 ring-border shrink-0">
-              <img
-                src="/android-chrome-192x192.png"
-                alt="Logo"
-                className="size-full object-cover"
+            <div className="size-9 rounded-lg overflow-hidden bg-black flex items-center justify-center shrink-0 border border-border/40">
+              <Image
+                src="/android-chrome-512x512.png"
+                alt="Logo RU Coach"
+                width={36}
+                height={36}
+                className="size-full object-contain"
               />
             </div>
-            <div className="flex flex-col leading-tight">
-              <h1 className="font-black tracking-tighter uppercase">
-                Coach
+            <div className="flex flex-col leading-none">
+              <h1 className="font-black tracking-tighter uppercase text-lg">
+                RU Coach
               </h1>
-              <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">
-                Panel de Entrenamiento
+              <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mt-0.5">
+                Rodrigo Urbina
               </p>
             </div>
           </div>
+          <ThemeToggle />
         </div>
       </header>
 
-      <div className="container py-4">
-        <div className="flex items-center gap-2 mb-2">
+      <div className="container max-w-4xl mx-auto px-4 py-6">
+        <div className="flex items-center gap-2 max-w-xs mx-auto w-full">
           <div
-            className={`size-8 rounded-full flex items-center justify-center text-sm font-medium ${
+            className={`size-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0 ${
               currentStep >= 1
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground"
@@ -101,9 +102,13 @@ export function AdminOnboardingFlow({
           >
             {currentStep > 1 ? <Check className="w-4 h-4" /> : "1"}
           </div>
-          <div className="flex-1 h-0.5 bg-muted" />
           <div
-            className={`size-8 rounded-full flex items-center justify-center text-sm font-medium ${
+            className={`flex-1 h-0.5 transition-colors ${
+              currentStep > 1 ? "bg-primary" : "bg-muted"
+            }`}
+          />
+          <div
+            className={`size-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0 ${
               currentStep >= 2
                 ? "bg-primary text-primary-foreground"
                 : "bg-muted text-muted-foreground"
@@ -112,11 +117,10 @@ export function AdminOnboardingFlow({
             2
           </div>
         </div>
-        <Progress value={progress} className="h-1" />
       </div>
 
-      <main className="flex-1 container py-6">
-        <Card className="max-w-lg mx-auto">
+      <main id="main-content" className="flex-1 container max-w-4xl mx-auto px-4 py-6">
+        <Card className="max-w-lg mx-auto rounded-2xl border-border/60">
           {currentStep === 1 && (
             <>
               <CardHeader>
@@ -129,7 +133,10 @@ export function AdminOnboardingFlow({
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="timezone">Zona Horaria</Label>
                   <Select value={timezone} onValueChange={setTimezone}>
-                    <SelectTrigger id="timezone" className="w-full">
+                    <SelectTrigger
+                      id="timezone"
+                      className="h-12 md:h-12 data-[size=default]:h-12 md:data-[size=default]:h-12 w-full rounded-xl"
+                    >
                       <SelectValue placeholder="Seleccionar zona horaria" />
                     </SelectTrigger>
                     <SelectContent>
@@ -157,7 +164,10 @@ export function AdminOnboardingFlow({
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="currency">Moneda de Pagos</Label>
                   <Select value={currency} onValueChange={setCurrency}>
-                    <SelectTrigger id="currency" className="w-full">
+                    <SelectTrigger
+                      id="currency"
+                      className="h-12 md:h-12 data-[size=default]:h-12 md:data-[size=default]:h-12 w-full rounded-xl"
+                    >
                       <SelectValue placeholder="Seleccionar moneda" />
                     </SelectTrigger>
                     <SelectContent>
@@ -173,7 +183,7 @@ export function AdminOnboardingFlow({
               <div className="p-6 pt-0 flex justify-end">
                 <Button
                   onClick={() => setCurrentStep(2)}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90"
+                  className="h-12 px-6 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
                 >
                   Siguiente
                   <ChevronRight className="w-4 h-4 ml-1" />
@@ -201,11 +211,20 @@ export function AdminOnboardingFlow({
                   </p>
                 </div>
               </CardContent>
-              <div className="p-6 pt-0 flex justify-end">
+              <div className="p-6 pt-0 flex items-center justify-between gap-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSubmitting}
+                  onClick={() => setCurrentStep(1)}
+                  className="h-12 px-6 rounded-xl font-semibold"
+                >
+                  Atrás
+                </Button>
                 <Button
                   onClick={handleComplete}
                   disabled={isSubmitting}
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 h-12 px-8 font-bold uppercase tracking-tight"
+                  className="h-12 px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold uppercase tracking-tight"
                 >
                   {isSubmitting
                     ? "Configurando..."

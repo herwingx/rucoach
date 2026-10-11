@@ -14,7 +14,7 @@ interface InvitationEmailProps {
   signUpUrl?: string;
 }
 
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://rucoach-development.vercel.app";
+const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://rucoach.app").replace(/\/$/, "");
 
 export const InvitationEmail = ({
   clientName = "Atleta",
