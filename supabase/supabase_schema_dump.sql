@@ -1,5 +1,5 @@
 -- Supabase Schema Dump
--- Project ID: dldttdqpcpdtribtgzsa
+-- Project ID: rucoach-production
 -- Date: 2026-04-01
 -- Nota: Incluye columnas bilingües _es en la tabla exercises (1,324 ejercicios traducidos al español)
 

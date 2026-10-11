@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- RU Coach (GymCoach) — Datos Semilla Oficiales (Idempotentes)
--- Extraídos de la instancia de producción (dldttdqpcpdtribtgzsa.supabase.co)
+-- Extraídos de la instancia de producción
 -- Ejecutar después de supabase/supabase_schema_dump.sql
 -- ═══════════════════════════════════════════════════════════════════════════
 

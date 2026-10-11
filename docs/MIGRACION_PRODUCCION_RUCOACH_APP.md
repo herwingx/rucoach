@@ -113,7 +113,7 @@ Una vez que el proyecto termine de aprovisionarse (2 minutos):
 
 ### 3.3 Poblar el Catálogo de Ejercicios (`public.exercises`)
 Como tus GIFs de ejercicios **ya están en tu bucket de Cloudflare R2 (`gymcoaching-exercises` — 1,330 objetos / 388 MB)** como se ve en tu segunda captura:
-- **No necesitas volver a subir las imágenes a R2**. Tu bucket R2 se queda exactamente igual y apunta a `https://pub-25b160e13c63420783953a1098e3168c.r2.dev`.
+- **No necesitas volver a subir las imágenes a R2**. Tu bucket R2 se queda exactamente igual y apunta a `https://pub-xxxxxx.r2.dev`.
 - Para copiar las filas de la tabla `public.exercises` de tu Supabase anterior al nuevo:
   - **Opción A (Más rápida — 30 segundos)**: En tu cuenta vieja de Supabase ve a **Table Editor** → tabla **`exercises`** → botón **Export to CSV**. Luego en tu cuenta nueva de Supabase ve a **Table Editor** → **`exercises`** → **Insert** → **Import data from CSV**.
   - **Opción B (Por script)**: Si instalas el MCP de Supabase o actualizas `.env.local` con las llaves nuevas, yo puedo migrar todas las filas de `exercises` directamente de la cuenta vieja a la nueva sin que toques un solo CSV.
@@ -173,18 +173,18 @@ Revisando la captura de pantalla de tus **Variables de Entorno actuales en Verce
 
 ### A. Variables que DEBES ACTUALIZAR en Vercel (4 variables)
 
-| Variable en tu Vercel | Valor Actual (en tu captura) | Nuevo Valor a Poner |
+| Variable en tu Vercel | Valor Anterior | Nuevo Valor a Poner |
 | :--- | :--- | :--- |
 | **`NEXT_PUBLIC_APP_URL`** | `https://rucoach-development.vercel.app/` | **`https://rucoach.app`** *(sin barra `/` al final)* |
-| **`NEXT_PUBLIC_SUPABASE_URL`** | `https://dldttdqpcpdtribtgzsa.supabase.co` | **La nueva Project URL** (`https://xxxx.supabase.co`) |
-| **`NEXT_PUBLIC_SUPABASE_ANON_KEY`** | `sb_publishable_ZNyEoX6J_...` | **La nueva `sb_publishable_...` (o `anon` key)** de la cuenta nueva *(nuestro código soporta tanto `NEXT_PUBLIC_SUPABASE_ANON_KEY` como `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)* |
-| **`SUPABASE_SERVICE_ROLE_KEY`** | `sb_secret_xKNiJvD71B24q...` | **La nueva `sb_secret_...` (o `service_role` key)** de la cuenta nueva |
+| **`NEXT_PUBLIC_SUPABASE_URL`** | `https://tu-proyecto-anterior.supabase.co` | **La nueva Project URL** (`https://xxxx.supabase.co`) |
+| **`NEXT_PUBLIC_SUPABASE_ANON_KEY`** | `sb_publishable_xxxxxxxxxxxx` | **La nueva `sb_publishable_...` (o `anon` key)** de la cuenta nueva *(nuestro código soporta tanto `NEXT_PUBLIC_SUPABASE_ANON_KEY` como `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)* |
+| **`SUPABASE_SERVICE_ROLE_KEY`** | `sb_secret_xxxxxxxxxxxx` | **La nueva `sb_secret_...` (o `service_role` key)** de la cuenta nueva |
 
-### B. Variables NUEVAS que DEBES AGREGAR en Vercel (2 variables que faltan en tu captura)
+### B. Variables de Resend en Vercel (2 variables)
 
-En tu captura actual de Vercel **no están agregadas las variables de Resend**, por lo que en producción no se enviarían los correos de invitación, bienvenida, nueva rutina ni recibo de pago:
+Asegúrate de tener configuradas las variables de Resend para el envío de correos de invitación, bienvenida, nueva rutina y recibos de pago:
 
-| Nueva Variable a Crear | Valor | Entornos |
+| Variable | Valor | Entornos |
 | :--- | :--- | :--- |
 | **`RESEND_API_KEY`** | `re_xxxxxxxxxxxxxxxxxxxxxxxx` *(tu API Key de Resend)* | All Environments (Marca *Sensitive*) |
 | **`EMAIL_FROM`** | `RU Coach <noreply@rucoach.app>` | All Environments |
@@ -192,14 +192,14 @@ En tu captura actual de Vercel **no están agregadas las variables de Resend**, 
 ### C. Variables que SE QUEDAN EXACTAMENTE IGUAL (No necesitas cambiarlas)
 
 Como tu cuenta de Cloudflare R2 (`gymcoaching-exercises`) y tus llaves VAPID ya están listas y funcionando:
-- **`NEXT_PUBLIC_VAPID_PUBLIC_KEY`**: Se queda igual (`BK7TURh1COKE5F...`)
-- **`VAPID_PRIVATE_KEY`**: Se queda igual (`xFt4wOr3rKKFzs...`)
-- **`ADMIN_SETUP_CODE`**: Se queda igual (`GYMCOACH` — lo usarás para registrar tu cuenta de Coach en `/auth/sign-up` en la nueva base de datos)
-- **`R2_ACCESS_KEY_ID`**: Se queda igual (`9245bc27a5...`)
-- **`R2_SECRET_ACCESS_KEY`**: Se queda igual (`aea82536a7...`)
-- **`R2_ACCOUNT_ID`**: Se queda igual (`41e531d7140c...`)
+- **`NEXT_PUBLIC_VAPID_PUBLIC_KEY`**: Se queda igual (`tu-vapid-public-key`)
+- **`VAPID_PRIVATE_KEY`**: Se queda igual (`tu-vapid-private-key`)
+- **`ADMIN_SETUP_CODE`**: Se queda igual (`tu-codigo-secreto-de-admin` — lo usarás para registrar tu cuenta de Coach en `/auth/sign-up` en la nueva base de datos)
+- **`R2_ACCESS_KEY_ID`**: Se queda igual (`tu-r2-access-key-id`)
+- **`R2_SECRET_ACCESS_KEY`**: Se queda igual (`tu-r2-secret-access-key`)
+- **`R2_ACCOUNT_ID`**: Se queda igual (`tu-cloudflare-account-id`)
 - **`R2_BUCKET_NAME`**: Se queda igual (`gymcoaching-exercises`)
-- **`NEXT_PUBLIC_R2_PUBLIC_URL`**: Se queda igual (`https://pub-25b160e13c63420783953a1098e3168c.r2.dev`)
+- **`NEXT_PUBLIC_R2_PUBLIC_URL`**: Se queda igual (`https://pub-xxxxxx.r2.dev`)
 
 > [!TIP]
 > **¿Por qué Vercel muestra el aviso naranja `Needs Attention` en `VAPID_PRIVATE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` y `R2_SECRET_ACCESS_KEY`?**
@@ -236,5 +236,5 @@ Para que la subida directa de fotos de progreso y avatares funcione desde tu nue
 
 1. En **Vercel** → **Deployments** → haz clic en los tres puntos del último deploy → **Redeploy** (para que tome las nuevas variables de entorno).
 2. Entra a **`https://rucoach.app/auth/sign-up`**.
-3. Ingresa tu código maestro **`GYMCOACH`** (`ADMIN_SETUP_CODE`), crea tu cuenta de Coach, completa el onboarding de 2 pasos de Coach y ¡tu plataforma estará 100% en vivo sobre la nueva cuenta de Supabase y con el dominio `rucoach.app`!
+3. Ingresa tu código maestro configurado en **`ADMIN_SETUP_CODE`**, crea tu cuenta de Coach, completa el onboarding de 2 pasos de Coach y ¡tu plataforma estará 100% en vivo sobre la nueva cuenta de Supabase y con el dominio `rucoach.app`!
 
