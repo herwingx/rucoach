@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-
+import type { Exercise } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ExerciseDetailDrawer } from '@/components/client/exercise-detail-drawer'
 import { cn } from '@/lib/utils'
 import { Dumbbell, Link2, MoonStar, Timer } from 'lucide-react'
 
@@ -27,14 +27,14 @@ type RoutineExerciseLike = {
   reps?: string | null
   rest_seconds?: number | null
   superset_group?: string | null
-  exercises?: {
+  exercises?: (Partial<Exercise> & {
     id?: string
     name?: string | null
     name_es?: string | null
     primary_muscle?: string | null
     target_muscles_es?: string[] | null
     gif_url?: string | null
-  } | null
+  }) | null
 }
 
 type RoutineDayLike = {
@@ -134,13 +134,7 @@ export function RoutineDayCards({
   emptyMessage = 'Esta rutina no tiene días configurados aún.',
   compact = false,
 }: RoutineDayCardsProps) {
-  const [selectedExercise, setSelectedExercise] = useState<{
-    name: string
-    primaryMuscle: string
-    sets: string
-    rest: string
-    gifUrl: string
-  } | null>(null)
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
 
   if (!days?.length) {
     return (
@@ -255,36 +249,37 @@ export function RoutineDayCards({
                             </div>
                           )}
 
-                          <div className={cn(
-                            'flex w-full min-w-0 items-center justify-between gap-3 rounded-[1rem] border bg-card p-2.5 shadow-sm transition-all group',
-                            ex.superset_group && color
-                              ? `${color.border} border-2 hover:shadow-md`
-                              : 'border-border/50 hover:border-primary/30 hover:shadow-md',
-                          )}>
+                          <div
+                            role={ex.exercises ? 'button' : undefined}
+                            tabIndex={ex.exercises ? 0 : undefined}
+                            onClick={() => {
+                              if (ex.exercises) {
+                                setSelectedExercise(ex.exercises as Exercise)
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (ex.exercises && (e.key === 'Enter' || e.key === ' ')) {
+                                e.preventDefault()
+                                setSelectedExercise(ex.exercises as Exercise)
+                              }
+                            }}
+                            className={cn(
+                              'flex w-full min-w-0 items-center justify-between gap-3 rounded-[1rem] border bg-card p-2.5 shadow-sm transition-all group',
+                              ex.exercises && 'cursor-pointer',
+                              ex.superset_group && color
+                                ? `${color.border} border-2 hover:shadow-md`
+                                : 'border-border/50 hover:border-primary/30 hover:shadow-md',
+                            )}
+                          >
                             <div className="flex min-w-0 flex-1 items-center gap-3.5">
                               <div className="shrink-0 overflow-hidden rounded-[0.7rem] border border-border/40 bg-white dark:bg-[#f8f9fa] shadow-sm">
                                 {ex.exercises?.gif_url ? (
-                                  <button
-                                    type="button"
-                                    className="cursor-pointer flex items-center justify-center transition-transform hover:scale-105"
-                                    onClick={() =>
-                                      setSelectedExercise({
-                                        name: ex.exercises?.name_es || ex.exercises?.name || 'Ejercicio',
-                                        primaryMuscle: (ex.exercises?.target_muscles_es?.[0]) || ex.exercises?.primary_muscle || 'No especificado',
-                                        sets: `${ex.sets ?? '-'}x${ex.reps || '-'}`,
-                                        rest: ex.rest_seconds ? `${ex.rest_seconds}s` : 'Sin descanso',
-                                        gifUrl: ex.exercises?.gif_url || '',
-                                      })
-                                    }
-                                    aria-label={`Ver detalle de ${ex.exercises?.name_es || ex.exercises?.name || 'ejercicio'}`}
-                                  >
-                                    <img
-                                      src={ex.exercises.gif_url}
-                                      alt={ex.exercises?.name_es || ex.exercises?.name || 'Ejercicio'}
-                                      className={cn('object-cover bg-white dark:bg-[#f8f9fa] mix-blend-multiply drop-shadow-[0_2px_4px_rgba(0,0,0,0.05)]', compact ? 'size-[2.75rem]' : 'size-[3.25rem]')}
-                                      loading="lazy"
-                                    />
-                                  </button>
+                                  <img
+                                    src={ex.exercises.gif_url}
+                                    alt={ex.exercises?.name_es || ex.exercises?.name || 'Ejercicio'}
+                                    className={cn('object-cover bg-white dark:bg-[#f8f9fa] mix-blend-multiply drop-shadow-[0_2px_4px_rgba(0,0,0,0.05)] transition-transform group-hover:scale-105', compact ? 'size-[2.75rem]' : 'size-[3.25rem]')}
+                                    loading="lazy"
+                                  />
                                 ) : (
                                   <div className={cn('flex items-center justify-center text-[10px] font-bold text-muted-foreground/60 tracking-widest bg-muted/30', compact ? 'size-[2.75rem]' : 'size-[3.25rem]')}>
                                     N/A
@@ -329,35 +324,19 @@ export function RoutineDayCards({
         )
       })}
 
-      <Dialog open={!!selectedExercise} onOpenChange={(open) => !open && setSelectedExercise(null)}>
-        <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{selectedExercise?.name || 'Ejercicio'}</DialogTitle>
-            <DialogDescription>{selectedExercise?.primaryMuscle || 'No especificado'}</DialogDescription>
-          </DialogHeader>
-
-          {selectedExercise?.gifUrl ? (
-            <div className="overflow-hidden rounded-lg border bg-white dark:bg-[#f8f9fa]">
-              <img
-                src={selectedExercise.gifUrl}
-                alt={selectedExercise.name}
-                className="aspect-square w-full object-cover bg-white dark:bg-[#f8f9fa] mix-blend-multiply"
-              />
-            </div>
-          ) : null}
-
-          <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
-            <div className="rounded-md border px-3 py-2">
-              <p className="text-muted-foreground">Series x repeticiones</p>
-              <p className="font-medium">{selectedExercise?.sets || '-'}</p>
-            </div>
-            <div className="rounded-md border px-3 py-2">
-              <p className="text-muted-foreground">Descanso</p>
-              <p className="font-medium">{selectedExercise?.rest || '-'}</p>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ExerciseDetailDrawer
+        open={Boolean(selectedExercise)}
+        onOpenChange={(open) => {
+          if (!open) setSelectedExercise(null)
+        }}
+        exercise={selectedExercise}
+        variant="default"
+        editHref={
+          selectedExercise?.id
+            ? `/admin/exercises/${encodeURIComponent(selectedExercise.id)}/edit`
+            : undefined
+        }
+      />
     </div>
   )
 }

@@ -38,9 +38,10 @@ export default async function NewExercisePage() {
       <div className={ADMIN_FORM_PAGE_SHELL}>
         <Card className="border-muted/70">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Datos del movimiento</CardTitle>
+            <CardTitle className="text-lg">Datos y ejecución del movimiento</CardTitle>
             <CardDescription>
-              Mínimo: nombre y grupo muscular. URLs de media son opcionales.
+              Define el nombre, grupo muscular, descripción paso a paso por
+              puntos y recursos multimedia.
             </CardDescription>
           </CardHeader>
           <CardContent>

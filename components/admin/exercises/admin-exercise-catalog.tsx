@@ -1,14 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Exercise } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Library, Search as SearchIcon, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react'
+import { Library, Search as SearchIcon, Eye, Pencil, ListOrdered, SlidersHorizontal, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { exName, exEquipment, exTargetMuscles } from '@/lib/exercise-i18n'
+import { exName, exEquipment, exTargetMuscles, exInstructions } from '@/lib/exercise-i18n'
 import { ExerciseDetailDrawer } from '@/components/client/exercise-detail-drawer'
 
 const MUSCLE_LABELS_ES: Record<string, string> = {
@@ -177,6 +178,12 @@ export function AdminExerciseCatalog({
 
   const activeBodyPart = searchParams.get('bodyPart')
   const hasActiveFilters = Boolean(search.trim() || activeBodyPart)
+
+  const getEditHref = (exerciseId: string) => {
+    const qs = searchParams.toString()
+    const returnTo = qs ? `/admin/exercises?${qs}` : '/admin/exercises'
+    return `/admin/exercises/${encodeURIComponent(exerciseId)}/edit?returnTo=${encodeURIComponent(returnTo)}`
+  }
 
   return (
     <>
@@ -423,20 +430,39 @@ export function AdminExerciseCatalog({
                             {EXERCISE_TYPE_LABELS_ES[ex.exercise_type.toLowerCase()] ?? ex.exercise_type}
                           </Badge>
                         ) : null}
+                        {exInstructions(ex).length > 0 ? (
+                          <Badge variant="outline" className="text-[10px] px-2 py-0 font-semibold text-primary border-primary/25 bg-primary/5 inline-flex items-center gap-1">
+                            <ListOrdered className="size-2.5" aria-hidden />
+                            {exInstructions(ex).length} pasos
+                          </Badge>
+                        ) : null}
                       </div>
                       {exEquipment(ex) ? (
                         <p className="line-clamp-1 text-xs text-muted-foreground font-medium mt-0.5">{exEquipment(ex)}</p>
                       ) : null}
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="mt-2 min-h-[40px] w-full rounded-xl font-semibold bg-secondary/80 hover:bg-secondary transition-colors"
-                        onClick={() => openDetail(ex)}
-                      >
-                        <Eye className="size-4 mr-2 text-muted-foreground" aria-hidden="true" />
-                        Ver ficha
-                      </Button>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="min-h-[40px] w-full rounded-xl font-semibold bg-secondary/80 hover:bg-secondary transition-colors"
+                          onClick={() => openDetail(ex)}
+                        >
+                          <Eye className="size-4 mr-1.5 text-muted-foreground" aria-hidden="true" />
+                          Ver ficha
+                        </Button>
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="min-h-[40px] w-full rounded-xl font-semibold border-border/70 hover:bg-muted/60 transition-colors"
+                        >
+                          <Link href={getEditHref(ex.id)}>
+                            <Pencil className="size-3.5 mr-1.5 text-muted-foreground" aria-hidden="true" />
+                            Editar
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -502,6 +528,7 @@ export function AdminExerciseCatalog({
         }}
         exercise={detailExercise}
         variant="default"
+        editHref={detailExercise ? getEditHref(detailExercise.id) : undefined}
       />
     </>
   )

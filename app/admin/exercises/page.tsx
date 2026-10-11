@@ -77,7 +77,7 @@ export default async function AdminExercisesPage({
       <AdminPageHeader
         sticky
         title="Catálogo de ejercicios"
-        description="Estudia movimientos, revisa GIF y técnica, y añade nuevos a tu biblioteca."
+        description="Consulta la biblioteca, edita pasos de ejecución por puntos o agrega nuevos movimientos."
         actions={
           <Button asChild className="w-full sm:w-auto">
             <Link href="/admin/exercises/new">

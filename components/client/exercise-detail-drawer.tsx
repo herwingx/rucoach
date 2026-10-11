@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import type { Exercise } from '@/lib/types'
 import {
   Drawer,
@@ -25,7 +26,7 @@ import { ExerciseMedia } from '@/components/client/exercise-media'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { ExternalLink, Info } from 'lucide-react'
+import { ExternalLink, Info, Pencil } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { exName, exEquipment, exTargetMuscles, exInstructions } from '@/lib/exercise-i18n'
 
@@ -38,6 +39,8 @@ interface ExerciseDetailDrawerProps {
    * `default`: vista completa con media grande (p. ej. desde lista de rutina).
    */
   variant?: 'default' | 'compact'
+  /** Ruta opcional para que el coach edite el ejercicio directamente desde la ficha */
+  editHref?: string
 }
 
 function normalizeLines(value: unknown): string[] {
@@ -118,7 +121,11 @@ function ExerciseDetailSections({
 }) {
   const instructions = normalizeLines(exInstructions(exercise))
   const targets = exTargetMuscles(exercise)
-  const showInstructionPlaceholder = !instructions.length && (showCompactCallout || !showHeroMedia)
+  const rawNotes = exercise.technique_notes?.trim() ?? ''
+  const hasDistinctNotes =
+    Boolean(rawNotes) &&
+    (instructions.length === 0 || instructions.join('\n').trim() !== rawNotes)
+  const showInstructionPlaceholder = !instructions.length && !hasDistinctNotes
 
   return (
     <div className={cn('flex flex-col gap-6', classNames?.root)}>
@@ -202,9 +209,9 @@ function ExerciseDetailSections({
         </p>
       ) : null}
 
-      {exercise.technique_notes ? (
+      {hasDistinctNotes ? (
         <>
-          <Separator />
+          {instructions.length > 0 ? <Separator /> : null}
           <section className="flex flex-col gap-2" aria-labelledby="exercise-tech-heading">
             <h3
               id="exercise-tech-heading"
@@ -212,7 +219,7 @@ function ExerciseDetailSections({
             >
               Técnica y notas
             </h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">{exercise.technique_notes}</p>
+            <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{rawNotes}</p>
           </section>
         </>
       ) : null}
@@ -244,6 +251,7 @@ export function ExerciseDetailDrawer({
   onOpenChange,
   exercise,
   variant = 'default',
+  editHref,
 }: ExerciseDetailDrawerProps) {
   const isDesktop = useMediaQuery('(min-width: 1024px)')
 
@@ -325,8 +333,16 @@ export function ExerciseDetailDrawer({
                   </div>
                 </>
               )}
-              <DialogFooter className="border-t border-border/60 p-4 sm:px-6">
-                <Button type="button" variant="secondary" className="w-full sm:w-auto" onClick={() => onOpenChange(false)}>
+              <DialogFooter className="border-t border-border/60 p-4 sm:px-6 flex-row items-center justify-end gap-2">
+                {editHref ? (
+                  <Button asChild variant="outline" className="rounded-xl font-semibold">
+                    <Link href={editHref} onClick={() => onOpenChange(false)}>
+                      <Pencil className="size-4 mr-1.5" />
+                      Editar ejercicio
+                    </Link>
+                  </Button>
+                ) : null}
+                <Button type="button" variant="secondary" className="rounded-xl font-semibold" onClick={() => onOpenChange(false)}>
                   Cerrar
                 </Button>
               </DialogFooter>
@@ -360,7 +376,7 @@ export function ExerciseDetailDrawer({
                 <ExerciseBadges exercise={exercise} />
               </DrawerHeader>
 
-              <div className="min-h-0 flex-1 overflow-y-auto px-5">
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">
                 <ExerciseDetailSections
                   exercise={exercise}
                   showCompactCallout={variant === 'compact'}
@@ -368,7 +384,15 @@ export function ExerciseDetailDrawer({
                 />
               </div>
 
-              <DrawerFooter className="border-t border-border/40 pt-4 pb-6 px-5 bg-background">
+              <DrawerFooter className="border-t border-border/40 pt-4 pb-6 px-5 bg-background flex-col sm:flex-row gap-2">
+                {editHref ? (
+                  <Button asChild variant="outline" className="w-full h-12 rounded-2xl font-semibold text-[15px]">
+                    <Link href={editHref} onClick={() => onOpenChange(false)}>
+                      <Pencil className="size-4 mr-2" />
+                      Editar ejercicio
+                    </Link>
+                  </Button>
+                ) : null}
                 <DrawerClose asChild>
                   <Button type="button" variant="secondary" className="w-full h-12 rounded-2xl font-semibold text-[15px] bg-secondary/80 hover:bg-secondary shadow-sm transition-all active:scale-[0.98]">
                     Cerrar
