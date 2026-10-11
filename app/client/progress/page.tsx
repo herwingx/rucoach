@@ -7,8 +7,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { createClient } from "@/lib/supabase/server";
-import { Award, Sparkles, TrendingUp } from "lucide-react";
+import { Award, Dumbbell, Sparkles, TrendingUp, Trophy } from "lucide-react";
 import {
   VolumeChartLazy,
   ExerciseProgressChartLazy,
@@ -136,6 +138,67 @@ export default async function ClientProgressPage() {
     loadAwarePrRows,
   );
   const exercises = exerciseOptionsFromPoints(pointsByExerciseId, nameById);
+
+  const currentExercisePrs = exercises
+    .map((ex) => {
+      const pts = pointsByExerciseId[ex.id] || [];
+      if (pts.length === 0) return null;
+      const sortedPts = [...pts].sort(
+        (a, b) =>
+          new Date(a.achieved_at).getTime() - new Date(b.achieved_at).getTime(),
+      );
+      const firstPoint = sortedPts[0];
+      let bestPoint = sortedPts[0];
+
+      for (const pt of sortedPts) {
+        const ptTime = new Date(pt.achieved_at).getTime();
+        const bestTime = new Date(bestPoint.achieved_at).getTime();
+        if (
+          pt.weight_kg > bestPoint.weight_kg ||
+          (pt.weight_kg === bestPoint.weight_kg &&
+            (pt.reps ?? 0) > (bestPoint.reps ?? 0)) ||
+          (pt.weight_kg === bestPoint.weight_kg &&
+            (pt.reps ?? 0) === (bestPoint.reps ?? 0) &&
+            ptTime >= bestTime)
+        ) {
+          bestPoint = pt;
+        }
+      }
+
+      const reps = bestPoint.reps ?? null;
+      const est1rm =
+        reps == null || reps <= 1
+          ? bestPoint.weight_kg
+          : Math.round(
+              bestPoint.weight_kg * (1 + Math.min(reps, 30) / 30) * 10,
+            ) / 10;
+
+      const gainKg =
+        sortedPts.length >= 2
+          ? Math.round((bestPoint.weight_kg - firstPoint.weight_kg) * 10) / 10
+          : 0;
+
+      return {
+        id: ex.id,
+        name: ex.name,
+        weightKg: bestPoint.weight_kg,
+        reps,
+        est1rm,
+        achievedAt: bestPoint.achieved_at,
+        dateLabel: format(new Date(bestPoint.achieved_at), "dd MMM yyyy", {
+          locale: es,
+        }),
+        sessionsCount: sortedPts.length,
+        gainKg,
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+    .sort((a, b) => {
+      const timeDiff =
+        new Date(b.achievedAt).getTime() - new Date(a.achievedAt).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return b.weightKg - a.weightKg;
+    });
 
   const now = new Date();
 
@@ -348,6 +411,97 @@ export default async function ClientProgressPage() {
                   pointsByExerciseId={pointsByExerciseId}
                   defaultExerciseId={exercises[0]?.id}
                 />
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
+              <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                      <Trophy className="size-5 text-primary" aria-hidden />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg font-bold tracking-tight">
+                        Mis Récords Personales (PRs por Ejercicio)
+                      </CardTitle>
+                      <CardDescription className="text-xs font-medium">
+                        Mejores marcas históricas de carga y 1RM estimado (Epley)
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {currentExercisePrs.length > 0 && (
+                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold tabular-nums text-primary">
+                      {currentExercisePrs.length}{" "}
+                      {currentExercisePrs.length === 1 ? "PR" : "PRs"}
+                    </span>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                {currentExercisePrs.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-center">
+                    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/60 ring-1 ring-border/40">
+                      <Dumbbell className="h-6 w-6 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Aún no tienes récords personales registrados
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground/70">
+                      Completa tu primera sesión con carga para construir tu muro de PRs.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {currentExercisePrs.map((pr) => (
+                      <div
+                        key={pr.id}
+                        className="group relative flex flex-col justify-between gap-3 rounded-2xl border border-border/70 bg-muted/15 p-4 transition-all hover:border-primary/30 hover:bg-muted/25"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="line-clamp-2 text-sm font-bold leading-snug text-foreground">
+                            {pr.name}
+                          </p>
+                          <span className="shrink-0 rounded-lg border border-border/60 bg-background/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            {pr.dateLabel}
+                          </span>
+                        </div>
+
+                        <div className="flex items-end justify-between gap-2 pt-1">
+                          <div>
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-2xl font-black tabular-nums tracking-tight text-foreground">
+                                {pr.weightKg}
+                              </span>
+                              <span className="text-xs font-bold text-muted-foreground">
+                                kg
+                              </span>
+                              {pr.reps != null && pr.reps > 0 && (
+                                <span className="ml-0.5 text-xs font-bold tabular-nums text-muted-foreground">
+                                  × {pr.reps} reps
+                                </span>
+                              )}
+                            </div>
+                            {pr.sessionsCount >= 2 && pr.gainKg > 0 && (
+                              <p className="mt-0.5 text-[11px] font-semibold tabular-nums text-emerald-500">
+                                +{pr.gainKg.toFixed(1)} kg desde el inicio
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="rounded-xl border border-primary/20 bg-primary/10 px-2.5 py-1 text-right">
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-primary/80">
+                              1RM Est.
+                            </p>
+                            <p className="text-xs font-black tabular-nums text-primary">
+                              ~{pr.est1rm} kg 1RM
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

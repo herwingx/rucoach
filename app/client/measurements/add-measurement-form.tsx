@@ -17,10 +17,26 @@ import { toast } from "sonner";
 import { addMeasurement } from "@/app/actions/measurements";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
 
-export function AddMeasurementForm() {
+export interface LatestMeasurementValues {
+  weight?: number | null;
+  body_fat_pct?: number | null;
+  waist_cm?: number | null;
+  hip_cm?: number | null;
+  chest_cm?: number | null;
+  arm_cm?: number | null;
+  thigh_cm?: number | null;
+}
+
+export function AddMeasurementForm({
+  latestValues,
+}: {
+  latestValues?: LatestMeasurementValues;
+}) {
   const router = useRouter();
+  const todayStr = new Date().toLocaleDateString("en-CA");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [recordedAt, setRecordedAt] = useState(todayStr);
   const [weight, setWeight] = useState("");
   const [bodyFat, setBodyFat] = useState("");
   const [waist, setWaist] = useState("");
@@ -69,6 +85,7 @@ export function AddMeasurementForm() {
         chest_cm: c,
         arm_cm: a,
         thigh_cm: t,
+        recorded_at: recordedAt || undefined,
       });
     } catch (e) {
       console.error(e);
@@ -81,6 +98,7 @@ export function AddMeasurementForm() {
     if (result.success) {
       toast.success("¡Medida registrada correctamente!");
       setOpen(false);
+      setRecordedAt(new Date().toLocaleDateString("en-CA"));
       setWeight("");
       setBodyFat("");
       setWaist("");
@@ -121,106 +139,146 @@ export function AddMeasurementForm() {
         <div className="p-6">
           <form onSubmit={handleSubmit}>
             <FieldGroup>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-              <Field>
-                <FieldLabel htmlFor="weight">Peso (kg)</FieldLabel>
-                <Input
-                  id="weight"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  placeholder="70.0"
-                  value={weight}
-                  onChange={(e) => setWeight(e.target.value)}
-                  className="rounded-xl h-11"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="body_fat">% Grasa</FieldLabel>
-                <Input
-                  id="body_fat"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="100"
-                  placeholder="20.0"
-                  value={bodyFat}
-                  onChange={(e) => setBodyFat(e.target.value)}
-                  className="rounded-xl h-11"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="waist">Cintura (cm)</FieldLabel>
-                <Input
-                  id="waist"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  placeholder="85"
-                  value={waist}
-                  onChange={(e) => setWaist(e.target.value)}
-                  className="rounded-xl h-11"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="hip">Cadera (cm)</FieldLabel>
-                <Input
-                  id="hip"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  placeholder="95"
-                  value={hip}
-                  onChange={(e) => setHip(e.target.value)}
-                  className="rounded-xl h-11"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="chest">Pecho (cm)</FieldLabel>
-                <Input
-                  id="chest"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  placeholder="100"
-                  value={chest}
-                  onChange={(e) => setChest(e.target.value)}
-                  className="rounded-xl h-11"
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="arm">Brazo (cm)</FieldLabel>
-                <Input
-                  id="arm"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  placeholder="35"
-                  value={arm}
-                  onChange={(e) => setArm(e.target.value)}
-                  className="rounded-xl h-11"
-                />
-              </Field>
-              <Field className="col-span-2">
-                <FieldLabel htmlFor="thigh">Muslo (cm)</FieldLabel>
-                <Input
-                  id="thigh"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  placeholder="55"
-                  value={thigh}
-                  onChange={(e) => setThigh(e.target.value)}
-                  className="rounded-xl h-11"
-                />
-              </Field>
-            </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <Field className="col-span-2">
+                  <FieldLabel htmlFor="recorded_at">Fecha del registro</FieldLabel>
+                  <Input
+                    id="recorded_at"
+                    type="date"
+                    max={todayStr}
+                    value={recordedAt}
+                    onChange={(e) => setRecordedAt(e.target.value)}
+                    required
+                    className="rounded-xl h-11"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="weight">Peso (kg)</FieldLabel>
+                  <Input
+                    id="weight"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder={
+                      latestValues?.weight != null
+                        ? `Último: ${latestValues.weight} kg`
+                        : "70.0"
+                    }
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    className="rounded-xl h-11"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="body_fat">% Grasa</FieldLabel>
+                  <Input
+                    id="body_fat"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    placeholder={
+                      latestValues?.body_fat_pct != null
+                        ? `Último: ${latestValues.body_fat_pct}%`
+                        : "20.0"
+                    }
+                    value={bodyFat}
+                    onChange={(e) => setBodyFat(e.target.value)}
+                    className="rounded-xl h-11"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="waist">Cintura (cm)</FieldLabel>
+                  <Input
+                    id="waist"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder={
+                      latestValues?.waist_cm != null
+                        ? `Último: ${latestValues.waist_cm} cm`
+                        : "85"
+                    }
+                    value={waist}
+                    onChange={(e) => setWaist(e.target.value)}
+                    className="rounded-xl h-11"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="hip">Cadera (cm)</FieldLabel>
+                  <Input
+                    id="hip"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder={
+                      latestValues?.hip_cm != null
+                        ? `Último: ${latestValues.hip_cm} cm`
+                        : "95"
+                    }
+                    value={hip}
+                    onChange={(e) => setHip(e.target.value)}
+                    className="rounded-xl h-11"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="chest">Pecho (cm)</FieldLabel>
+                  <Input
+                    id="chest"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder={
+                      latestValues?.chest_cm != null
+                        ? `Último: ${latestValues.chest_cm} cm`
+                        : "100"
+                    }
+                    value={chest}
+                    onChange={(e) => setChest(e.target.value)}
+                    className="rounded-xl h-11"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="arm">Brazo (cm)</FieldLabel>
+                  <Input
+                    id="arm"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder={
+                      latestValues?.arm_cm != null
+                        ? `Último: ${latestValues.arm_cm} cm`
+                        : "35"
+                    }
+                    value={arm}
+                    onChange={(e) => setArm(e.target.value)}
+                    className="rounded-xl h-11"
+                  />
+                </Field>
+                <Field className="col-span-2">
+                  <FieldLabel htmlFor="thigh">Muslo (cm)</FieldLabel>
+                  <Input
+                    id="thigh"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder={
+                      latestValues?.thigh_cm != null
+                        ? `Último: ${latestValues.thigh_cm} cm`
+                        : "55"
+                    }
+                    value={thigh}
+                    onChange={(e) => setThigh(e.target.value)}
+                    className="rounded-xl h-11"
+                  />
+                </Field>
+              </div>
 
-            <Button type="submit" disabled={loading} className="w-full h-12 rounded-2xl font-bold text-base mt-2 shadow-lg transition-all active:scale-[0.98]">
-              {loading ? "Guardando envío..." : "Guardar Registro"}
-            </Button>
-          </FieldGroup>
-        </form>
+              <Button type="submit" disabled={loading} className="w-full h-12 rounded-2xl font-bold text-base mt-2 shadow-lg transition-all active:scale-[0.98]">
+                {loading ? "Guardando envío..." : "Guardar Registro"}
+              </Button>
+            </FieldGroup>
+          </form>
         </div>
       </DialogContent>
     </Dialog>

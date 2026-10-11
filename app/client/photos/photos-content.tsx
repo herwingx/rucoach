@@ -6,7 +6,9 @@ import { PhotoUpload } from "@/components/photos/photo-upload";
 import { PhotoGallery } from "@/components/photos/photo-gallery";
 import { PhotoCompare } from "@/components/photos/photo-compare";
 import type { ProgressPhoto } from "@/components/photos/photo-card";
-import { LayoutGrid, Diff, UploadCloud } from "lucide-react";
+import { LayoutGrid, Diff, UploadCloud, Camera, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { deleteR2Object } from "@/app/actions/r2-storage";
@@ -23,11 +25,29 @@ export function PhotosContent({
   const [activeTab, setActiveTab] = useState("gallery");
 
   const onUploadSuccess = useCallback((newPhoto: ProgressPhoto) => {
-    setPhotos((prev) => [newPhoto, ...prev]);
-    setActiveTab("gallery");
-    toast.success("¡Foto guardada!", {
-      description: "Tu progreso ha sido actualizado correctamente.",
+    setPhotos((prev) => {
+      const updated = [newPhoto, ...prev];
+      const count = updated.length;
+
+      if (count === 1) {
+        toast.success("¡Primera foto registrada!", {
+          description:
+            "Sube una foto más adelante para desbloquear el comparador Antes / Después.",
+        });
+      } else if (count === 2) {
+        toast.success("¡Comparador desbloqueado!", {
+          description:
+            "Ya tienes 2 fotos registradas. Explora la pestaña Comparar para ver tu evolución.",
+        });
+      } else {
+        toast.success("¡Foto guardada!", {
+          description: `Tu progreso ha sido actualizado (${count} fotos en tu historial).`,
+        });
+      }
+
+      return updated;
     });
+    setActiveTab("gallery");
   }, []);
 
   const onDeleteSuccess = useCallback(
@@ -71,36 +91,77 @@ export function PhotosContent({
   return (
     <div className="space-y-8">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="no-scrollbar mb-6 flex h-auto w-full items-center justify-start overflow-x-auto rounded-2xl border border-border/40 bg-muted/50 p-1 shadow-sm sm:w-fit">
-          <TabsTrigger
-            value="gallery"
-            className="shrink-0 gap-2 rounded-xl px-4 py-2 data-[state=active]:shadow-md"
-          >
-            <LayoutGrid className="size-4" />
-            <span className="inline">Galería</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="compare"
-            className="shrink-0 gap-2 rounded-xl px-4 py-2 data-[state=active]:shadow-md"
-          >
-            <Diff className="size-4" />
-            <span className="inline">Comparar</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="upload"
-            className="shrink-0 gap-2 rounded-xl px-4 py-2 data-[state=active]:shadow-md"
-          >
-            <UploadCloud className="size-4" />
-            <span className="inline">Subir</span>
-          </TabsTrigger>
-        </TabsList>
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <TabsList className="no-scrollbar flex h-auto w-full items-center justify-start overflow-x-auto rounded-2xl border border-border/40 bg-muted/50 p-1 shadow-sm sm:w-fit">
+            <TabsTrigger
+              value="gallery"
+              className="shrink-0 gap-2 rounded-xl px-4 py-2 data-[state=active]:shadow-md"
+            >
+              <LayoutGrid className="size-4" />
+              <span className="inline">Galería</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="compare"
+              className="shrink-0 gap-2 rounded-xl px-4 py-2 data-[state=active]:shadow-md"
+            >
+              <Diff className="size-4" />
+              <span className="inline">Comparar</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="upload"
+              className="shrink-0 gap-2 rounded-xl px-4 py-2 data-[state=active]:shadow-md"
+            >
+              <UploadCloud className="size-4" />
+              <span className="inline">Subir</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant="secondary"
+              className="gap-1.5 rounded-xl px-3 py-1 text-xs font-semibold"
+            >
+              <Camera className="size-3.5 text-primary" />
+              <span>
+                {photos.length}{" "}
+                {photos.length === 1 ? "foto registrada" : "fotos registradas"}
+              </span>
+            </Badge>
+
+            {photos.length >= 2 ? (
+              <Badge
+                variant="outline"
+                className="gap-1.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400"
+              >
+                <Sparkles className="size-3.5" />
+                <span>Comparador activo</span>
+              </Badge>
+            ) : (
+              activeTab !== "upload" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab("upload")}
+                  className="h-7 rounded-xl text-xs font-semibold"
+                >
+                  <UploadCloud className="mr-1.5 size-3.5" />
+                  Subir foto ahora
+                </Button>
+              )
+            )}
+          </div>
+        </div>
 
         <TabsContent value="gallery" className="focus-visible:outline-none">
           <PhotoGallery photos={photos} onDeleteSuccess={onDeleteSuccess} />
         </TabsContent>
 
         <TabsContent value="compare" className="focus-visible:outline-none">
-          <PhotoCompare photos={photos} />
+          <PhotoCompare
+            photos={photos}
+            onRequestUpload={() => setActiveTab("upload")}
+          />
         </TabsContent>
 
         <TabsContent value="upload" className="focus-visible:outline-none">
@@ -110,3 +171,4 @@ export function PhotosContent({
     </div>
   );
 }
+

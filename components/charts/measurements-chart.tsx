@@ -19,7 +19,7 @@ import {
 
 export type { MeasurementRow }
 
-type Metric = 'weight' | 'waist' | 'fat'
+type Metric = 'weight' | 'waist' | 'fat' | 'chest' | 'hip' | 'arm' | 'thigh'
 type ViewMode = 'raw' | 'monthly'
 
 const METRIC_META: Record<
@@ -49,6 +49,30 @@ const METRIC_META: Record<
     color: 'var(--chart-3)',
     icon: Activity,
   },
+  chest: {
+    label: 'Pecho',
+    unit: 'cm',
+    color: 'var(--chart-4)',
+    icon: Ruler,
+  },
+  hip: {
+    label: 'Cadera',
+    unit: 'cm',
+    color: 'var(--chart-5)',
+    icon: Ruler,
+  },
+  arm: {
+    label: 'Brazo',
+    unit: 'cm',
+    color: 'var(--primary)',
+    icon: Ruler,
+  },
+  thigh: {
+    label: 'Muslo',
+    unit: 'cm',
+    color: 'var(--chart-2)',
+    icon: Ruler,
+  },
 }
 
 type ChartRow = {
@@ -65,7 +89,15 @@ function extractMetric(row: MeasurementRow, metric: Metric): number | null {
       ? row.weight
       : metric === 'waist'
         ? row.waist_cm
-        : row.body_fat_pct
+        : metric === 'fat'
+          ? row.body_fat_pct
+          : metric === 'chest'
+            ? row.chest_cm
+            : metric === 'hip'
+              ? row.hip_cm
+              : metric === 'arm'
+                ? row.arm_cm
+                : row.thigh_cm
   if (raw === null || raw === undefined) return null
   const n = Number(raw)
   return Number.isFinite(n) ? n : null
@@ -259,22 +291,39 @@ export function MeasurementsChart({
     })
   }, [chartData, labelBySlot, meta.color, meta.label, meta.unit, viewMode])
 
+  const summaryStats = React.useMemo(() => {
+    if (chartData.length < 2) return null
+    const first = chartData[0]
+    const latest = chartData[chartData.length - 1]
+    const delta = Math.round((latest.value - first.value) * 10) / 10
+    const deltaFormatted =
+      delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)
+    return {
+      firstValue: first.value,
+      firstLabel: first.label,
+      latestValue: latest.value,
+      latestLabel: latest.label,
+      delta,
+      deltaFormatted,
+    }
+  }, [chartData])
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2.5 items-center justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <Tabs
           value={metric}
           onValueChange={(v) => setMetric(v as Metric)}
-          className="w-full sm:w-auto"
+          className="w-full xl:w-auto"
         >
-          <TabsList className="grid h-9 w-full grid-cols-3 rounded-xl p-1 sm:w-[270px]">
+          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-xl p-1 xl:w-auto">
             {(Object.keys(METRIC_META) as Metric[]).map((key) => {
               const Icon = METRIC_META[key].icon
               return (
                 <TabsTrigger
                   key={key}
                   value={key}
-                  className="gap-1.5 rounded-lg text-xs"
+                  className="h-8 flex-none gap-1.5 rounded-lg px-2.5 text-xs"
                 >
                   <Icon className="h-3.5 w-3.5 shrink-0" />
                   {METRIC_META[key].label}
@@ -287,7 +336,7 @@ export function MeasurementsChart({
         <Tabs
           value={viewMode}
           onValueChange={(v) => setViewMode(v as ViewMode)}
-          className="w-full sm:w-auto"
+          className="w-full sm:w-auto shrink-0"
         >
           <TabsList className="grid h-9 w-full grid-cols-2 rounded-xl p-1 sm:w-[200px]">
             <TabsTrigger value="raw" className="gap-1.5 rounded-lg text-xs">
@@ -301,6 +350,44 @@ export function MeasurementsChart({
           </TabsList>
         </Tabs>
       </div>
+
+      {summaryStats && (
+        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-border/60 bg-muted/20 px-3.5 py-2.5 text-xs">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Inicial ({summaryStats.firstLabel})
+            </p>
+            <p className="mt-0.5 text-sm font-black tabular-nums text-foreground">
+              {summaryStats.firstValue}{' '}
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                {meta.unit}
+              </span>
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Actual ({summaryStats.latestLabel})
+            </p>
+            <p className="mt-0.5 text-sm font-black tabular-nums text-foreground">
+              {summaryStats.latestValue}{' '}
+              <span className="text-[11px] font-semibold text-muted-foreground">
+                {meta.unit}
+              </span>
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Cambio total (Δ)
+            </p>
+            <p className="mt-0.5 text-sm font-black tabular-nums text-primary">
+              {summaryStats.deltaFormatted}{' '}
+              <span className="text-[11px] font-semibold text-primary/80">
+                {meta.unit}
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
 
       {chartData.length === 0 ? (
         <div className="flex h-52 items-center justify-center text-xs text-muted-foreground">

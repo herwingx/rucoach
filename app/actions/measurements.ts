@@ -60,8 +60,51 @@ export async function addMeasurement(data: {
 
   if (error) return { success: false, error: error.message };
 
+  try {
+    const { checkAchievements } = await import("@/lib/gamification");
+    await checkAchievements(user.id);
+  } catch {}
+
   revalidatePath("/client/measurements");
   revalidatePath("/client/dashboard");
+  revalidatePath("/client/achievements");
+  revalidatePath(`/admin/clients/${client.id}`);
 
   return { success: true };
 }
+
+export async function deleteMeasurement(
+  measurementId: string,
+): Promise<{ success: boolean; error?: string }> {
+  if (!measurementId) {
+    return { success: false, error: "ID de medición inválido" };
+  }
+
+  const user = await getAuthUser();
+  if (!user) return { success: false, error: "No autenticado" };
+
+  const supabase = await createClient();
+
+  const { data: client } = await supabase
+    .from("clients")
+    .select("id")
+    .eq("user_id", user.id)
+    .single();
+
+  if (!client) return { success: false, error: "Cliente no encontrado" };
+
+  const { error } = await supabase
+    .from("body_measurements")
+    .delete()
+    .eq("id", measurementId)
+    .eq("client_id", client.id);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/client/measurements");
+  revalidatePath("/client/dashboard");
+  revalidatePath(`/admin/clients/${client.id}`);
+
+  return { success: true };
+}
+

@@ -1,7 +1,7 @@
 import { getAuthUser } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { CalendarDays, Ruler, Scale, Sparkles } from "lucide-react";
+import { CalendarDays, History, Ruler, Scale, Sparkles } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -9,9 +9,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { MeasurementsChartLazy } from "@/components/charts/measurements-chart-lazy";
 import { MeasurementsRadarChartLazy } from "@/components/charts/measurements-radar-chart-lazy";
 import { AddMeasurementForm } from "./add-measurement-form";
+import { MeasurementsHistoryList } from "./measurements-history-list";
 import {
   CLIENT_DATA_PAGE_SHELL,
   ClientIncompleteProfileCard,
@@ -30,8 +32,28 @@ type MeasurementRow = {
   thigh_cm: number | null;
 };
 
+type MetricKey =
+  | "weight"
+  | "waist_cm"
+  | "body_fat_pct"
+  | "hip_cm"
+  | "chest_cm"
+  | "arm_cm"
+  | "thigh_cm";
+
 function parseRecordedDate(dateStr: string): Date {
   return new Date(dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`);
+}
+
+function formatDeltaText(
+  delta: number | null,
+  unit: string,
+  includeVsAnt = false,
+): string | null {
+  if (delta === null) return null;
+  const sign = delta > 0 ? "+" : "";
+  const unitSuffix = unit === "%" ? "%" : ` ${unit}`;
+  return `${sign}${delta.toFixed(1)}${unitSuffix}${includeVsAnt ? " vs ant." : ""}`;
 }
 
 export default async function ClientMeasurementsPage() {
@@ -74,23 +96,63 @@ export default async function ClientMeasurementsPage() {
   const latest =
     measurements.length > 0 ? measurements[measurements.length - 1] : null;
 
-  const findLatestMetric = <K extends keyof MeasurementRow>(key: K) => {
-    for (let i = measurements.length - 1; i >= 0; i--) {
-      const val = measurements[i][key];
+  const findMetricStats = (key: MetricKey) => {
+    const entries: { value: number; recorded_at: string }[] = [];
+    for (const row of measurements) {
+      const val = row[key];
       if (val !== null && val !== undefined) {
-        return { value: val, recorded_at: measurements[i].recorded_at };
+        entries.push({ value: Number(val), recorded_at: row.recorded_at });
       }
     }
-    return null;
+
+    if (entries.length === 0) {
+      return {
+        latest: null,
+        previous: null,
+        first: null,
+        deltaPrev: null,
+        deltaTotal: null,
+      };
+    }
+
+    const latestEntry = entries[entries.length - 1];
+    const previousEntry =
+      entries.length >= 2 ? entries[entries.length - 2] : null;
+    const firstEntry = entries[0];
+
+    const deltaPrev =
+      previousEntry !== null
+        ? Math.round((latestEntry.value - previousEntry.value) * 10) / 10
+        : null;
+    const deltaTotal =
+      entries.length >= 2
+        ? Math.round((latestEntry.value - firstEntry.value) * 10) / 10
+        : null;
+
+    return {
+      latest: latestEntry,
+      previous: previousEntry?.value ?? null,
+      first: firstEntry.value,
+      deltaPrev,
+      deltaTotal,
+    };
   };
 
-  const latestWeight = findLatestMetric("weight");
-  const latestWaist = findLatestMetric("waist_cm");
-  const latestFat = findLatestMetric("body_fat_pct");
-  const latestHip = findLatestMetric("hip_cm");
-  const latestChest = findLatestMetric("chest_cm");
-  const latestArm = findLatestMetric("arm_cm");
-  const latestThigh = findLatestMetric("thigh_cm");
+  const weightStats = findMetricStats("weight");
+  const waistStats = findMetricStats("waist_cm");
+  const fatStats = findMetricStats("body_fat_pct");
+  const hipStats = findMetricStats("hip_cm");
+  const chestStats = findMetricStats("chest_cm");
+  const armStats = findMetricStats("arm_cm");
+  const thighStats = findMetricStats("thigh_cm");
+
+  const latestWeight = weightStats.latest;
+  const latestWaist = waistStats.latest;
+  const latestFat = fatStats.latest;
+  const latestHip = hipStats.latest;
+  const latestChest = chestStats.latest;
+  const latestArm = armStats.latest;
+  const latestThigh = thighStats.latest;
 
   const hasPerimeters =
     latestChest !== null ||
@@ -127,7 +189,17 @@ export default async function ClientMeasurementsPage() {
                   </CardDescription>
                 </div>
               </div>
-              <AddMeasurementForm />
+              <AddMeasurementForm
+                latestValues={{
+                  weight: latestWeight?.value ?? null,
+                  body_fat_pct: latestFat?.value ?? null,
+                  waist_cm: latestWaist?.value ?? null,
+                  hip_cm: latestHip?.value ?? null,
+                  chest_cm: latestChest?.value ?? null,
+                  arm_cm: latestArm?.value ?? null,
+                  thigh_cm: latestThigh?.value ?? null,
+                }}
+              />
             </CardHeader>
             <CardContent className="space-y-6">
               {!latest ? (
@@ -148,10 +220,21 @@ export default async function ClientMeasurementsPage() {
                       </p>
                       <Scale className="size-4 text-muted-foreground/40 group-hover:text-primary/40" />
                     </div>
-                    <div className="mt-3 flex items-baseline gap-2">
+                    <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2">
                       <p className="text-4xl font-black tabular-nums tracking-tighter text-foreground">
-                        {latestWeight?.value ?? "—"}<span className="text-lg font-bold text-muted-foreground ml-1">kg</span>
+                        {latestWeight?.value ?? "—"}
+                        <span className="text-lg font-bold text-muted-foreground ml-1">
+                          kg
+                        </span>
                       </p>
+                      {weightStats.deltaPrev !== null && (
+                        <Badge
+                          variant="secondary"
+                          className="rounded-lg px-2 py-0.5 text-[11px] font-bold tabular-nums text-primary bg-primary/10"
+                        >
+                          {formatDeltaText(weightStats.deltaPrev, "kg", true)}
+                        </Badge>
+                      )}
                     </div>
                     <p className="mt-2 flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground/80">
                       <CalendarDays className="size-3.5 text-primary shrink-0" aria-hidden />
@@ -173,8 +256,16 @@ export default async function ClientMeasurementsPage() {
                         Cintura
                       </p>
                       <p className="mt-2 text-2xl font-black tabular-nums tracking-tight text-foreground">
-                        {latestWaist?.value ?? "—"}<span className="text-sm font-bold text-muted-foreground ml-1">cm</span>
+                        {latestWaist?.value ?? "—"}
+                        <span className="text-sm font-bold text-muted-foreground ml-1">
+                          cm
+                        </span>
                       </p>
+                      {waistStats.deltaPrev !== null && (
+                        <p className="mt-1 text-[11px] font-bold tabular-nums text-primary">
+                          {formatDeltaText(waistStats.deltaPrev, "cm", true)}
+                        </p>
+                      )}
                     </div>
                     <div className="group rounded-2xl border bg-muted/20 p-5 transition-all hover:bg-muted/30">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
@@ -185,6 +276,11 @@ export default async function ClientMeasurementsPage() {
                           ? `${latestFat.value}%`
                           : "—"}
                       </p>
+                      {fatStats.deltaPrev !== null && (
+                        <p className="mt-1 text-[11px] font-bold tabular-nums text-primary">
+                          {formatDeltaText(fatStats.deltaPrev, "%", true)}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -200,6 +296,11 @@ export default async function ClientMeasurementsPage() {
                             cm
                           </span>
                         </p>
+                        {chestStats.deltaPrev !== null && (
+                          <p className="mt-1 text-[10px] font-bold tabular-nums text-primary">
+                            {formatDeltaText(chestStats.deltaPrev, "cm")}
+                          </p>
+                        )}
                       </div>
                       <div className="group rounded-2xl border bg-muted/15 p-4 transition-all hover:bg-muted/25">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
@@ -211,6 +312,11 @@ export default async function ClientMeasurementsPage() {
                             cm
                           </span>
                         </p>
+                        {hipStats.deltaPrev !== null && (
+                          <p className="mt-1 text-[10px] font-bold tabular-nums text-primary">
+                            {formatDeltaText(hipStats.deltaPrev, "cm")}
+                          </p>
+                        )}
                       </div>
                       <div className="group rounded-2xl border bg-muted/15 p-4 transition-all hover:bg-muted/25">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
@@ -222,6 +328,11 @@ export default async function ClientMeasurementsPage() {
                             cm
                           </span>
                         </p>
+                        {armStats.deltaPrev !== null && (
+                          <p className="mt-1 text-[10px] font-bold tabular-nums text-primary">
+                            {formatDeltaText(armStats.deltaPrev, "cm")}
+                          </p>
+                        )}
                       </div>
                       <div className="group rounded-2xl border bg-muted/15 p-4 transition-all hover:bg-muted/25">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
@@ -233,6 +344,11 @@ export default async function ClientMeasurementsPage() {
                             cm
                           </span>
                         </p>
+                        {thighStats.deltaPrev !== null && (
+                          <p className="mt-1 text-[10px] font-bold tabular-nums text-primary">
+                            {formatDeltaText(thighStats.deltaPrev, "cm")}
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -297,6 +413,27 @@ export default async function ClientMeasurementsPage() {
                     thigh_cm: m.thigh_cm,
                   }))}
                 />
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
+              <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                    <History className="size-5 text-primary" aria-hidden />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-bold tracking-tight">
+                      Historial de Registros
+                    </CardTitle>
+                    <CardDescription className="text-xs font-medium">
+                      Consulta tus mediciones anteriores o elimina un registro erróneo
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-6">
+                <MeasurementsHistoryList measurements={measurements} />
               </CardContent>
             </Card>
           </div>
