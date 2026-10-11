@@ -39,10 +39,12 @@ export default function Error({
             <span className="block">
               Ocurrió un error inesperado. Por favor intenta de nuevo.
             </span>
-            <span className="block mt-2 text-xs opacity-80">
-              Si estás en desarrollo, reinicia el servidor (pnpm dev) o recarga
-              la página.
-            </span>
+            {process.env.NODE_ENV === "development" && (
+              <span className="block mt-2 text-xs opacity-80">
+                Si estás en desarrollo, reinicia el servidor (pnpm dev) o recarga
+                la página.
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

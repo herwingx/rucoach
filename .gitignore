@@ -53,3 +53,6 @@ __pycache__/
 Thumbs.db
 .DS_Store
 .directory
+.vercel
+.env*
+!.env.example

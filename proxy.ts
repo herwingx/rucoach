@@ -4,18 +4,27 @@ import { createServerClient } from '@supabase/ssr'
 
 export async function proxy(request: NextRequest) {
   const url = request.nextUrl.pathname
-  
+
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-pathname', url)
+
   // 1. Respuesta base
   let response = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: requestHeaders,
     },
   })
 
   // 2. Cliente Supabase con lógica de cookies robusta para Vercel
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY!
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {
@@ -27,7 +36,9 @@ export async function proxy(request: NextRequest) {
           
           // Actualizar response (para el Navegador)
           response = NextResponse.next({
-            request,
+            request: {
+              headers: requestHeaders,
+            },
           })
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
@@ -40,7 +51,19 @@ export async function proxy(request: NextRequest) {
   // 3. Obtener usuario (esto dispara setAll si el token expiró)
   const { data: { user } } = await supabase.auth.getUser()
 
-  const publicPaths = ['/auth', '/welcome', '/offline', '/api/invitations', '/favicon.ico', '/manifest.json', '/dev-sw.js']
+  const publicPaths = [
+    '/auth',
+    '/welcome',
+    '/offline',
+    '/api/invitations',
+    '/favicon.ico',
+    '/manifest.json',
+    '/dev-sw.js',
+    '/robots.txt',
+    '/sitemap.xml',
+    '/login',
+    '/signup',
+  ]
   const isPublicPath = publicPaths.some(path => url.startsWith(path))
 
   // 4. Si no hay usuario y es ruta protegida -> Redirigir

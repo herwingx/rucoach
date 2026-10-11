@@ -5,8 +5,8 @@ export function PersonSchema() {
     "@context": "https://schema.org",
     "@type": "Person",
     "name": "Rodrigo Urbina",
-    "url": "https://ru-coach.app",
-    "image": "https://ru-coach.app/android-chrome-512x512.png",
+    "url": "https://rucoach.app",
+    "image": "https://rucoach.app/android-chrome-512x512.png",
     "sameAs": [
       // Añadir aquí links a Instagram/TikTok si los tienes
       "https://www.instagram.com/rurbina_coach/", 
@@ -33,9 +33,9 @@ export function OrganizationSchema() {
     "@context": "https://schema.org",
     "@type": "ProfessionalService",
     "name": "RU Coach",
-    "image": "https://ru-coach.app/android-chrome-512x512.png",
-    "@id": "https://ru-coach.app",
-    "url": "https://ru-coach.app",
+    "image": "https://rucoach.app/android-chrome-512x512.png",
+    "@id": "https://rucoach.app",
+    "url": "https://rucoach.app",
     "telephone": "", // Añadir si aplica
     "address": {
       "@type": "PostalAddress",

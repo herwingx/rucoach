@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://ru-coach.app"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://rucoach.app"),
   title: {
     default: "Entrenamiento Personal Premium | RU Coach - Rodrigo Urbina",
     template: "%s | RU Coach",
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     description:
       "La plataforma de fitness definitiva para el seguimiento de entrenamiento de élite, diseñada por Rodrigo Urbina.",
     type: "website",
-    url: "https://ru-coach.app",
+    url: "https://rucoach.app",
     siteName: "RU Coach",
     images: [
       {
@@ -58,13 +58,24 @@ export const metadata: Metadata = {
     icon: [
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/android-chrome-192x192.png", sizes: "192x192", type: "image/png" },
     ],
-    apple: "/apple-touch-icon.png",
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "RU Coach",
+    startupImage: ["/pwa-screenshot-mobile.png"],
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
   },
 };
 
@@ -86,7 +97,7 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <head>
-        <link rel="alternate" href="https://ru-coach.app" hrefLang="es" />
+        <link rel="alternate" href="https://rucoach.app" hrefLang="es" />
         <PersonSchema />
         <OrganizationSchema />
       </head>

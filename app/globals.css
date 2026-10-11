@@ -14,7 +14,7 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
   --primary: oklch(0.852 0.199 91.936);
-  --primary-foreground: oklch(0.421 0.095 57.708);
+  --primary-foreground: oklch(0.20 0.05 57.708);
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.967 0.001 286.375);
@@ -53,7 +53,7 @@
   --popover: oklch(0.21 0.006 285.885);
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.795 0.184 86.047);
-  --primary-foreground: oklch(0.421 0.095 57.708);
+  --primary-foreground: oklch(0.20 0.05 57.708);
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
@@ -86,8 +86,8 @@
 }
 
 @theme inline {
-  --font-sans: "Geist", "Geist Fallback", system-ui, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback", monospace;
+  --font-sans: var(--font-geist-sans), "Geist Fallback", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono Fallback", monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -130,6 +130,11 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Contraste legible para .text-primary en modo claro sobre fondos claros */
+html:not(.dark) .text-primary {
+  color: oklch(0.52 0.16 70);
+}
+
 /* Motion: respetar prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -162,6 +167,18 @@ html {
 @utility safe-area-pr {
   padding-right: env(safe-area-inset-right);
 }
+@utility pb-safe-area {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility safe-area-inset-top {
+  padding-top: env(safe-area-inset-top);
+}
+@utility safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
 
 @utility no-scrollbar {
   -ms-overflow-style: none; /* IE and Edge */
@@ -169,6 +186,82 @@ html {
   &::-webkit-scrollbar {
     display: none;
   }
+}
+@utility hide-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+@utility scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes trophy-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.8) translateY(8px);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.05) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@utility animate-shimmer {
+  animation: shimmer 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@utility animate-float {
+  animation: float-slow 3.6s ease-in-out infinite;
+}
+
+@utility animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+@utility animate-trophy-pop {
+  animation: trophy-pop 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @layer base {
@@ -253,3 +346,25 @@ html {
     }
   }
 }
+
+/* TanStack Charts: tokens de tooltip, focus ring y tipografía */
+:root,
+.dark {
+  --ts-chart-focus-fill: var(--background);
+  --ts-chart-tooltip-background: color-mix(in oklab, var(--popover) 94%, transparent);
+  --ts-chart-tooltip-color: var(--popover-foreground);
+  --ts-chart-tooltip-border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  --ts-chart-tooltip-border-radius: 0.75rem;
+  --ts-chart-tooltip-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.35);
+  --ts-chart-tooltip-padding: 0.5rem 0.75rem;
+  --ts-chart-tooltip-font: 500 0.75rem/1.4 var(--font-sans);
+}
+
+.ts-chart {
+  outline: none;
+}
+
+.ts-chart-tooltip {
+  backdrop-filter: blur(12px);
+}
+

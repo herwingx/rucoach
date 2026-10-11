@@ -4,56 +4,65 @@ import withSerwistInit from "@serwist/next";
 const nextConfig = {
   typescript: { ignoreBuildErrors: false },
   productionBrowserSourceMaps: false,
-  output: 'standalone',
-  cacheComponents: true,
-  
+  ...(process.env.BUILD_STANDALONE === 'true' ? { output: 'standalone' } : {}),
+
   images: {
-    unoptimized: true,
     remotePatterns: [
       { protocol: 'https', hostname: '*.supabase.co', pathname: '/storage/v1/object/public/**' },
       { protocol: 'https', hostname: '*.r2.dev', pathname: '/**' },
     ],
   },
-  
+
   experimental: {
     staleTimes: {
       dynamic: 30,
       static: 180,
     },
     optimizePackageImports: [
-      'lucide-react', 
-      '@radix-ui/react-icons', 
-      'recharts', 
-      '@tabler/icons-react',
+      'lucide-react',
       'date-fns',
-      'framer-motion',
-      'zod'
+      'zod',
     ],
   },
   turbopack: {},
-  
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.optimization.moduleIds = 'deterministic';
-      
-      config.optimization.splitChunks = {
-        chunks: 'all',
-        minSize: 10000,
-        cacheGroups: {
-          default: false,
-          vendors: false,
-          framework: {
-            name: 'framework',
-            test: /[\\/]node_modules[\\/](@aws-sdk|lucide-react|recharts|@radix-ui)[\\/]/,
-            priority: 40,
-            enforce: true,
-          },
-        },
-      };
 
-      config.externalDir = true;
-    }
-    return config;
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=()',
+          },
+        ],
+      },
+      {
+        source: '/sw.js',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/javascript; charset=utf-8',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'no-cache, no-store, must-revalidate',
+          },
+        ],
+      },
+    ];
   },
 }
 

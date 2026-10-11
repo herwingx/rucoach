@@ -5,10 +5,17 @@
   "id": "/",
   "start_url": "/?source=pwa",
   "scope": "/",
+  "lang": "es",
+  "dir": "ltr",
   "display": "standalone",
-  "theme_color": "#e5a84d",
+  "display_override": ["standalone", "minimal-ui"],
+  "theme_color": "#0A0A0A",
   "background_color": "#0A0A0A",
-  "orientation": "portrait-primary",
+  "orientation": "any",
+  "handle_links": "preferred",
+  "launch_handler": {
+    "client_mode": ["navigate-existing", "auto"]
+  },
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
@@ -23,35 +30,78 @@
       "purpose": "any"
     },
     {
-      "src": "/android-chrome-512x512.png",
+      "src": "/maskable-icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/maskable-icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
-  "categories": ["fitness", "health", "productivity"],
+  "screenshots": [
+    {
+      "src": "/pwa-screenshot-mobile.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Panel de progreso y rutinas personalizadas en RU Coach"
+    },
+    {
+      "src": "/pwa-screenshot-desktop.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Plataforma de entrenamiento personal de élite RU Coach"
+    }
+  ],
+  "categories": ["fitness", "health", "sports", "lifestyle"],
   "shortcuts": [
     {
       "name": "Iniciar Entrenamiento",
-      "short_name": "Workout",
-      "description": "Comienza tu sesión de entrenamiento",
-      "url": "/client/workout/start",
+      "short_name": "Entrenar",
+      "description": "Comienza tu sesión de entrenamiento del día",
+      "url": "/client/workout/start?source=pwa_shortcut",
       "icons": [
         {
           "src": "/android-chrome-192x192.png",
-          "sizes": "192x192"
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     },
     {
-      "name": "Dashboard",
+      "name": "Mi Progreso",
       "short_name": "Dashboard",
-      "description": "Ver tu progreso",
-      "url": "/client/dashboard",
+      "description": "Ver tu progreso y estadísticas",
+      "url": "/client/dashboard?source=pwa_shortcut",
       "icons": [
         {
           "src": "/android-chrome-192x192.png",
-          "sizes": "192x192"
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Mis Rutinas",
+      "short_name": "Rutinas",
+      "description": "Consultar tu plan de entrenamiento",
+      "url": "/client/routines?source=pwa_shortcut",
+      "icons": [
+        {
+          "src": "/android-chrome-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
         }
       ]
     }
