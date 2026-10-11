@@ -58,27 +58,35 @@ export function RoutineBuilderContentSkeleton() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-border/50 shadow-md ring-1 ring-primary/5 bg-card/60 backdrop-blur-sm">
-        <div className="flex gap-4 px-8 pb-4 pt-8 border-b bg-muted/5">
-          <Skeleton className="size-12 shrink-0 rounded-2xl" />
-          <div className="min-w-0 flex-1 space-y-2 pt-1">
-            <Skeleton className="h-6 w-52 sm:h-7 rounded-xl" />
-            <Skeleton className="h-3.5 w-full max-w-md rounded-md opacity-40 uppercase tracking-widest" />
+      <div className="overflow-hidden rounded-3xl border border-border/50 shadow-sm ring-1 ring-primary/5 bg-card/60 backdrop-blur-sm">
+        <div className="flex gap-4 px-5 pb-4 pt-6 sm:px-8 sm:pt-8 border-b bg-muted/5">
+          <Skeleton className="size-11 sm:size-12 shrink-0 rounded-2xl" />
+          <div className="min-w-0 flex-1 space-y-2 pt-0.5">
+            <Skeleton className="h-6 w-48 sm:h-7 max-w-full rounded-xl" />
+            <Skeleton className="h-3.5 w-full max-w-md rounded-md opacity-40" />
           </div>
         </div>
-        <div className="flex flex-col gap-8 px-8 pb-8 pt-6">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-            <div className="space-y-3 md:col-span-8">
-              <Skeleton className="h-3.5 w-24 rounded-md opacity-40 uppercase tracking-widest" />
-              <Skeleton className="h-14 w-full rounded-2xl" />
+        <div className="flex flex-col gap-6 px-5 pb-6 pt-5 sm:px-8 sm:pb-8 sm:pt-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-12">
+            <div className="space-y-2.5 md:col-span-8">
+              <Skeleton className="h-3.5 w-28 rounded-md opacity-40" />
+              <Skeleton className="h-12 w-full rounded-2xl" />
             </div>
-            <div className="space-y-3 md:col-span-4">
-              <Skeleton className="h-3.5 w-24 rounded-md opacity-40 uppercase tracking-widest" />
-              <Skeleton className="h-14 w-full rounded-2xl" />
+            <div className="space-y-2.5 md:col-span-4">
+              <Skeleton className="h-3.5 w-24 rounded-md opacity-40" />
+              <Skeleton className="h-12 w-full rounded-2xl" />
             </div>
-            <div className="space-y-3 md:col-span-12">
-              <Skeleton className="h-3.5 w-40 rounded-md opacity-40 uppercase tracking-widest" />
-              <Skeleton className="min-h-32 w-full rounded-2xl" />
+            <div className="space-y-2.5 md:col-span-6">
+              <Skeleton className="h-3.5 w-24 rounded-md opacity-40" />
+              <Skeleton className="h-12 w-full rounded-2xl" />
+            </div>
+            <div className="space-y-2.5 md:col-span-6">
+              <Skeleton className="h-3.5 w-24 rounded-md opacity-40" />
+              <Skeleton className="h-12 w-full rounded-2xl" />
+            </div>
+            <div className="space-y-2.5 md:col-span-12">
+              <Skeleton className="h-3.5 w-40 rounded-md opacity-40" />
+              <Skeleton className="min-h-28 w-full rounded-2xl" />
             </div>
           </div>
         </div>

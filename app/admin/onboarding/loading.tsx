@@ -1,5 +1,6 @@
-import { AdminPageSkeleton } from "@/components/skeletons";
+import { OnboardingFlowSkeleton } from "@/components/skeletons";
 
 export default function Loading() {
-  return <AdminPageSkeleton />;
+  return <OnboardingFlowSkeleton steps={2} />;
 }
+

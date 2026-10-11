@@ -1,5 +1,6 @@
-import { ClientPageSkeleton } from "@/components/skeletons/client-page-skeleton";
+import { ClientProfilePageSkeleton } from "@/components/client/client-data-pages-skeleton";
 
 export default function Loading() {
-  return <ClientPageSkeleton />;
+  return <ClientProfilePageSkeleton />;
 }
+

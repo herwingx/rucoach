@@ -1,29 +1,19 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { ADMIN_DATA_PAGE_SHELL } from "@/components/admin/admin-page-header";
+import { AdminPageHeaderSkeleton } from "@/components/skeletons";
 import { AdminExercisesCatalogSkeleton } from "@/components/admin/exercises/admin-exercises-catalog-skeleton";
 
 export default function AdminExercisesLoading() {
   return (
-    <div className="min-h-dvh bg-background">
-      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl safe-area-header-pt min-h-[76px] sm:min-h-[112px] flex items-center">
-        <div className="w-full h-full flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:py-0 px-4 sm:px-6 md:px-8">
-          <div className="flex min-w-0 items-center gap-4 h-full">
-            <div className="shrink-0 flex items-center h-full">
-              <Skeleton className="size-10 sm:size-11 rounded-full" />
-            </div>
-            <div className="min-w-0 flex flex-col justify-center py-1 sm:h-full gap-1.5">
-              <Skeleton className="h-7 sm:h-9 w-48 sm:w-64 rounded-xl" />
-              <Skeleton className="h-3.5 w-full max-w-xs rounded-md opacity-60" />
-            </div>
-          </div>
-          <div className="flex w-full flex-wrap gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-end shrink-0 sm:h-full">
-             <Skeleton className="h-10 sm:h-11 w-full sm:w-36 rounded-2xl" />
-          </div>
-        </div>
-      </header>
+    <div className="min-h-dvh bg-background" aria-busy="true" aria-label="Cargando catálogo de ejercicios">
+      <AdminPageHeaderSkeleton
+        actions={<Skeleton className="h-10 w-full sm:w-36 rounded-xl" />}
+      />
 
-      <main className="container py-6 sm:py-8">
+      <div className={ADMIN_DATA_PAGE_SHELL}>
         <AdminExercisesCatalogSkeleton />
-      </main>
+      </div>
     </div>
   );
 }
+

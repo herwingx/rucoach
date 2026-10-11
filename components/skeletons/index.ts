@@ -1,5 +1,10 @@
 export { AdminDashboardSkeleton } from './admin-dashboard-skeleton'
-export { AdminPageSkeleton } from './admin-page-skeleton'
+export {
+  AdminPageSkeleton,
+  AdminPageHeaderSkeleton,
+  AdminFormPageSkeleton,
+  OnboardingFlowSkeleton,
+} from './admin-page-skeleton'
 export { AdminSettingsSkeleton } from './admin-settings-skeleton'
 export { RoutineBuilderContentSkeleton } from './routine-builder-content-skeleton'
 export { AdminClientProfileSkeleton } from './admin-client-profile-skeleton'

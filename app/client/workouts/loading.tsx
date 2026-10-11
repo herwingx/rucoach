@@ -1,9 +1,6 @@
 import { ClientWorkoutsPageSkeleton } from "@/components/client/client-data-pages-skeleton";
 
 export default function Loading() {
-  return (
-    <div>
-      <ClientWorkoutsPageSkeleton />
-    </div>
-  );
+  return <ClientWorkoutsPageSkeleton />;
 }
+
