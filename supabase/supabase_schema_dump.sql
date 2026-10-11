@@ -158,6 +158,7 @@ $function$;
 CREATE OR REPLACE FUNCTION public.sync_client_last_session_from_workout()
  RETURNS trigger
  LANGUAGE plpgsql
+ SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
 begin
@@ -516,9 +517,9 @@ CREATE TABLE public.clients (
     assigned_routine_id text,
     coach_id uuid,
     CONSTRAINT clients_pkey PRIMARY KEY (id),
-    CONSTRAINT clients_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-    CONSTRAINT clients_current_plan_id_fkey FOREIGN KEY (current_plan_id) REFERENCES public.membership_plans(id),
-    CONSTRAINT clients_assigned_routine_id_fkey FOREIGN KEY (assigned_routine_id) REFERENCES public.routines(id)
+    CONSTRAINT clients_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
+    CONSTRAINT clients_current_plan_id_fkey FOREIGN KEY (current_plan_id) REFERENCES public.membership_plans(id) ON DELETE SET NULL,
+    CONSTRAINT clients_assigned_routine_id_fkey FOREIGN KEY (assigned_routine_id) REFERENCES public.routines(id) ON DELETE SET NULL
 );
 
 CREATE TABLE public.achievements (
@@ -614,7 +615,7 @@ CREATE TABLE public.invitation_codes (
     for_role text NOT NULL DEFAULT 'client'::text,
     CONSTRAINT invitation_codes_pkey PRIMARY KEY (id),
     CONSTRAINT invitation_codes_code_key UNIQUE (code),
-    CONSTRAINT invitation_codes_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id)
+    CONSTRAINT invitation_codes_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.messages (
@@ -639,8 +640,8 @@ CREATE TABLE public.payments (
     reference text,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT payments_pkey PRIMARY KEY (id),
-    CONSTRAINT payments_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
-    CONSTRAINT payments_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.membership_plans(id)
+    CONSTRAINT payments_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE,
+    CONSTRAINT payments_plan_id_fkey FOREIGN KEY (plan_id) REFERENCES public.membership_plans(id) ON DELETE SET NULL
 );
 
 CREATE TABLE public.personal_records (
@@ -656,7 +657,7 @@ CREATE TABLE public.personal_records (
     updated_at timestamp with time zone DEFAULT now(),
     estimated_1rm numeric,
     CONSTRAINT personal_records_pkey PRIMARY KEY (id),
-    CONSTRAINT personal_records_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id)
+    CONSTRAINT personal_records_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.progress_photos (
@@ -669,7 +670,7 @@ CREATE TABLE public.progress_photos (
     taken_at date DEFAULT CURRENT_DATE,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT progress_photos_pkey PRIMARY KEY (id),
-    CONSTRAINT progress_photos_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id)
+    CONSTRAINT progress_photos_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.routine_days (
@@ -682,7 +683,7 @@ CREATE TABLE public.routine_days (
     is_rest_day boolean DEFAULT false,
     notes text,
     CONSTRAINT routine_days_pkey PRIMARY KEY (id),
-    CONSTRAINT routine_days_routine_id_fkey FOREIGN KEY (routine_id) REFERENCES public.routines(id),
+    CONSTRAINT routine_days_routine_id_fkey FOREIGN KEY (routine_id) REFERENCES public.routines(id) ON DELETE CASCADE,
     CONSTRAINT routine_days_routine_id_day_number_key UNIQUE (routine_id, day_number)
 );
 
@@ -699,8 +700,8 @@ CREATE TABLE public.routine_exercises (
     notes text,
     superset_group text,
     created_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT routine_exercises_routine_day_id_fkey FOREIGN KEY (routine_day_id) REFERENCES public.routine_days(id),
-    CONSTRAINT routine_exercises_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id)
+    CONSTRAINT routine_exercises_routine_day_id_fkey FOREIGN KEY (routine_day_id) REFERENCES public.routine_days(id) ON DELETE CASCADE,
+    CONSTRAINT routine_exercises_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.workout_sessions (
@@ -718,8 +719,8 @@ CREATE TABLE public.workout_sessions (
     status text NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT workout_sessions_pkey PRIMARY KEY (id),
-    CONSTRAINT workout_sessions_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
-    CONSTRAINT workout_sessions_routine_day_id_fkey FOREIGN KEY (routine_day_id) REFERENCES public.routine_days(id)
+    CONSTRAINT workout_sessions_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE,
+    CONSTRAINT workout_sessions_routine_day_id_fkey FOREIGN KEY (routine_day_id) REFERENCES public.routine_days(id) ON DELETE SET NULL
 );
 
 CREATE TABLE public.exercise_logs (
@@ -741,9 +742,9 @@ CREATE TABLE public.exercise_logs (
     updated_at timestamp with time zone DEFAULT now(),
     routine_exercise_id integer,
     CONSTRAINT exercise_logs_pkey PRIMARY KEY (id),
-    CONSTRAINT exercise_logs_workout_session_id_fkey FOREIGN KEY (workout_session_id) REFERENCES public.workout_sessions(id),
-    CONSTRAINT exercise_logs_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id),
-    CONSTRAINT exercise_logs_routine_exercise_id_fkey FOREIGN KEY (routine_exercise_id) REFERENCES public.routine_exercises(id)
+    CONSTRAINT exercise_logs_workout_session_id_fkey FOREIGN KEY (workout_session_id) REFERENCES public.workout_sessions(id) ON DELETE CASCADE,
+    CONSTRAINT exercise_logs_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE CASCADE,
+    CONSTRAINT exercise_logs_routine_exercise_id_fkey FOREIGN KEY (routine_exercise_id) REFERENCES public.routine_exercises(id) ON DELETE SET NULL
 );
 
 CREATE TABLE public.client_routines (
@@ -756,11 +757,13 @@ CREATE TABLE public.client_routines (
     is_active boolean DEFAULT true,
     current_week integer DEFAULT 1,
     current_day_index integer DEFAULT 0,
+    override_next_day_id text,
     notes text,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT client_routines_pkey PRIMARY KEY (id),
-    CONSTRAINT client_routines_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
-    CONSTRAINT client_routines_routine_id_fkey FOREIGN KEY (routine_id) REFERENCES public.routines(id)
+    CONSTRAINT client_routines_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE,
+    CONSTRAINT client_routines_routine_id_fkey FOREIGN KEY (routine_id) REFERENCES public.routines(id) ON DELETE CASCADE,
+    CONSTRAINT client_routines_override_next_day_id_fkey FOREIGN KEY (override_next_day_id) REFERENCES public.routine_days(id) ON DELETE SET NULL
 );
 
 CREATE TABLE public.routine_week_progress (
@@ -772,8 +775,8 @@ CREATE TABLE public.routine_week_progress (
     completed_at timestamp with time zone DEFAULT now(),
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT routine_week_progress_pkey PRIMARY KEY (id),
-    CONSTRAINT routine_week_progress_client_routine_id_fkey FOREIGN KEY (client_routine_id) REFERENCES public.client_routines(id),
-    CONSTRAINT routine_week_progress_workout_session_id_fkey FOREIGN KEY (workout_session_id) REFERENCES public.workout_sessions(id),
+    CONSTRAINT routine_week_progress_client_routine_id_fkey FOREIGN KEY (client_routine_id) REFERENCES public.client_routines(id) ON DELETE CASCADE,
+    CONSTRAINT routine_week_progress_workout_session_id_fkey FOREIGN KEY (workout_session_id) REFERENCES public.workout_sessions(id) ON DELETE SET NULL,
     CONSTRAINT routine_week_progress_client_routine_id_week_number_day_num_key UNIQUE (client_routine_id, week_number, day_number)
 );
 
@@ -790,9 +793,9 @@ CREATE TABLE public.pr_events (
     meta jsonb,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT pr_events_pkey PRIMARY KEY (id),
-    CONSTRAINT pr_events_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id),
-    CONSTRAINT pr_events_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id),
-    CONSTRAINT pr_events_workout_session_id_fkey FOREIGN KEY (workout_session_id) REFERENCES public.workout_sessions(id)
+    CONSTRAINT pr_events_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE,
+    CONSTRAINT pr_events_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE CASCADE,
+    CONSTRAINT pr_events_workout_session_id_fkey FOREIGN KEY (workout_session_id) REFERENCES public.workout_sessions(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.body_measurements (
@@ -808,7 +811,7 @@ CREATE TABLE public.body_measurements (
     thigh_cm numeric,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT body_measurements_pkey PRIMARY KEY (id),
-    CONSTRAINT body_measurements_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id)
+    CONSTRAINT body_measurements_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE
 );
 
 CREATE TABLE public.user_achievements (
@@ -817,58 +820,105 @@ CREATE TABLE public.user_achievements (
     achievement_id uuid NOT NULL,
     unlocked_at timestamp with time zone DEFAULT now(),
     CONSTRAINT user_achievements_pkey PRIMARY KEY (id),
-    CONSTRAINT user_achievements_achievement_id_fkey FOREIGN KEY (achievement_id) REFERENCES public.achievements(id),
+    CONSTRAINT user_achievements_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
+    CONSTRAINT user_achievements_achievement_id_fkey FOREIGN KEY (achievement_id) REFERENCES public.achievements(id) ON DELETE CASCADE,
     CONSTRAINT user_achievements_user_id_achievement_id_key UNIQUE (user_id, achievement_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.client_pain_reports (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    client_id text NOT NULL,
+    body_region text NOT NULL,
+    severity integer NOT NULL CHECK (severity BETWEEN 0 AND 10),
+    notes text,
+    is_active boolean NOT NULL DEFAULT true,
+    reported_at timestamp with time zone NOT NULL DEFAULT now(),
+    resolved_at timestamp with time zone,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT client_pain_reports_pkey PRIMARY KEY (id),
+    CONSTRAINT client_pain_reports_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.client_exercise_overrides (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    client_routine_id uuid NOT NULL,
+    original_routine_exercise_id integer NOT NULL,
+    replacement_exercise_id text NOT NULL,
+    reason text,
+    changed_by text NOT NULL DEFAULT 'client'::text CHECK (changed_by IN ('client', 'coach')),
+    notified_coach boolean NOT NULL DEFAULT false,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT client_exercise_overrides_pkey PRIMARY KEY (id),
+    CONSTRAINT client_exercise_overrides_routine_exercise_key UNIQUE (client_routine_id, original_routine_exercise_id),
+    CONSTRAINT client_exercise_overrides_client_routine_id_fkey FOREIGN KEY (client_routine_id) REFERENCES public.client_routines(id) ON DELETE CASCADE,
+    CONSTRAINT client_exercise_overrides_original_routine_exercise_id_fkey FOREIGN KEY (original_routine_exercise_id) REFERENCES public.routine_exercises(id) ON DELETE CASCADE,
+    CONSTRAINT client_exercise_overrides_replacement_exercise_id_fkey FOREIGN KEY (replacement_exercise_id) REFERENCES public.exercises(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+    id uuid NOT NULL DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL,
+    endpoint text NOT NULL,
+    p256dh text NOT NULL,
+    auth text NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    CONSTRAINT push_subscriptions_pkey PRIMARY KEY (id),
+    CONSTRAINT push_subscriptions_user_id_endpoint_key UNIQUE (user_id, endpoint),
+    CONSTRAINT push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE
 );
 
 
 -- 4. INDEXES
-CREATE INDEX idx_gym_settings_admin_id ON public.gym_settings USING btree (admin_id);
-CREATE UNIQUE INDEX personal_records_user_id_exercise_id_key ON public.personal_records USING btree (client_id, exercise_id);
-CREATE INDEX idx_personal_records_user_id ON public.personal_records USING btree (client_id);
-CREATE UNIQUE INDEX personal_records_client_exercise_uidx ON public.personal_records USING btree (client_id, exercise_id);
-CREATE INDEX personal_records_client_achieved_at_idx ON public.personal_records USING btree (client_id, achieved_at DESC);
-CREATE INDEX client_pain_reports_client_reported_idx ON public.client_pain_reports USING btree (client_id, reported_at DESC);
-CREATE INDEX client_pain_reports_active_idx ON public.client_pain_reports USING btree (client_id, is_active) WHERE (is_active = true);
-CREATE INDEX idx_messages_conversation ON public.messages USING btree (from_user_id, to_user_id, created_at DESC);
-CREATE INDEX idx_messages_to_unread ON public.messages USING btree (to_user_id) WHERE (is_read = false);
-CREATE INDEX idx_user_achievements_user_id ON public.user_achievements USING btree (user_id);
-CREATE INDEX idx_user_achievements_achievement_id ON public.user_achievements USING btree (achievement_id);
-CREATE INDEX idx_routine_days_routine_id ON public.routine_days USING btree (routine_id);
-CREATE INDEX idx_routine_exercises_routine_day_id ON public.routine_exercises USING btree (routine_day_id);
-CREATE INDEX idx_workout_sessions_client_id ON public.workout_sessions USING btree (client_id);
-CREATE INDEX idx_workout_sessions_started_at ON public.workout_sessions USING btree (started_at);
-CREATE INDEX workout_sessions_client_status_started_idx ON public.workout_sessions USING btree (client_id, status, started_at DESC);
-CREATE INDEX idx_invitation_codes_code ON public.invitation_codes USING btree (code);
-CREATE INDEX idx_invitation_codes_is_active ON public.invitation_codes USING btree (is_active);
-CREATE INDEX idx_invitation_codes_created_by ON public.invitation_codes USING btree (created_by);
-CREATE INDEX idx_invitation_codes_client_id ON public.invitation_codes USING btree (client_id) WHERE (client_id IS NOT NULL);
-CREATE INDEX idx_achievements_rarity ON public.achievements USING btree (rarity);
-CREATE INDEX idx_clients_user_id ON public.clients USING btree (user_id);
-CREATE INDEX idx_clients_status ON public.clients USING btree (status);
-CREATE INDEX idx_clients_membership_end ON public.clients USING btree (membership_end);
-CREATE INDEX idx_clients_admin_approved ON public.clients USING btree (admin_approved);
-CREATE INDEX idx_exercise_logs_user_id ON public.exercise_logs USING btree (user_id);
-CREATE INDEX idx_exercise_logs_performed_at ON public.exercise_logs USING btree (performed_at DESC);
-CREATE INDEX idx_exercise_logs_workout_session_id ON public.exercise_logs USING btree (workout_session_id);
-CREATE INDEX exercise_logs_session_exercise_idx ON public.exercise_logs USING btree (workout_session_id, exercise_id, set_number);
-CREATE INDEX exercise_logs_session_created_idx ON public.exercise_logs USING btree (workout_session_id, created_at DESC);
-CREATE INDEX idx_client_routines_client ON public.client_routines USING btree (client_id);
-CREATE INDEX idx_client_routines_routine_id ON public.client_routines USING btree (routine_id);
-CREATE INDEX idx_client_routines_client_id ON public.client_routines USING btree (client_id);
-CREATE INDEX idx_routine_week_progress_client_routine ON public.routine_week_progress USING btree (client_routine_id);
-CREATE INDEX pr_events_client_exercise_achieved_idx ON public.pr_events USING btree (client_id, exercise_id, achieved_at DESC);
-CREATE INDEX pr_events_session_idx ON public.pr_events USING btree (workout_session_id);
-CREATE INDEX pr_events_client_achieved_idx ON public.pr_events USING btree (client_id, achieved_at DESC);
-CREATE INDEX idx_body_measurements_client_id ON public.body_measurements USING btree (client_id);
-CREATE INDEX idx_profiles_id ON public.profiles USING btree (id);
-CREATE INDEX idx_profiles_role ON public.profiles USING btree (role);
-CREATE INDEX idx_profiles_level ON public.profiles USING btree (level);
-CREATE INDEX idx_profiles_xp_points ON public.profiles USING btree (xp_points DESC);
-CREATE INDEX idx_profiles_onboarding_xp ON public.profiles USING btree (onboarding_completed, xp_points DESC);
-CREATE INDEX idx_payments_client_id ON public.payments USING btree (client_id);
-CREATE INDEX idx_payments_paid_at ON public.payments USING btree (paid_at);
-CREATE INDEX idx_progress_photos_client_id ON public.progress_photos USING btree (client_id);
+CREATE INDEX IF NOT EXISTS idx_gym_settings_admin_id ON public.gym_settings USING btree (admin_id);
+CREATE UNIQUE INDEX IF NOT EXISTS personal_records_user_id_exercise_id_key ON public.personal_records USING btree (client_id, exercise_id);
+CREATE INDEX IF NOT EXISTS personal_records_client_achieved_at_idx ON public.personal_records USING btree (client_id, achieved_at DESC);
+CREATE INDEX IF NOT EXISTS client_pain_reports_client_reported_idx ON public.client_pain_reports USING btree (client_id, reported_at DESC);
+CREATE INDEX IF NOT EXISTS client_pain_reports_active_idx ON public.client_pain_reports USING btree (client_id, is_active) WHERE (is_active = true);
+CREATE INDEX IF NOT EXISTS idx_client_exercise_overrides_routine ON public.client_exercise_overrides USING btree (client_routine_id);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON public.push_subscriptions USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON public.messages USING btree (from_user_id, to_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_to_user_created ON public.messages USING btree (to_user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_to_unread ON public.messages USING btree (to_user_id) WHERE (is_read = false);
+CREATE INDEX IF NOT EXISTS idx_user_achievements_user_id ON public.user_achievements USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_achievements_achievement_id ON public.user_achievements USING btree (achievement_id);
+CREATE INDEX IF NOT EXISTS idx_routines_coach_id ON public.routines USING btree (coach_id);
+CREATE INDEX IF NOT EXISTS idx_routine_days_routine_id ON public.routine_days USING btree (routine_id);
+CREATE INDEX IF NOT EXISTS idx_routine_exercises_routine_day_id ON public.routine_exercises USING btree (routine_day_id);
+CREATE INDEX IF NOT EXISTS idx_routine_exercises_exercise_id ON public.routine_exercises USING btree (exercise_id);
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_client_id ON public.workout_sessions USING btree (client_id);
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_routine_day_id ON public.workout_sessions USING btree (routine_day_id);
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_started_at ON public.workout_sessions USING btree (started_at);
+CREATE INDEX IF NOT EXISTS workout_sessions_client_status_started_idx ON public.workout_sessions USING btree (client_id, status, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_is_active ON public.invitation_codes USING btree (is_active);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_created_by ON public.invitation_codes USING btree (created_by);
+CREATE INDEX IF NOT EXISTS idx_invitation_codes_client_id ON public.invitation_codes USING btree (client_id) WHERE (client_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_achievements_rarity ON public.achievements USING btree (rarity);
+CREATE INDEX IF NOT EXISTS idx_clients_user_id ON public.clients USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_clients_coach_id ON public.clients USING btree (coach_id);
+CREATE INDEX IF NOT EXISTS idx_clients_status ON public.clients USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_clients_membership_end ON public.clients USING btree (membership_end);
+CREATE INDEX IF NOT EXISTS idx_clients_admin_approved ON public.clients USING btree (admin_approved);
+CREATE INDEX IF NOT EXISTS idx_exercise_logs_user_id ON public.exercise_logs USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_exercise_logs_exercise_id ON public.exercise_logs USING btree (exercise_id);
+CREATE INDEX IF NOT EXISTS idx_exercise_logs_performed_at ON public.exercise_logs USING btree (performed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_exercise_logs_workout_session_id ON public.exercise_logs USING btree (workout_session_id);
+CREATE INDEX IF NOT EXISTS exercise_logs_session_exercise_idx ON public.exercise_logs USING btree (workout_session_id, exercise_id, set_number);
+CREATE INDEX IF NOT EXISTS exercise_logs_session_created_idx ON public.exercise_logs USING btree (workout_session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_client_routines_client ON public.client_routines USING btree (client_id);
+CREATE INDEX IF NOT EXISTS idx_client_routines_routine_id ON public.client_routines USING btree (routine_id);
+CREATE INDEX IF NOT EXISTS idx_routine_week_progress_client_routine ON public.routine_week_progress USING btree (client_routine_id);
+CREATE INDEX IF NOT EXISTS pr_events_client_exercise_achieved_idx ON public.pr_events USING btree (client_id, exercise_id, achieved_at DESC);
+CREATE INDEX IF NOT EXISTS pr_events_session_idx ON public.pr_events USING btree (workout_session_id);
+CREATE INDEX IF NOT EXISTS pr_events_client_achieved_idx ON public.pr_events USING btree (client_id, achieved_at DESC);
+CREATE INDEX IF NOT EXISTS idx_body_measurements_client_id ON public.body_measurements USING btree (client_id);
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles USING btree (role);
+CREATE INDEX IF NOT EXISTS idx_profiles_level ON public.profiles USING btree (level);
+CREATE INDEX IF NOT EXISTS idx_profiles_xp_points ON public.profiles USING btree (xp_points DESC);
+CREATE INDEX IF NOT EXISTS idx_profiles_onboarding_xp ON public.profiles USING btree (onboarding_completed, xp_points DESC);
+CREATE INDEX IF NOT EXISTS idx_payments_client_id ON public.payments USING btree (client_id);
+CREATE INDEX IF NOT EXISTS idx_payments_paid_at ON public.payments USING btree (paid_at);
+CREATE INDEX IF NOT EXISTS idx_progress_photos_client_id ON public.progress_photos USING btree (client_id);
 
 -- 5. VIEWS
 CREATE OR REPLACE VIEW public.leaderboard AS
@@ -885,6 +935,7 @@ CREATE OR REPLACE VIEW public.leaderboard AS
   GROUP BY p.id, p.full_name, p.avatar_url, p.level, p.xp_points;
 
 -- 6. TRIGGERS
+CREATE OR REPLACE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER update_clients_updated_at BEFORE UPDATE ON public.clients FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER update_exercises_updated_at BEFORE UPDATE ON public.exercises FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
@@ -900,161 +951,166 @@ CREATE TRIGGER profiles_avatar_sync_clients AFTER UPDATE ON public.profiles FOR 
 
 -- 7. RLS POLICIES
 ALTER TABLE public.gym_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admin can manage gym settings" ON public.gym_settings FOR ALL USING ((admin_id = auth.uid()) OR (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text)));
-CREATE POLICY "Authenticated can read gym settings" ON public.gym_settings FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Admin can manage gym settings" ON public.gym_settings FOR ALL USING ((admin_id = (select auth.uid())) OR (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text)));
+CREATE POLICY "Authenticated can read gym settings" ON public.gym_settings FOR SELECT USING ((select auth.uid()) IS NOT NULL);
 
 ALTER TABLE public.personal_records ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Clients can update own PRs" ON public.personal_records FOR UPDATE USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = personal_records.client_id AND c.user_id = auth.uid())) WITH CHECK (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = personal_records.client_id AND c.user_id = auth.uid()));
-CREATE POLICY "Clients can upsert own PRs" ON public.personal_records FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = personal_records.client_id AND c.user_id = auth.uid() AND c.admin_approved = true AND c.status = 'active'::text));
-CREATE POLICY "Clients can view own PRs" ON public.personal_records FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = personal_records.client_id AND c.user_id = auth.uid()));
-CREATE POLICY "Coaches can view their clients' PRs" ON public.personal_records FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = personal_records.client_id AND c.coach_id = auth.uid()));
+CREATE POLICY "Clients can update own PRs" ON public.personal_records FOR UPDATE USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = personal_records.client_id AND c.user_id = (select auth.uid()))) WITH CHECK (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = personal_records.client_id AND c.user_id = (select auth.uid())));
+CREATE POLICY "Clients can upsert own PRs" ON public.personal_records FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = personal_records.client_id AND c.user_id = (select auth.uid()) AND c.admin_approved = true AND c.status = 'active'::text));
+CREATE POLICY "Clients can view own PRs" ON public.personal_records FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = personal_records.client_id AND c.user_id = (select auth.uid())));
+CREATE POLICY "Coaches can view their clients' PRs" ON public.personal_records FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = personal_records.client_id AND c.coach_id = (select auth.uid())));
 
 ALTER TABLE public.client_pain_reports ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Clients can manage own pain reports" ON public.client_pain_reports FOR ALL USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_pain_reports.client_id AND c.user_id = auth.uid())) WITH CHECK (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_pain_reports.client_id AND c.user_id = auth.uid()));
-CREATE POLICY "Coaches can view their clients' pain reports" ON public.client_pain_reports FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_pain_reports.client_id AND c.coach_id = auth.uid()));
+CREATE POLICY "Clients can manage own pain reports" ON public.client_pain_reports FOR ALL USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_pain_reports.client_id AND c.user_id = (select auth.uid()))) WITH CHECK (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_pain_reports.client_id AND c.user_id = (select auth.uid())));
+CREATE POLICY "Coaches can view their clients' pain reports" ON public.client_pain_reports FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_pain_reports.client_id AND c.coach_id = (select auth.uid())));
+CREATE POLICY "Coaches can update their clients' pain reports" ON public.client_pain_reports FOR UPDATE USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = client_pain_reports.client_id AND c.coach_id = (select auth.uid())));
+
+ALTER TABLE public.client_exercise_overrides ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Clients can manage own exercise overrides" ON public.client_exercise_overrides FOR ALL USING (EXISTS (SELECT 1 FROM public.client_routines cr JOIN public.clients c ON c.id = cr.client_id WHERE cr.id = client_exercise_overrides.client_routine_id AND c.user_id = (select auth.uid()))) WITH CHECK (EXISTS (SELECT 1 FROM public.client_routines cr JOIN public.clients c ON c.id = cr.client_id WHERE cr.id = client_exercise_overrides.client_routine_id AND c.user_id = (select auth.uid())));
+CREATE POLICY "Admins can manage exercise overrides" ON public.client_exercise_overrides FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text)) WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+
+ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own push subscriptions" ON public.push_subscriptions FOR ALL USING (user_id = (select auth.uid())) WITH CHECK (user_id = (select auth.uid()));
 
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users see own messages" ON public.messages FOR SELECT USING ((from_user_id = auth.uid()) OR (to_user_id = auth.uid()));
-CREATE POLICY "Users update own received" ON public.messages FOR UPDATE USING (to_user_id = auth.uid());
-CREATE POLICY "messages_insert_coach_client_pairs" ON public.messages FOR INSERT WITH CHECK ((from_user_id = auth.uid()) AND ((to_user_id IN (SELECT c.coach_id FROM public.clients c WHERE c.user_id = auth.uid() AND c.coach_id IS NOT NULL)) OR (EXISTS (SELECT 1 FROM public.clients c WHERE c.coach_id = auth.uid() AND c.user_id = messages.to_user_id)) OR (EXISTS (SELECT 1 FROM public.invitation_codes ic WHERE ic.used_by_user_id = auth.uid() AND ic.created_by = messages.to_user_id)) OR ((EXISTS (SELECT 1 FROM public.clients c WHERE c.user_id = auth.uid() AND c.coach_id IS NULL)) AND (to_user_id = (SELECT p.id FROM public.profiles p WHERE p.role = 'admin'::text ORDER BY p.created_at LIMIT 1)))));
+CREATE POLICY "Users see own messages" ON public.messages FOR SELECT USING ((from_user_id = (select auth.uid())) OR (to_user_id = (select auth.uid())));
+CREATE POLICY "Users update own received" ON public.messages FOR UPDATE USING (to_user_id = (select auth.uid()));
+CREATE POLICY "messages_insert_coach_client_pairs" ON public.messages FOR INSERT WITH CHECK ((from_user_id = (select auth.uid())) AND ((to_user_id IN (SELECT c.coach_id FROM public.clients c WHERE c.user_id = (select auth.uid()) AND c.coach_id IS NOT NULL)) OR (EXISTS (SELECT 1 FROM public.clients c WHERE c.coach_id = (select auth.uid()) AND c.user_id = messages.to_user_id)) OR (EXISTS (SELECT 1 FROM public.invitation_codes ic WHERE ic.used_by_user_id = (select auth.uid()) AND ic.created_by = messages.to_user_id)) OR ((EXISTS (SELECT 1 FROM public.clients c WHERE c.user_id = (select auth.uid()) AND c.coach_id IS NULL)) AND (to_user_id = (SELECT p.id FROM public.profiles p WHERE p.role = 'admin'::text ORDER BY p.created_at LIMIT 1)))));
 
 ALTER TABLE public.exercises ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can view exercises" ON public.exercises FOR SELECT USING (true);
-CREATE POLICY "Only admins can delete exercises" ON public.exercises FOR DELETE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
-CREATE POLICY "Only admins can insert exercises" ON public.exercises FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
-CREATE POLICY "Only admins can update exercises" ON public.exercises FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
+CREATE POLICY "Only admins can delete exercises" ON public.exercises FOR DELETE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Only admins can insert exercises" ON public.exercises FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Only admins can update exercises" ON public.exercises FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
 
 ALTER TABLE public.routines ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can view routines" ON public.routines FOR SELECT USING (true);
-CREATE POLICY "Coaches can delete their own routines" ON public.routines FOR DELETE USING (coach_id = auth.uid());
-CREATE POLICY "Coaches can insert their own routines" ON public.routines FOR INSERT WITH CHECK (coach_id = auth.uid());
-CREATE POLICY "Coaches can update their own routines" ON public.routines FOR UPDATE USING (coach_id = auth.uid());
-CREATE POLICY "Coaches can view their own routines" ON public.routines FOR SELECT USING (coach_id = auth.uid());
-CREATE POLICY "Only admins can modify routines" ON public.routines FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
+CREATE POLICY "Coaches can delete their own routines" ON public.routines FOR DELETE USING (coach_id = (select auth.uid()));
+CREATE POLICY "Coaches can insert their own routines" ON public.routines FOR INSERT WITH CHECK (coach_id = (select auth.uid()));
+CREATE POLICY "Coaches can update their own routines" ON public.routines FOR UPDATE USING (coach_id = (select auth.uid()));
+CREATE POLICY "Coaches can view their own routines" ON public.routines FOR SELECT USING (coach_id = (select auth.uid()));
+CREATE POLICY "Only admins can modify routines" ON public.routines FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
 
 ALTER TABLE public.user_achievements ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can insert own achievements" ON public.user_achievements FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Users can view own achievements" ON public.user_achievements FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own achievements" ON public.user_achievements FOR INSERT WITH CHECK ((select auth.uid()) = user_id);
+CREATE POLICY "Users can view own achievements" ON public.user_achievements FOR SELECT USING ((select auth.uid()) = user_id);
 
 ALTER TABLE public.membership_plans ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can view membership plans" ON public.membership_plans FOR SELECT USING (true);
-CREATE POLICY "Only admins can insert membership plans" ON public.membership_plans FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
-CREATE POLICY "Only admins can update membership plans" ON public.membership_plans FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
+CREATE POLICY "Only admins can insert membership plans" ON public.membership_plans FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Only admins can update membership plans" ON public.membership_plans FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
 
 ALTER TABLE public.routine_days ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can view routine days" ON public.routine_days FOR SELECT USING (true);
-CREATE POLICY "Only admins can modify routine days" ON public.routine_days FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
+CREATE POLICY "Only admins can modify routine days" ON public.routine_days FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
 
 ALTER TABLE public.routine_exercises ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can view routine exercises" ON public.routine_exercises FOR SELECT USING (true);
-CREATE POLICY "Client updates own routine suggested weights" ON public.routine_exercises FOR UPDATE USING (EXISTS (SELECT 1 FROM public.routine_days rd JOIN public.clients c ON c.user_id = auth.uid() WHERE rd.id = routine_exercises.routine_day_id AND (c.assigned_routine_id = rd.routine_id OR EXISTS (SELECT 1 FROM public.client_routines cr WHERE cr.client_id = c.id AND cr.routine_id = rd.routine_id AND cr.is_active = true)))) WITH CHECK (EXISTS (SELECT 1 FROM public.routine_days rd JOIN public.clients c ON c.user_id = auth.uid() WHERE rd.id = routine_exercises.routine_day_id AND (c.assigned_routine_id = rd.routine_id OR EXISTS (SELECT 1 FROM public.client_routines cr WHERE cr.client_id = c.id AND cr.routine_id = rd.routine_id AND cr.is_active = true))));
-CREATE POLICY "Only admins can modify routine exercises" ON public.routine_exercises FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
+CREATE POLICY "Client updates own routine suggested weights" ON public.routine_exercises FOR UPDATE USING (EXISTS (SELECT 1 FROM public.routine_days rd JOIN public.clients c ON c.user_id = (select auth.uid()) WHERE rd.id = routine_exercises.routine_day_id AND (c.assigned_routine_id = rd.routine_id OR EXISTS (SELECT 1 FROM public.client_routines cr WHERE cr.client_id = c.id AND cr.routine_id = rd.routine_id AND cr.is_active = true)))) WITH CHECK (EXISTS (SELECT 1 FROM public.routine_days rd JOIN public.clients c ON c.user_id = (select auth.uid()) WHERE rd.id = routine_exercises.routine_day_id AND (c.assigned_routine_id = rd.routine_id OR EXISTS (SELECT 1 FROM public.client_routines cr WHERE cr.client_id = c.id AND cr.routine_id = rd.routine_id AND cr.is_active = true))));
+CREATE POLICY "Only admins can modify routine exercises" ON public.routine_exercises FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
 
 ALTER TABLE public.workout_sessions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Client deletes own workout sessions" ON public.workout_sessions FOR DELETE USING (client_id IN (SELECT c.id FROM public.clients c WHERE c.user_id = auth.uid()));
-CREATE POLICY "Client inserts own workout sessions" ON public.workout_sessions FOR INSERT WITH CHECK (client_id IN (SELECT c.id FROM public.clients c WHERE c.user_id = auth.uid()));
-CREATE POLICY "Client selects own workout sessions" ON public.workout_sessions FOR SELECT USING (client_id IN (SELECT c.id FROM public.clients c WHERE c.user_id = auth.uid()));
-CREATE POLICY "Client updates own workout sessions" ON public.workout_sessions FOR UPDATE USING (client_id IN (SELECT c.id FROM public.clients c WHERE c.user_id = auth.uid())) WITH CHECK (client_id IN (SELECT c.id FROM public.clients c WHERE c.user_id = auth.uid()));
-CREATE POLICY "Clients can create own workout sessions" ON public.workout_sessions FOR INSERT WITH CHECK ((auth.uid())::text IN (SELECT (clients.user_id)::text FROM public.clients WHERE clients.id = workout_sessions.client_id AND clients.admin_approved = true AND clients.status = 'active'::text));
-CREATE POLICY "Clients can update own workout sessions" ON public.workout_sessions FOR UPDATE USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = workout_sessions.client_id AND clients.user_id = auth.uid()));
-CREATE POLICY "Clients can view own workout sessions" ON public.workout_sessions FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = workout_sessions.client_id AND clients.user_id = auth.uid()));
-CREATE POLICY "Coaches can view their clients' workout sessions" ON public.workout_sessions FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = workout_sessions.client_id AND clients.coach_id = auth.uid()));
+CREATE POLICY "Client deletes own workout sessions" ON public.workout_sessions FOR DELETE USING (client_id IN (SELECT c.id FROM public.clients c WHERE c.user_id = (select auth.uid())));
+CREATE POLICY "Client inserts own workout sessions" ON public.workout_sessions FOR INSERT WITH CHECK (client_id IN (SELECT c.id FROM public.clients c WHERE c.user_id = (select auth.uid())));
+CREATE POLICY "Client selects own workout sessions" ON public.workout_sessions FOR SELECT USING (client_id IN (SELECT c.id FROM public.clients c WHERE c.user_id = (select auth.uid())));
+CREATE POLICY "Client updates own workout sessions" ON public.workout_sessions FOR UPDATE USING (client_id IN (SELECT c.id FROM public.clients c WHERE c.user_id = (select auth.uid()))) WITH CHECK (client_id IN (SELECT c.id FROM public.clients c WHERE c.user_id = (select auth.uid())));
+CREATE POLICY "Coaches can view their clients' workout sessions" ON public.workout_sessions FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = workout_sessions.client_id AND clients.coach_id = (select auth.uid())));
 
 ALTER TABLE public.admin_setup ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can delete admin_setup" ON public.admin_setup FOR DELETE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
-CREATE POLICY "Admins can insert admin_setup" ON public.admin_setup FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
-CREATE POLICY "Admins can read admin_setup" ON public.admin_setup FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
-CREATE POLICY "Admins can update admin_setup" ON public.admin_setup FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
+CREATE POLICY "Admins can delete admin_setup" ON public.admin_setup FOR DELETE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Admins can insert admin_setup" ON public.admin_setup FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Admins can read admin_setup" ON public.admin_setup FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Admins can update admin_setup" ON public.admin_setup FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
 
 ALTER TABLE public.invitation_codes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can create and view codes" ON public.invitation_codes FOR ALL USING (auth.uid() IN (SELECT profiles.id FROM public.profiles WHERE profiles.role = 'admin'::text));
-CREATE POLICY "Coaches can insert their own invitations" ON public.invitation_codes FOR INSERT WITH CHECK (created_by = auth.uid());
-CREATE POLICY "Coaches can view their own invitations" ON public.invitation_codes FOR SELECT USING (created_by = auth.uid());
+CREATE POLICY "Admins can create and view codes" ON public.invitation_codes FOR ALL USING ((select auth.uid()) IN (SELECT profiles.id FROM public.profiles WHERE profiles.role = 'admin'::text));
+CREATE POLICY "Coaches can insert their own invitations" ON public.invitation_codes FOR INSERT WITH CHECK (created_by = (select auth.uid()));
+CREATE POLICY "Coaches can view their own invitations" ON public.invitation_codes FOR SELECT USING (created_by = (select auth.uid()));
 
 ALTER TABLE public.achievements ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can view achievements" ON public.achievements FOR SELECT USING (true);
-CREATE POLICY "achievements_public_read" ON public.achievements FOR SELECT USING (true);
 
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Clients can view own record" ON public.clients FOR SELECT USING (user_id = auth.uid());
-CREATE POLICY "Coaches can delete their own clients" ON public.clients FOR DELETE USING (coach_id = auth.uid());
-CREATE POLICY "Coaches can insert their own clients" ON public.clients FOR INSERT WITH CHECK (coach_id = auth.uid());
-CREATE POLICY "Coaches can update their own clients" ON public.clients FOR UPDATE USING (coach_id = auth.uid());
-CREATE POLICY "Coaches can view their own clients" ON public.clients FOR SELECT USING ((coach_id = auth.uid()) OR (user_id = auth.uid()));
+CREATE POLICY "Clients can view own record" ON public.clients FOR SELECT USING (user_id = (select auth.uid()));
+CREATE POLICY "Clients can update own record" ON public.clients FOR UPDATE USING (user_id = (select auth.uid())) WITH CHECK (user_id = (select auth.uid()));
+CREATE POLICY "Coaches can delete their own clients" ON public.clients FOR DELETE USING (coach_id = (select auth.uid()));
+CREATE POLICY "Coaches can insert their own clients" ON public.clients FOR INSERT WITH CHECK (coach_id = (select auth.uid()));
+CREATE POLICY "Coaches can update their own clients" ON public.clients FOR UPDATE USING (coach_id = (select auth.uid()));
+CREATE POLICY "Coaches can view their own clients" ON public.clients FOR SELECT USING ((coach_id = (select auth.uid())) OR (user_id = (select auth.uid())));
 
 ALTER TABLE public.exercise_logs ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Client manages own logs" ON public.exercise_logs FOR ALL USING (workout_session_id IN (SELECT ws.id FROM public.workout_sessions ws JOIN public.clients c ON c.id = ws.client_id WHERE c.user_id = auth.uid())) WITH CHECK (workout_session_id IN (SELECT ws.id FROM public.workout_sessions ws JOIN public.clients c ON c.id = ws.client_id WHERE c.user_id = auth.uid()));
-CREATE POLICY "Coaches can view their clients' exercise logs" ON public.exercise_logs FOR SELECT USING (EXISTS (SELECT 1 FROM public.workout_sessions ws JOIN public.clients c ON c.id = ws.client_id WHERE ws.id = exercise_logs.workout_session_id AND c.coach_id = auth.uid()));
-CREATE POLICY "Users can delete own exercise logs" ON public.exercise_logs FOR DELETE USING (auth.uid() = user_id);
-CREATE POLICY "Users can insert own exercise logs" ON public.exercise_logs FOR INSERT WITH CHECK ((auth.uid() = user_id) AND public.has_active_subscription(auth.uid()));
-CREATE POLICY "Users can update own exercise logs" ON public.exercise_logs FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Users can view own exercise logs" ON public.exercise_logs FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Client manages own logs" ON public.exercise_logs FOR ALL USING (workout_session_id IN (SELECT ws.id FROM public.workout_sessions ws JOIN public.clients c ON c.id = ws.client_id WHERE c.user_id = (select auth.uid()))) WITH CHECK (workout_session_id IN (SELECT ws.id FROM public.workout_sessions ws JOIN public.clients c ON c.id = ws.client_id WHERE c.user_id = (select auth.uid())));
+CREATE POLICY "Coaches can view their clients' exercise logs" ON public.exercise_logs FOR SELECT USING (EXISTS (SELECT 1 FROM public.workout_sessions ws JOIN public.clients c ON c.id = ws.client_id WHERE ws.id = exercise_logs.workout_session_id AND c.coach_id = (select auth.uid())));
+CREATE POLICY "Users can delete own exercise logs" ON public.exercise_logs FOR DELETE USING ((select auth.uid()) = user_id);
+CREATE POLICY "Users can insert own exercise logs" ON public.exercise_logs FOR INSERT WITH CHECK (((select auth.uid()) = user_id) AND public.has_active_subscription((select auth.uid())));
+CREATE POLICY "Users can update own exercise logs" ON public.exercise_logs FOR UPDATE USING ((select auth.uid()) = user_id);
+CREATE POLICY "Users can view own exercise logs" ON public.exercise_logs FOR SELECT USING ((select auth.uid()) = user_id);
 
 ALTER TABLE public.client_routines ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admin manages client_routines" ON public.client_routines FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
-CREATE POLICY "Client views own routines" ON public.client_routines FOR SELECT USING (client_id IN (SELECT clients.id FROM public.clients WHERE clients.user_id = auth.uid()));
+CREATE POLICY "Admin manages client_routines" ON public.client_routines FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Client views own routines" ON public.client_routines FOR SELECT USING (client_id IN (SELECT clients.id FROM public.clients WHERE clients.user_id = (select auth.uid())));
+CREATE POLICY "Client updates own routines" ON public.client_routines FOR UPDATE USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = client_routines.client_id AND clients.user_id = (select auth.uid()))) WITH CHECK (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = client_routines.client_id AND clients.user_id = (select auth.uid())));
 
 ALTER TABLE public.routine_week_progress ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admin manages routine_week_progress" ON public.routine_week_progress FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
-CREATE POLICY "Client views own routine_week_progress" ON public.routine_week_progress FOR SELECT USING (client_routine_id IN (SELECT cr.id FROM public.client_routines cr JOIN public.clients c ON c.id = cr.client_id WHERE c.user_id = auth.uid()));
+CREATE POLICY "Admin manages routine_week_progress" ON public.routine_week_progress FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Client views own routine_week_progress" ON public.routine_week_progress FOR SELECT USING (client_routine_id IN (SELECT cr.id FROM public.client_routines cr JOIN public.clients c ON c.id = cr.client_id WHERE c.user_id = (select auth.uid())));
 
 ALTER TABLE public.pr_events ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Clients can insert own PR events" ON public.pr_events FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = pr_events.client_id AND c.user_id = auth.uid() AND c.admin_approved = true AND c.status = 'active'::text));
-CREATE POLICY "Clients can view own PR events" ON public.pr_events FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = pr_events.client_id AND c.user_id = auth.uid()));
-CREATE POLICY "Coaches can view their clients' PR events" ON public.pr_events FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = pr_events.client_id AND c.coach_id = auth.uid()));
+CREATE POLICY "Clients can insert own PR events" ON public.pr_events FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = pr_events.client_id AND c.user_id = (select auth.uid()) AND c.admin_approved = true AND c.status = 'active'::text));
+CREATE POLICY "Clients can view own PR events" ON public.pr_events FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = pr_events.client_id AND c.user_id = (select auth.uid())));
+CREATE POLICY "Coaches can view their clients' PR events" ON public.pr_events FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients c WHERE c.id = pr_events.client_id AND c.coach_id = (select auth.uid())));
 
 ALTER TABLE public.body_measurements ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can view all body measurements" ON public.body_measurements FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
-CREATE POLICY "Client can insert own measurements" ON public.body_measurements FOR INSERT WITH CHECK (client_id IN (SELECT clients.id FROM public.clients WHERE clients.user_id = auth.uid()));
-CREATE POLICY "Clients can create own body measurements" ON public.body_measurements FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = body_measurements.client_id AND clients.user_id = auth.uid()));
-CREATE POLICY "Clients can view own body measurements" ON public.body_measurements FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = body_measurements.client_id AND clients.user_id = auth.uid()));
-CREATE POLICY "Coaches can view their clients' body measurements" ON public.body_measurements FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = body_measurements.client_id AND clients.coach_id = auth.uid()));
+CREATE POLICY "Admins can view all body measurements" ON public.body_measurements FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Clients can create own body measurements" ON public.body_measurements FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = body_measurements.client_id AND clients.user_id = (select auth.uid())));
+CREATE POLICY "Clients can view own body measurements" ON public.body_measurements FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = body_measurements.client_id AND clients.user_id = (select auth.uid())));
+CREATE POLICY "Coaches can view their clients' body measurements" ON public.body_measurements FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = body_measurements.client_id AND clients.coach_id = (select auth.uid())));
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
-CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (id = auth.uid());
-CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "profiles_select_own" ON public.profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Authenticated users can view profiles" ON public.profiles FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING ((select auth.uid()) = id);
+CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (id = (select auth.uid()));
+CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT WITH CHECK ((select auth.uid()) = id);
 
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can view all payments" ON public.payments FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
-CREATE POLICY "Clients can view own payments" ON public.payments FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = payments.client_id AND clients.user_id = auth.uid()));
-CREATE POLICY "Only admins can insert payments" ON public.payments FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = 'admin'::text));
+CREATE POLICY "Admins can view all payments" ON public.payments FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Clients can view own payments" ON public.payments FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = payments.client_id AND clients.user_id = (select auth.uid())));
+CREATE POLICY "Only admins can insert payments" ON public.payments FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Only admins can update payments" ON public.payments FOR UPDATE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
+CREATE POLICY "Only admins can delete payments" ON public.payments FOR DELETE USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = 'admin'::text));
 
 ALTER TABLE public.progress_photos ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admin can manage all photos" ON public.progress_photos FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = auth.uid() AND profiles.role = ANY (ARRAY['admin'::text, 'receptionist'::text]))));
-CREATE POLICY "Client can manage own photos" ON public.progress_photos FOR ALL USING (client_id IN (SELECT clients.id FROM public.clients WHERE clients.user_id = auth.uid())));
-CREATE POLICY "Coaches can view their clients' progress photos" ON public.progress_photos FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = progress_photos.client_id AND clients.coach_id = auth.uid())));
+CREATE POLICY "Admin can manage all photos" ON public.progress_photos FOR ALL USING (EXISTS (SELECT 1 FROM public.profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = ANY (ARRAY['admin'::text, 'receptionist'::text]))));
+CREATE POLICY "Client can manage own photos" ON public.progress_photos FOR ALL USING (client_id IN (SELECT clients.id FROM public.clients WHERE clients.user_id = (select auth.uid())));
+CREATE POLICY "Coaches can view their clients' progress photos" ON public.progress_photos FOR SELECT USING (EXISTS (SELECT 1 FROM public.clients WHERE clients.id = progress_photos.client_id AND clients.coach_id = (select auth.uid())));
 
 
--- 11. STORAGE BUCKETS & POLICIES
--- Note: Buckets should be created through the Supabase UI or API if possible.
--- The following are the definitions for reference.
-
--- BUCKETS (Manual creation recommended)
--- INSERT INTO storage.buckets (id, name, public) VALUES ('progress-photos', 'progress-photos', false);
--- INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true);
+-- 8. STORAGE BUCKETS & POLICIES
+INSERT INTO storage.buckets (id, name, public)
+VALUES
+  ('progress-photos', 'progress-photos', false),
+  ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- POLICIES FOR progress-photos
 CREATE POLICY "Admin manage progress photos storage" ON storage.objects
 FOR ALL TO authenticated USING (
   bucket_id = 'progress-photos' AND 
-  (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = auth.uid() AND profiles.role = ANY (ARRAY['admin', 'receptionist'])))
+  (EXISTS (SELECT 1 FROM profiles WHERE profiles.id = (select auth.uid()) AND profiles.role = ANY (ARRAY['admin', 'receptionist'])))
 );
 
 CREATE POLICY "Clients upload own progress photos" ON storage.objects
 FOR INSERT TO authenticated WITH CHECK (
   bucket_id = 'progress-photos' AND 
   (storage.foldername(name))[1] = 'clients' AND 
-  (storage.foldername(name))[2] IN (SELECT id::text FROM clients WHERE user_id = auth.uid())
+  (storage.foldername(name))[2] IN (SELECT id::text FROM clients WHERE user_id = (select auth.uid()))
 );
 
 CREATE POLICY "Clients delete own progress photos" ON storage.objects
 FOR DELETE TO authenticated USING (
   bucket_id = 'progress-photos' AND 
   (storage.foldername(name))[1] = 'clients' AND 
-  (storage.foldername(name))[2] IN (SELECT id::text FROM clients WHERE user_id = auth.uid())
+  (storage.foldername(name))[2] IN (SELECT id::text FROM clients WHERE user_id = (select auth.uid()))
 );
 
 -- POLICIES FOR avatars
@@ -1064,7 +1120,7 @@ FOR SELECT TO public USING (bucket_id = 'avatars');
 CREATE POLICY "Users upload own profile avatar" ON storage.objects
 FOR INSERT TO authenticated WITH CHECK (
   bucket_id = 'avatars' AND 
-  (storage.foldername(name))[1] = auth.uid()::text AND 
+  (storage.foldername(name))[1] = (select auth.uid())::text AND 
   cardinality(storage.foldername(name)) = 1 AND 
   storage.filename(name) ~ '^profile\.(jpe?g|png|webp)$'
 );
@@ -1072,12 +1128,12 @@ FOR INSERT TO authenticated WITH CHECK (
 CREATE POLICY "Users update own profile avatar" ON storage.objects
 FOR UPDATE TO authenticated USING (
   bucket_id = 'avatars' AND 
-  (storage.foldername(name))[1] = auth.uid()::text AND 
+  (storage.foldername(name))[1] = (select auth.uid())::text AND 
   cardinality(storage.foldername(name)) = 1 AND 
   storage.filename(name) ~ '^profile\.(jpe?g|png|webp)$'
 ) WITH CHECK (
   bucket_id = 'avatars' AND 
-  (storage.foldername(name))[1] = auth.uid()::text AND 
+  (storage.foldername(name))[1] = (select auth.uid())::text AND 
   cardinality(storage.foldername(name)) = 1 AND 
   storage.filename(name) ~ '^profile\.(jpe?g|png|webp)$'
 );
@@ -1085,11 +1141,18 @@ FOR UPDATE TO authenticated USING (
 CREATE POLICY "Users delete own profile avatar" ON storage.objects
 FOR DELETE TO authenticated USING (
   bucket_id = 'avatars' AND 
-  (storage.foldername(name))[1] = auth.uid()::text AND 
+  (storage.foldername(name))[1] = (select auth.uid())::text AND 
   cardinality(storage.foldername(name)) = 1 AND 
   storage.filename(name) ~ '^profile\.(jpe?g|png|webp)$'
 );
 
+-- 9. REALTIME PUBLICATIONS
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+EXCEPTION WHEN duplicate_object THEN
+  NULL;
+END $$;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -1113,3 +1176,4 @@ FOR DELETE TO authenticated USING (
 --
 -- Ver docs/DATABASE_GUIDE.md para instrucciones completas.
 -- ═══════════════════════════════════════════════════════════════════════════
+

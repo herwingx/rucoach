@@ -139,6 +139,64 @@ export type Database = {
           },
         ]
       }
+      client_exercise_overrides: {
+        Row: {
+          changed_by: string
+          client_routine_id: string
+          created_at: string
+          id: string
+          notified_coach: boolean
+          original_routine_exercise_id: number
+          reason: string | null
+          replacement_exercise_id: string
+          updated_at: string
+        }
+        Insert: {
+          changed_by?: string
+          client_routine_id: string
+          created_at?: string
+          id?: string
+          notified_coach?: boolean
+          original_routine_exercise_id: number
+          reason?: string | null
+          replacement_exercise_id: string
+          updated_at?: string
+        }
+        Update: {
+          changed_by?: string
+          client_routine_id?: string
+          created_at?: string
+          id?: string
+          notified_coach?: boolean
+          original_routine_exercise_id?: number
+          reason?: string | null
+          replacement_exercise_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_exercise_overrides_client_routine_id_fkey"
+            columns: ["client_routine_id"]
+            isOneToOne: false
+            referencedRelation: "client_routines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_exercise_overrides_original_routine_exercise_id_fkey"
+            columns: ["original_routine_exercise_id"]
+            isOneToOne: false
+            referencedRelation: "routine_exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_exercise_overrides_replacement_exercise_id_fkey"
+            columns: ["replacement_exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercises"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_routines: {
         Row: {
           assigned_at: string | null
@@ -151,6 +209,7 @@ export type Database = {
           is_active: boolean | null
           is_current: boolean | null
           notes: string | null
+          override_next_day_id: string | null
           routine_id: string
         }
         Insert: {
@@ -164,6 +223,7 @@ export type Database = {
           is_active?: boolean | null
           is_current?: boolean | null
           notes?: string | null
+          override_next_day_id?: string | null
           routine_id: string
         }
         Update: {
@@ -177,6 +237,7 @@ export type Database = {
           is_active?: boolean | null
           is_current?: boolean | null
           notes?: string | null
+          override_next_day_id?: string | null
           routine_id?: string
         }
         Relationships: [
@@ -185,6 +246,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_routines_override_next_day_id_fkey"
+            columns: ["override_next_day_id"]
+            isOneToOne: false
+            referencedRelation: "routine_days"
             referencedColumns: ["id"]
           },
           {
@@ -327,6 +395,7 @@ export type Database = {
           is_active: boolean
           notes: string | null
           reported_at: string
+          resolved_at: string | null
           severity: number
         }
         Insert: {
@@ -337,6 +406,7 @@ export type Database = {
           is_active?: boolean
           notes?: string | null
           reported_at?: string
+          resolved_at?: string | null
           severity: number
         }
         Update: {
@@ -347,6 +417,7 @@ export type Database = {
           is_active?: boolean
           notes?: string | null
           reported_at?: string
+          resolved_at?: string | null
           severity?: number
         }
         Relationships: [
@@ -444,60 +515,81 @@ export type Database = {
       exercises: {
         Row: {
           body_parts: string[] | null
+          body_parts_es: string[] | null
           created_at: string | null
           demo_video_url: string | null
           equipment: string | null
+          equipment_es: string | null
           equipments: string[] | null
           exercise_type: string
           gif_url: string | null
           id: string
           image_url: string | null
           instructions: string[] | null
+          instructions_es: string[] | null
           name: string
+          name_es: string | null
           primary_muscle: string
           secondary_muscle: string | null
           secondary_muscles: string[] | null
+          secondary_muscles_es: string[] | null
           target_muscles: string[] | null
+          target_muscles_es: string[] | null
           technique_notes: string | null
           updated_at: string | null
+          uses_external_load: boolean | null
         }
         Insert: {
           body_parts?: string[] | null
+          body_parts_es?: string[] | null
           created_at?: string | null
           demo_video_url?: string | null
           equipment?: string | null
+          equipment_es?: string | null
           equipments?: string[] | null
           exercise_type: string
           gif_url?: string | null
           id: string
           image_url?: string | null
           instructions?: string[] | null
+          instructions_es?: string[] | null
           name: string
+          name_es?: string | null
           primary_muscle: string
           secondary_muscle?: string | null
           secondary_muscles?: string[] | null
+          secondary_muscles_es?: string[] | null
           target_muscles?: string[] | null
+          target_muscles_es?: string[] | null
           technique_notes?: string | null
           updated_at?: string | null
+          uses_external_load?: boolean | null
         }
         Update: {
           body_parts?: string[] | null
+          body_parts_es?: string[] | null
           created_at?: string | null
           demo_video_url?: string | null
           equipment?: string | null
+          equipment_es?: string | null
           equipments?: string[] | null
           exercise_type?: string
           gif_url?: string | null
           id?: string
           image_url?: string | null
           instructions?: string[] | null
+          instructions_es?: string[] | null
           name?: string
+          name_es?: string | null
           primary_muscle?: string
           secondary_muscle?: string | null
           secondary_muscles?: string[] | null
+          secondary_muscles_es?: string[] | null
           target_muscles?: string[] | null
+          target_muscles_es?: string[] | null
           technique_notes?: string | null
           updated_at?: string | null
+          uses_external_load?: boolean | null
         }
         Relationships: []
       }
@@ -839,16 +931,19 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          birth_date: string | null
           created_at: string | null
           email: string
           experience_level: string | null
           fitness_goal: string | null
           full_name: string | null
+          gender: string | null
           id: string
           last_workout_at: string | null
           level: number | null
           notifications_enabled: boolean | null
           onboarding_completed: boolean | null
+          phone: string | null
           role: string
           streak_days: number | null
           subscription_ends_at: string | null
@@ -859,16 +954,19 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          birth_date?: string | null
           created_at?: string | null
           email: string
           experience_level?: string | null
           fitness_goal?: string | null
           full_name?: string | null
+          gender?: string | null
           id: string
           last_workout_at?: string | null
           level?: number | null
           notifications_enabled?: boolean | null
           onboarding_completed?: boolean | null
+          phone?: string | null
           role: string
           streak_days?: number | null
           subscription_ends_at?: string | null
@@ -879,16 +977,19 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          birth_date?: string | null
           created_at?: string | null
           email?: string
           experience_level?: string | null
           fitness_goal?: string | null
           full_name?: string | null
+          gender?: string | null
           id?: string
           last_workout_at?: string | null
           level?: number | null
           notifications_enabled?: boolean | null
           onboarding_completed?: boolean | null
+          phone?: string | null
           role?: string
           streak_days?: number | null
           subscription_ends_at?: string | null
@@ -936,6 +1037,41 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
