@@ -29,7 +29,23 @@ async function syncClientPlanDatesFromPayment(
   if (fields.plan_id) clientUpdate.current_plan_id = fields.plan_id;
   
   if (Object.keys(clientUpdate).length === 0) return;
-  await supabase.from("clients").update(clientUpdate).eq("id", clientId);
+  const { data: updatedClient } = await supabase
+    .from("clients")
+    .update(clientUpdate)
+    .eq("id", clientId)
+    .select("user_id, status")
+    .maybeSingle();
+
+  if (updatedClient?.user_id && updatedClient.status) {
+    await supabase
+      .from("profiles")
+      .update({ subscription_status: updatedClient.status })
+      .eq("id", updatedClient.user_id);
+  }
+
+  revalidatePath("/suspended");
+  revalidatePath("/client/dashboard");
+  revalidatePath("/client", "layout");
 }
 
 import { notifyUser } from "@/lib/push";

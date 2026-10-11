@@ -9,17 +9,20 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SuspendedAccessWatcher } from "@/components/suspended-access-watcher";
 import {
   AlertTriangle,
   CheckCircle2,
   Clock,
   LogOut,
   MessageCircle,
-  RefreshCw,
   Sparkles,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 
 const DEFAULT_COACH_PHONE = "9612378473";
 
@@ -59,8 +62,57 @@ export default async function SuspendedPage({
   searchParams: Promise<{ status?: string }>;
 }) {
   const { status } = await searchParams;
-  const { user, profile } = await getAuthData();
+  const { user, role, profile } = await getAuthData();
+
+  if (!user) {
+    redirect("/auth/login");
+  }
+
+  if (role === "admin") {
+    redirect("/admin/dashboard");
+  }
+
+  if (role === "receptionist") {
+    redirect("/receptionist/dashboard");
+  }
+
   const supabase = await createClient();
+
+  // Verificar en tiempo real si el cliente ya tiene su pago/membresía activa
+  const { data: clientRow } = await supabase
+    .from("clients")
+    .select("id, status, membership_end")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  let effectiveStatus = status;
+
+  if (clientRow) {
+    const endDay = clientRow.membership_end?.slice(0, 10);
+    const endDate = endDay ? new Date(`${endDay}T23:59:59`) : null;
+    const isDateExpired =
+      endDate && !Number.isNaN(endDate.getTime()) && endDate < new Date();
+
+    if (isDateExpired) {
+      effectiveStatus = "expired";
+    } else if (clientRow.status === "active") {
+      if (profile?.subscription_status !== "active") {
+        await supabase
+          .from("profiles")
+          .update({ subscription_status: "active" })
+          .eq("id", user.id);
+      }
+      redirect("/client/dashboard");
+    } else if (
+      clientRow.status === "pending_payment" ||
+      clientRow.status === "expired" ||
+      clientRow.status === "suspended"
+    ) {
+      effectiveStatus = clientRow.status;
+    }
+  } else if (profile?.subscription_status === "active") {
+    redirect("/client/dashboard");
+  }
 
   const { data: gym } = await supabase
     .from("gym_settings")
@@ -73,8 +125,8 @@ export default async function SuspendedPage({
   const userEmail = profile?.email || user?.email || "";
   const userName = profile?.full_name || "";
 
-  const isPaused = status === "pending_payment";
-  const isExpired = status === "expired";
+  const isPaused = effectiveStatus === "pending_payment";
+  const isExpired = effectiveStatus === "expired";
 
   let title = "Acceso Restringido";
   let badgeText = "Cuenta en revisión";
@@ -246,16 +298,7 @@ export default async function SuspendedPage({
                 </a>
               </Button>
 
-              <Button
-                variant="secondary"
-                className="w-full gap-2 h-11 text-xs sm:text-sm font-semibold rounded-xl"
-                asChild
-              >
-                <Link href="/client/dashboard">
-                  <RefreshCw className="size-4" />
-                  Ya realicé mi pago · Verificar acceso
-                </Link>
-              </Button>
+              <SuspendedAccessWatcher userId={user.id} />
 
               <Button
                 variant="outline"

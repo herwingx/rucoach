@@ -14,16 +14,7 @@ export default async function ClientLayout({
     redirect("/auth/login");
   }
 
-  // Redirigir si el perfil ya está marcado como suspendido, vencido o pendiente de pago
-  if (
-    profile?.subscription_status === "suspended" ||
-    profile?.subscription_status === "expired" ||
-    profile?.subscription_status === "pending_payment"
-  ) {
-    redirect(`/suspended?status=${profile.subscription_status}`);
-  }
-
-  // Verificar vigencia real por fecha de corte (membership_end) en tabla clients
+  // Verificar vigencia real en tabla clients (fuente de verdad de membresías y pagos)
   if (role === "client") {
     const supabase = await createClient();
     const { data: clientRow } = await supabase
@@ -33,6 +24,26 @@ export default async function ClientLayout({
       .maybeSingle();
 
     if (clientRow) {
+      if (clientRow.membership_end) {
+        const endDay = clientRow.membership_end.slice(0, 10);
+        const endDate = new Date(`${endDay}T23:59:59`);
+        if (!Number.isNaN(endDate.getTime()) && endDate < new Date()) {
+          if (clientRow.status !== "expired") {
+            await supabase
+              .from("clients")
+              .update({ status: "expired" })
+              .eq("id", clientRow.id);
+          }
+          if (profile?.subscription_status !== "expired") {
+            await supabase
+              .from("profiles")
+              .update({ subscription_status: "expired" })
+              .eq("id", user.id);
+          }
+          redirect("/suspended?status=expired");
+        }
+      }
+
       if (
         clientRow.status === "suspended" ||
         clientRow.status === "expired" ||
@@ -41,17 +52,22 @@ export default async function ClientLayout({
         redirect(`/suspended?status=${clientRow.status}`);
       }
 
-      if (clientRow.membership_end) {
-        const endDay = clientRow.membership_end.slice(0, 10);
-        const endDate = new Date(`${endDay}T23:59:59`);
-        if (!Number.isNaN(endDate.getTime()) && endDate < new Date()) {
-          await supabase
-            .from("clients")
-            .update({ status: "expired" })
-            .eq("id", clientRow.id);
-          redirect("/suspended?status=expired");
-        }
+      // Si en clients ya está activo y vigente, asegurar que profiles.subscription_status esté sincronizado
+      if (
+        clientRow.status === "active" &&
+        profile?.subscription_status !== "active"
+      ) {
+        await supabase
+          .from("profiles")
+          .update({ subscription_status: "active" })
+          .eq("id", user.id);
       }
+    } else if (
+      profile?.subscription_status === "suspended" ||
+      profile?.subscription_status === "expired" ||
+      profile?.subscription_status === "pending_payment"
+    ) {
+      redirect(`/suspended?status=${profile.subscription_status}`);
     }
   }
 
