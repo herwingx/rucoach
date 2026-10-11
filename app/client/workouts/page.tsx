@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthUser, getCurrentClientRecord } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import {
   Card,
@@ -11,7 +11,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 import { getClientStats, getWorkoutSessionsByDateRange } from "@/lib/workouts";
 import { sessionInstantLabel } from "@/lib/format-workout-session";
 import { CalendarDays, ChevronRight, Clock, Dumbbell } from "lucide-react";
@@ -33,12 +32,7 @@ export default async function ClientWorkoutsPage({
   const user = await getAuthUser();
   if (!user) redirect("/auth/login");
 
-  const supabase = await createClient();
-  const { data: clientRecord } = await supabase
-    .from("clients")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
+  const clientRecord = await getCurrentClientRecord(user.id);
 
   if (!clientRecord) {
     return (

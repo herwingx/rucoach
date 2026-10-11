@@ -52,6 +52,7 @@ export function MobileBottomNav({ type }: { type: 'client' | 'admin' }) {
             <li key={item.href} className="flex-1 flex justify-center h-full">
               <Link
                 href={item.href}
+                prefetch={true}
                 className={cn(
                   "flex flex-col items-center justify-center w-full h-full gap-0.5 min-w-[44px] transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 rounded-xl",
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"

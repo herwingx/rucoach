@@ -1,4 +1,4 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthUser, getCurrentClientRecord } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import {
   Card,
@@ -35,12 +35,10 @@ export default async function ClientProgressPage() {
   const user = await getAuthUser();
   if (!user) redirect("/auth/login");
 
-  const supabase = await createClient();
-  const { data: clientRecord } = await supabase
-    .from("clients")
-    .select("id")
-    .eq("user_id", user.id)
-    .single();
+  const [supabase, clientRecord] = await Promise.all([
+    createClient(),
+    getCurrentClientRecord(user.id),
+  ]);
 
   if (!clientRecord) {
     return (

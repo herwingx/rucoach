@@ -152,7 +152,11 @@ async function fetchClientAchievementMetrics(
       p_client_id: clientId,
       p_tz: tz,
     }),
-    supabase.from('body_measurements').select('recorded_at').eq('client_id', clientId),
+    supabase
+      .from('body_measurements')
+      .select('recorded_at, weight')
+      .eq('client_id', clientId)
+      .order('recorded_at', { ascending: false }),
     supabase.from('clients').select('current_weight, initial_weight').eq('id', clientId).maybeSingle(),
   ])
 
@@ -217,14 +221,10 @@ async function fetchClientAchievementMetrics(
 
   let bodyWeightKg = Number(clientRow.data?.current_weight ?? clientRow.data?.initial_weight ?? 0)
   if (!bodyWeightKg || bodyWeightKg <= 0) {
-    const { data: lastM } = await supabase
-      .from('body_measurements')
-      .select('weight')
-      .eq('client_id', clientId)
-      .order('recorded_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    bodyWeightKg = Number(lastM?.weight ?? 0)
+    const latestWithWeight = (measurements.data ?? []).find(
+      (m) => m.weight != null && Number(m.weight) > 0,
+    )
+    bodyWeightKg = Number(latestWithWeight?.weight ?? 0)
   }
 
   let maxBench = 0
@@ -473,15 +473,15 @@ async function buildAchievementMetrics(userId: string): Promise<ClientAchievemen
     supabase.from('clients').select('id, total_sessions').eq('user_id', userId).single(),
   ])
 
-  let totalSessions = client?.total_sessions ?? 0
-  if (client?.id) {
-    const counted = await countCompletedWorkoutSessions(supabase, client.id)
-    if (counted !== null) {
-      totalSessions = Math.max(totalSessions, counted)
-    }
-  }
+  const [counted, extended] = await Promise.all([
+    client?.id ? countCompletedWorkoutSessions(supabase, client.id) : Promise.resolve(null),
+    fetchClientAchievementMetrics(supabase, client?.id, userId),
+  ])
 
-  const extended = await fetchClientAchievementMetrics(supabase, client?.id, userId)
+  let totalSessions = client?.total_sessions ?? 0
+  if (counted !== null) {
+    totalSessions = Math.max(totalSessions, counted)
+  }
 
   return {
     totalSessions,
@@ -523,15 +523,16 @@ export async function checkAchievements(userId: string): Promise<Achievement[]> 
 
   const allAchievements = normalizeAchievementList(rawAchievements)
 
+  const [counted, extra] = await Promise.all([
+    client?.id ? countCompletedWorkoutSessions(supabase, client.id) : Promise.resolve(null),
+    fetchClientAchievementMetrics(supabase, client?.id, userId),
+  ])
+
   let totalSessions = client?.total_sessions ?? 0
-  if (client?.id) {
-    const counted = await countCompletedWorkoutSessions(supabase, client.id)
-    if (counted !== null) {
-      totalSessions = Math.max(totalSessions, counted)
-    }
+  if (counted !== null) {
+    totalSessions = Math.max(totalSessions, counted)
   }
 
-  const extra = await fetchClientAchievementMetrics(supabase, client?.id, userId)
   const metrics: ClientAchievementMetrics = {
     totalSessions,
     streakDays: profile?.streak_days ?? 0,
@@ -561,7 +562,7 @@ export async function checkAchievements(userId: string): Promise<Achievement[]> 
   return newlyUnlocked
 }
 
-// Get user achievements
+// Get user achievements (single pass without duplicating checkAchievements queries)
 export async function getUserAchievements(userId: string): Promise<{
   unlocked: UserAchievement[]
   locked: Achievement[]
@@ -569,12 +570,6 @@ export async function getUserAchievements(userId: string): Promise<{
   metrics: ClientAchievementMetrics
 }> {
   const supabase = await createClient()
-
-  try {
-    await checkAchievements(userId)
-  } catch (err) {
-    console.warn('[getUserAchievements] checkAchievements failed:', err)
-  }
 
   const [{ data: rawAll }, { data: rawUserRows }, metrics] = await Promise.all([
     supabase.from('achievements').select('*').order('xp_reward', { ascending: true }),
@@ -587,8 +582,35 @@ export async function getUserAchievements(userId: string): Promise<{
 
   const allAchievements = normalizeAchievementList(rawAll)
   const userAchievements = normalizeUserAchievementsRows(rawUserRows as UserAchievement[] | null)
-
   const unlockedIds = new Set(userAchievements.map((ua) => ua.achievement_id))
+
+  // Evaluate in memory if any locked achievement qualifies right now
+  for (const achievement of allAchievements) {
+    if (unlockedIds.has(achievement.id)) continue
+    if (!achievementQualified(achievement, metrics)) continue
+
+    try {
+      const { data: insertedRow, error: insertError } = await supabase
+        .from('user_achievements')
+        .insert({ user_id: userId, achievement_id: achievement.id })
+        .select('*, achievements(*)')
+        .single()
+
+      if (!insertError && insertedRow) {
+        await awardXP(userId, achievement.xp_reward)
+        unlockedIds.add(achievement.id)
+        const normalizedInserted = normalizeUserAchievementsRows([
+          insertedRow as UserAchievement,
+        ])
+        if (normalizedInserted[0]) {
+          userAchievements.push(normalizedInserted[0])
+        }
+      }
+    } catch (err) {
+      console.warn('[getUserAchievements] inline unlock failed:', err)
+    }
+  }
+
   const progress = new Map<string, number>()
 
   for (const achievement of allAchievements) {

@@ -1,13 +1,14 @@
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { UserRole } from '@/lib/types'
 
-export async function getAuthUser() {
+export const getAuthUser = cache(async () => {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   return user
-}
+})
 
 export async function getUserProfile() {
   const data = await getAuthData()
@@ -16,18 +17,17 @@ export async function getUserProfile() {
 
 /**
  * Combined data to avoid redundant calls to getUser and profiles table.
- * Next.js 15/16 benefits from fewer sequential awaits in server components.
+ * Memoized per request with React.cache() so Layout + Page + Server Helpers
+ * share a single network roundtrip.
  */
-export async function getAuthData() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+export const getAuthData = cache(async () => {
+  const user = await getAuthUser()
 
   if (!user) {
     return { user: null, role: null, profile: null }
   }
 
+  const supabase = await createClient()
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('*')
@@ -52,7 +52,20 @@ export async function getAuthData() {
   }
 
   return { user, role, profile }
-}
+})
+
+/**
+ * Deduplicated per-request lookup of the authenticated user's `clients` row.
+ */
+export const getCurrentClientRecord = cache(async (userId: string) => {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return data
+})
 
 /**
  * Rol efectivo alineado con `middleware.ts`: si falla `profiles` (RLS/red), no devolver `null`

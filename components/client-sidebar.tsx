@@ -153,6 +153,7 @@ export function ClientSidebar() {
                       <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
                         <Link
                           href={item.href}
+                          prefetch={true}
                           onClick={handleNavClick}
                           className={cn(
                             'relative',

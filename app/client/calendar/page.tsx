@@ -1,4 +1,4 @@
-import { getAuthUser } from "@/lib/auth-utils";
+import { getAuthUser, getCurrentClientRecord } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -64,47 +64,44 @@ export default async function ClientCalendarPage({
   const user = await getAuthUser();
   if (!user) redirect("/auth/login");
 
-  const sp = await searchParams;
+  const [sp, supabase, clientRecord] = await Promise.all([
+    searchParams,
+    createClient(),
+    getCurrentClientRecord(user.id),
+  ]);
+
+  if (!clientRecord) redirect("/client/dashboard");
+
   const now = new Date();
   const hasExplicitMonth = sp.y != null || sp.m != null;
   const parsedY = sp.y != null ? Number(sp.y) : now.getFullYear();
   const parsedM = sp.m != null ? Number(sp.m) : now.getMonth() + 1;
   let { year, monthIndex } = clampMonthYear(parsedY, parsedM);
 
-  const supabase = await createClient();
-
-  const { data: clientRecord } = await supabase
-    .from("clients")
-    .select("id, coach_id")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!clientRecord) redirect("/client/dashboard");
-
-  let timeZone = "America/Mexico_City";
-  if (clientRecord.coach_id) {
-    const { data: gymSettings } = await supabase
-      .from("gym_settings")
-      .select("timezone")
-      .eq("admin_id", clientRecord.coach_id)
-      .maybeSingle();
-    if (gymSettings?.timezone) {
-      timeZone = gymSettings.timezone;
-    }
-  }
-
   // Widen UTC bounds by 1 day on each side so sessions near midnight in gym timezone are included
   let start = new Date(Date.UTC(year, monthIndex, 0, 0, 0, 0));
   let end = new Date(Date.UTC(year, monthIndex + 1, 2, 23, 59, 59));
 
-  let { data: sessions } = await supabase
-    .from("workout_sessions")
-    .select("id, started_at, total_volume_kg, status")
-    .eq("client_id", clientRecord.id)
-    .eq("status", "completed")
-    .gte("started_at", start.toISOString())
-    .lte("started_at", end.toISOString())
-    .order("started_at", { ascending: true });
+  const [gymSettingsRes, sessionsRes] = await Promise.all([
+    clientRecord.coach_id
+      ? supabase
+          .from("gym_settings")
+          .select("timezone")
+          .eq("admin_id", clientRecord.coach_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from("workout_sessions")
+      .select("id, started_at, total_volume_kg, status")
+      .eq("client_id", clientRecord.id)
+      .eq("status", "completed")
+      .gte("started_at", start.toISOString())
+      .lte("started_at", end.toISOString())
+      .order("started_at", { ascending: true }),
+  ]);
+
+  const timeZone = gymSettingsRes.data?.timezone || "America/Mexico_City";
+  let sessions = sessionsRes.data;
 
   if (!hasExplicitMonth && (!sessions || sessions.length === 0)) {
     const { data: latestSession } = await supabase

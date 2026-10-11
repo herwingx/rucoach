@@ -1,4 +1,4 @@
-import { getAuthData } from "@/lib/auth-utils";
+import { getAuthData, getCurrentClientRecord } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { ClientLayoutShell } from "@/components/client-layout-shell";
 import { createClient } from "@/lib/supabase/server";
@@ -14,14 +14,12 @@ export default async function ClientLayout({
     redirect("/auth/login");
   }
 
-  // Verificar vigencia real en tabla clients (fuente de verdad de membresías y pagos)
+  // Verificar vigencia real en tabla clients (cacheada por request con getCurrentClientRecord)
   if (role === "client") {
-    const supabase = await createClient();
-    const { data: clientRow } = await supabase
-      .from("clients")
-      .select("id, status, membership_end")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const [supabase, clientRow] = await Promise.all([
+      createClient(),
+      getCurrentClientRecord(user.id),
+    ]);
 
     if (clientRow) {
       if (clientRow.membership_end) {

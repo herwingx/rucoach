@@ -1,4 +1,4 @@
-import { getAuthData } from "@/lib/auth-utils";
+import { getAuthData, getCurrentClientRecord } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { calculateLevel, type RoutineDay } from "@/lib/types";
@@ -14,39 +14,11 @@ export default async function ClientDashboard() {
     redirect("/auth/login");
   }
 
-  const supabase = await createClient();
-
-  // Batch 1: client, userAchievements (independent, only need user.id)
-  const [clientRes, userAchievementsRes] = await Promise.all([
-    supabase.from("clients").select("*").eq("user_id", user.id).single(),
-    supabase
-      .from("user_achievements")
-      .select("*, achievements(*)")
-      .eq("user_id", user.id),
+  const [supabase, client] = await Promise.all([
+    createClient(),
+    getCurrentClientRecord(user.id),
   ]);
 
-  const client = clientRes.data;
-  const userAchievements = userAchievementsRes.data || [];
-
-  // Obtener zona horaria del gimnasio (vía coach del cliente)
-  let timeZone = "America/Mexico_City";
-  if (client?.coach_id) {
-    const { data: gymSettings } = await supabase
-      .from("gym_settings")
-      .select("timezone")
-      .eq("admin_id", client.coach_id)
-      .single();
-    if (gymSettings?.timezone) {
-      timeZone = gymSettings.timezone;
-    }
-  }
-  const nowInTz = getNowInTimezone(timeZone);
-
-  const startOfMonth = new Date(nowInTz);
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
-
-  // Batch 2: workoutSessions, prsThisMonth, client_routines (need client.id)
   let workoutSessions:
     | {
         id?: string;
@@ -64,29 +36,45 @@ export default async function ClientDashboard() {
   let clientCurrentWeek = 1;
   let activeClientRoutineId: string | null = null;
   let overrideNextDayId: string | null = null;
+  let timeZone = "America/Mexico_City";
 
-  if (client?.id) {
-    const [sessionsRes, prsRes, crRes, lastCompletedDayRes] = await Promise.all(
-      [
-        supabase
+  const [
+    userAchievementsRes,
+    gymSettingsRes,
+    sessionsRes,
+    crRes,
+    lastCompletedDayRes,
+  ] = await Promise.all([
+    supabase
+      .from("user_achievements")
+      .select("*, achievements(*)")
+      .eq("user_id", user.id),
+    client?.coach_id
+      ? supabase
+          .from("gym_settings")
+          .select("timezone")
+          .eq("admin_id", client.coach_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    client?.id
+      ? supabase
           .from("workout_sessions")
           .select("*")
           .eq("client_id", client.id)
           .order("created_at", { ascending: false })
-          .limit(CLIENT_DASHBOARD_SESSIONS_CAP),
-        supabase
-          .from("pr_events")
-          .select("*", { count: "exact", head: true })
-          .eq("client_id", client.id)
-          .gte("achieved_at", startOfMonth.toISOString()),
-        supabase
+          .limit(CLIENT_DASHBOARD_SESSIONS_CAP)
+      : Promise.resolve({ data: null }),
+    client?.id
+      ? supabase
           .from("client_routines")
           .select("id, routine_id, current_week, override_next_day_id")
           .eq("client_id", client.id)
           .eq("is_active", true)
           .limit(1)
-          .maybeSingle(),
-        supabase
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    client?.id
+      ? supabase
           .from("workout_sessions")
           .select("routine_day_id")
           .eq("client_id", client.id)
@@ -94,16 +82,24 @@ export default async function ClientDashboard() {
           .not("routine_day_id", "is", null)
           .order("created_at", { ascending: false })
           .limit(1)
-          .maybeSingle(),
-      ],
-    );
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const userAchievements = userAchievementsRes.data || [];
+  if (gymSettingsRes.data?.timezone) {
+    timeZone = gymSettingsRes.data.timezone;
+  }
+  const nowInTz = getNowInTimezone(timeZone);
+  const startOfMonth = new Date(nowInTz);
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  if (client?.id) {
     workoutSessions = sessionsRes.data;
-    prsThisMonth = prsRes.count ?? 0;
     if (!routineId) routineId = crRes.data?.routine_id ?? null;
     latestCompletedRoutineDayId =
       lastCompletedDayRes.data?.routine_day_id ?? null;
-
-    // Store current_week and override info
     clientCurrentWeek = crRes.data?.current_week ?? 1;
     activeClientRoutineId = crRes.data?.id ?? null;
     overrideNextDayId =
@@ -111,43 +107,11 @@ export default async function ClientDashboard() {
         ?.override_next_day_id ?? null;
   }
 
-  // Batch 3: routine with full details (need routineId)
-  let assignedRoutine = null;
-  let isRoutineCompleted = false;
-
-  if (routineId) {
-    const { data } = await supabase
-      .from("routines")
-      .select(
-        `
-        *,
-        routine_days (
-          *,
-          routine_exercises (
-            *,
-            exercises (*)
-          )
-        )
-      `,
-      )
-      .eq("id", routineId)
-      .single();
-    assignedRoutine = data;
-
-    if (assignedRoutine && assignedRoutine.duration_weeks) {
-      isRoutineCompleted = clientCurrentWeek > assignedRoutine.duration_weeks;
-    }
-  }
-
-  // Calculate level info
-  const levelInfo = calculateLevel(profile?.xp_points || 0);
-
   // Completed sessions only (for volume, chart and count)
   const completedSessions = (workoutSessions || []).filter(
     (s: any) => s.status === "completed" && s.started_at,
   );
 
-  // Sync prsThisMonth with admin logic: max(pr_events, exercise_logs with is_pr=true and !is_warmup)
   const monthStartMs = startOfMonth.getTime();
   const sessionIdsThisMonth = completedSessions
     .filter((s) => {
@@ -157,15 +121,55 @@ export default async function ClientDashboard() {
     })
     .map((s) => s.id as string);
 
-  if (sessionIdsThisMonth.length > 0) {
-    const { data: prLogRows } = await supabase
-      .from("exercise_logs")
-      .select("workout_session_id, is_warmup")
-      .eq("is_pr", true)
-      .in("workout_session_id", sessionIdsThisMonth);
-    const prLogsCount = (prLogRows || []).filter((r) => !r.is_warmup).length;
-    prsThisMonth = Math.max(prsThisMonth, prLogsCount);
+  // Batch 2: routine details + PR counts in parallel
+  let assignedRoutine = null;
+  let isRoutineCompleted = false;
+
+  const [routineRes, prsRes, prLogRowsRes] = await Promise.all([
+    routineId
+      ? supabase
+          .from("routines")
+          .select(
+            `
+            *,
+            routine_days (
+              *,
+              routine_exercises (
+                *,
+                exercises (*)
+              )
+            )
+          `,
+          )
+          .eq("id", routineId)
+          .single()
+      : Promise.resolve({ data: null }),
+    client?.id
+      ? supabase
+          .from("pr_events")
+          .select("*", { count: "exact", head: true })
+          .eq("client_id", client.id)
+          .gte("achieved_at", startOfMonth.toISOString())
+      : Promise.resolve({ count: 0 }),
+    sessionIdsThisMonth.length > 0
+      ? supabase
+          .from("exercise_logs")
+          .select("workout_session_id, is_warmup")
+          .eq("is_pr", true)
+          .in("workout_session_id", sessionIdsThisMonth)
+      : Promise.resolve({ data: null }),
+  ]);
+
+  assignedRoutine = routineRes.data;
+  if (assignedRoutine && assignedRoutine.duration_weeks) {
+    isRoutineCompleted = clientCurrentWeek > assignedRoutine.duration_weeks;
   }
+
+  const prLogsCount = (prLogRowsRes.data || []).filter((r) => !r.is_warmup).length;
+  prsThisMonth = Math.max(prsRes.count ?? 0, prLogsCount);
+
+  // Calculate level info
+  const levelInfo = calculateLevel(profile?.xp_points || 0);
 
   // Calculate total volume from completed sessions
   const totalVolume = completedSessions.reduce(

@@ -48,9 +48,6 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // 3. Obtener usuario (esto dispara setAll si el token expiró)
-  const { data: { user } } = await supabase.auth.getUser()
-
   const publicPaths = [
     '/auth',
     '/welcome',
@@ -65,14 +62,27 @@ export async function proxy(request: NextRequest) {
     '/login',
     '/signup',
   ]
-  const isPublicPath = publicPaths.some(path => url.startsWith(path))
+  const isPublicPath = publicPaths.some((path) => url.startsWith(path))
+  const hasAuthCookie = request.cookies
+    .getAll()
+    .some((c) => c.name.startsWith('sb-'))
+
+  // En rutas públicas sin cookie de sesión, evitar el viaje de red a Supabase Auth
+  if (isPublicPath && !hasAuthCookie) {
+    return response
+  }
+
+  // 3. Obtener usuario (esto dispara setAll si el token expiró)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   // 4. Si no hay usuario y es ruta protegida -> Redirigir
   if (!user && !isPublicPath && url !== '/') {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/auth/login'
     const redirectResponse = NextResponse.redirect(redirectUrl)
-    
+
     // IMPORTANTE: Copiar cookies a la redirección
     response.cookies.getAll().forEach((cookie) => {
       redirectResponse.cookies.set(cookie.name, cookie.value, cookie)
@@ -80,9 +90,13 @@ export async function proxy(request: NextRequest) {
     return redirectResponse
   }
 
-  // 5. Encabezados de seguridad para evitar caché de sesión
-  if (!isPublicPath) {
-    response.headers.set('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0')
+  // 5. Permitir el Router Cache en memoria de Next.js en navegaciones/prefetches RSC
+  const isRscRequest =
+    request.headers.get('rsc') === '1' ||
+    request.headers.get('next-router-prefetch') === '1'
+
+  if (!isPublicPath && !isRscRequest) {
+    response.headers.set('Cache-Control', 'private, no-cache, must-revalidate')
     response.headers.set('Vary', 'Cookie')
   }
 

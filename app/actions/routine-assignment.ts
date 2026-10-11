@@ -266,51 +266,64 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
     };
   }
 
-  const { data: routineDaysRaw, error: daysError } = await supabase
-    .from("routine_days")
-    .select(
-      `
-      id,
-      day_number,
-      day_name,
-      focus,
-      is_rest_day,
-      routine_exercises (
+  const [
+    { data: routineDaysRaw, error: daysError },
+    { data: recentSessions },
+  ] = await Promise.all([
+    supabase
+      .from("routine_days")
+      .select(
+        `
         id,
-        exercise_id,
-        order_index,
-        sets,
-        reps,
-        rest_seconds,
-        superset_group,
-        notes,
-        exercises (
+        day_number,
+        day_name,
+        focus,
+        is_rest_day,
+        routine_exercises (
           id,
-          name,
-          name_es,
-          primary_muscle,
-          secondary_muscle,
-          secondary_muscles,
-          secondary_muscles_es,
-          body_parts,
-          body_parts_es,
-          equipment,
-          equipment_es,
-          exercise_type,
-          uses_external_load,
-          gif_url,
-          image_url,
-          demo_video_url,
-          instructions,
-          instructions_es,
-          target_muscles,
-          target_muscles_es,
-          technique_notes
+          exercise_id,
+          order_index,
+          sets,
+          reps,
+          rest_seconds,
+          superset_group,
+          notes,
+          exercises (
+            id,
+            name,
+            name_es,
+            primary_muscle,
+            secondary_muscle,
+            secondary_muscles,
+            secondary_muscles_es,
+            body_parts,
+            body_parts_es,
+            equipment,
+            equipment_es,
+            exercise_type,
+            uses_external_load,
+            gif_url,
+            image_url,
+            demo_video_url,
+            instructions,
+            instructions_es,
+            target_muscles,
+            target_muscles_es,
+            technique_notes
+          )
         )
+      `,
       )
-    `,
-    )
-    .eq("routine_id", clientRoutine.routine_id);
+      .eq("routine_id", clientRoutine.routine_id),
+    supabase
+      .from("workout_sessions")
+      .select("routine_day_id")
+      .eq("client_id", clientRoutine.client_id)
+      .eq("status", "completed")
+      .not("routine_day_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(50),
+  ]);
 
   if (daysError) throw daysError;
 
@@ -333,15 +346,6 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
   }
 
   const planDayIdSet = new Set(sortedDays.map((d) => d.id));
-
-  const { data: recentSessions } = await supabase
-    .from("workout_sessions")
-    .select("routine_day_id")
-    .eq("client_id", clientRoutine.client_id)
-    .eq("status", "completed")
-    .not("routine_day_id", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(50);
 
   let lastRoutineDayId: string | null = null;
   for (const row of recentSessions ?? []) {

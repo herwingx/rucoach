@@ -187,7 +187,7 @@ export default function ClientRoutinesPage() {
               duration_weeks,
               days_per_week,
               description,
-              routine_days ( is_rest_day, routine_exercises ( id ) )
+              routine_days ( id, day_number, day_name, is_rest_day, routine_exercises ( id ) )
             )
           `,
           )
@@ -199,30 +199,40 @@ export default function ClientRoutinesPage() {
           .filter((r): r is ClientRoutine => r !== null);
         setRoutines(normalized);
 
-        if (clientRoutines && clientRoutines.length > 0) {
-          const nextWorkoutInfo = await getNextWorkoutDay(clientRoutines[0].id);
-          setNextWorkout(nextWorkoutInfo as Record<string, unknown>);
+        if (clientRoutines && clientRoutines.length > 0 && normalized[0]) {
+          const rawRoutine = Array.isArray(clientRoutines[0].routines)
+            ? clientRoutines[0].routines[0]
+            : clientRoutines[0].routines;
+          const rawDays = (
+            rawRoutine as {
+              routine_days?: {
+                id: string;
+                day_number: number;
+                day_name?: string | null;
+                is_rest_day?: boolean | null;
+                routine_exercises?: { id: unknown }[] | null;
+              }[];
+            } | null
+          )?.routine_days;
 
-          const progressSuggestions = await suggestProgressionWeekly(
-            normalized[0].id,
-          );
-          setSuggestions(progressSuggestions);
-
-          // Cargar días de entreno con ejercicios para el schedule override dialog
-          const { data: rDays } = await supabase
-            .from("routine_days")
-            .select("id, day_number, day_name, is_rest_day, routine_exercises(id)")
-            .eq("routine_id", clientRoutines[0].routine_id)
-            .order("day_number", { ascending: true });
           setTrainDays(
-            (rDays ?? []).filter(
-              (d) =>
-                !d.is_rest_day &&
-                Array.isArray(d.routine_exercises) &&
-                d.routine_exercises.length > 0,
-            ),
+            [...(rawDays ?? [])]
+              .sort((a, b) => (a.day_number ?? 0) - (b.day_number ?? 0))
+              .filter(
+                (d) =>
+                  !d.is_rest_day &&
+                  Array.isArray(d.routine_exercises) &&
+                  d.routine_exercises.length > 0,
+              ),
           );
           setScheduleRoutineId(clientRoutines[0].id);
+
+          const [nextWorkoutInfo, progressSuggestions] = await Promise.all([
+            getNextWorkoutDay(clientRoutines[0].id),
+            suggestProgressionWeekly(normalized[0].id),
+          ]);
+          setNextWorkout(nextWorkoutInfo as Record<string, unknown>);
+          setSuggestions(progressSuggestions);
         }
       } catch (error) {
         toast.error("No pudimos cargar tus rutinas. Recarga la página.");
