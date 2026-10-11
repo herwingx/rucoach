@@ -5,9 +5,10 @@ import { Exercise } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { SearchIcon, X, Check, SlidersHorizontal, Loader2, Library, Dumbbell } from 'lucide-react'
+import { SearchIcon, X, Check, SlidersHorizontal, Loader2, Library, Dumbbell, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { exName, exEquipment, exBodyParts, exTargetMuscles } from '@/lib/exercise-i18n'
+import { ExerciseDetailDrawer } from '@/components/client/exercise-detail-drawer'
 
 interface ExerciseSelectorProps {
   exercises: Exercise[]
@@ -30,6 +31,7 @@ export function ExerciseSelector({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeBodyPart, setActiveBodyPart] = useState<string | null>(null)
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
+  const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
 
   // Reset pagination when filters change
@@ -253,12 +255,19 @@ export function ExerciseSelector({
             {visibleExercises.map((ex) => {
               const isSelected = selectedIds.has(ex.id)
               return (
-                <button
+                <div
                   key={ex.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleSelection(ex.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      toggleSelection(ex.id)
+                    }
+                  }}
                   className={cn(
-                    'group relative flex items-center gap-4 rounded-2xl border p-2.5 text-left transition-all duration-300',
+                    'group relative flex cursor-pointer items-center gap-4 rounded-2xl border p-2.5 text-left transition-all duration-300',
                     isSelected
                       ? 'border-primary bg-primary/[0.03] ring-1 ring-primary/30 shadow-sm'
                       : 'border-border/60 bg-card hover:border-primary/30 hover:shadow-md'
@@ -284,7 +293,7 @@ export function ExerciseSelector({
                     )}
                   </div>
 
-                  <div className="min-w-0 flex-1 pr-8">
+                  <div className="min-w-0 flex-1 pr-16">
                     <p className="line-clamp-1 text-sm font-bold capitalize tracking-tight text-foreground group-hover:text-primary transition-colors">
                       {exName(ex)}
                     </p>
@@ -302,17 +311,33 @@ export function ExerciseSelector({
                     </div>
                   </div>
 
-                  <div
-                    className={cn(
-                      'absolute right-3.5 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-full border-2 transition-all duration-300',
-                      isSelected
-                        ? 'border-primary bg-primary scale-110'
-                        : 'border-border bg-background group-hover:border-primary/40'
-                    )}
-                  >
-                    {isSelected && <Check className="size-3.5 text-primary-foreground" strokeWidth={4} />}
+                  <div className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 rounded-full text-muted-foreground/60 hover:bg-primary/10 hover:text-primary"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPreviewExercise(ex)
+                      }}
+                      aria-label={`Ver ficha técnica de ${exName(ex)}`}
+                      title="Ver ficha técnica"
+                    >
+                      <Eye className="size-4" />
+                    </Button>
+                    <div
+                      className={cn(
+                        'flex size-6 items-center justify-center rounded-full border-2 transition-all duration-300',
+                        isSelected
+                          ? 'border-primary bg-primary scale-110'
+                          : 'border-border bg-background group-hover:border-primary/40'
+                      )}
+                    >
+                      {isSelected && <Check className="size-3.5 text-primary-foreground" strokeWidth={4} />}
+                    </div>
                   </div>
-                </button>
+                </div>
               )
             })}
 
@@ -356,6 +381,21 @@ export function ExerciseSelector({
           )}
         </Button>
       </div>
+
+      <ExerciseDetailDrawer
+        open={Boolean(previewExercise)}
+        onOpenChange={(open) => {
+          if (!open) setPreviewExercise(null)
+        }}
+        exercise={previewExercise}
+        variant="default"
+        editHref={
+          previewExercise?.id
+            ? `/admin/exercises/${encodeURIComponent(previewExercise.id)}/edit`
+            : undefined
+        }
+      />
     </div>
   )
 }
+

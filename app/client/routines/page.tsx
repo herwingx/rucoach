@@ -287,12 +287,14 @@ export default function ClientRoutinesPage() {
             const nw = nextWorkout as {
               isComplete?: boolean;
               message?: string;
+              dayFocus?: string | null;
               suggestedAction?: string;
               isRestDay?: boolean;
               exercises?: Array<{
                 id: string;
                 sets: number;
                 reps: string;
+                notes?: string | null;
                 is_overridden?: boolean;
                 exercises?: Exercise | Exercise[] | null;
               }>;
@@ -394,6 +396,11 @@ export default function ClientRoutinesPage() {
                             <p className="text-base font-bold leading-tight text-foreground">
                               {nw.message}
                             </p>
+                            {nw.dayFocus && (
+                              <p className="mt-1.5 text-xs font-semibold text-primary">
+                                Enfoque: {nw.dayFocus}
+                              </p>
+                            )}
                             {nw.isRestDay && (
                               <p className="mt-2 text-sm font-medium text-muted-foreground leading-relaxed">
                                 Aprovecha hoy para optimizar tu recuperación. El descanso es parte del crecimiento.
@@ -459,6 +466,11 @@ export default function ClientRoutinesPage() {
                                              {exercise.reps} <span className="font-medium text-[8px] opacity-40">REPS</span>
                                            </span>
                                         </div>
+                                        {exercise.notes?.trim() && (
+                                          <p className="mt-0.5 line-clamp-2 text-[11px] font-medium text-primary/90">
+                                            Nota: {exercise.notes}
+                                          </p>
+                                        )}
                                       </div>
                                       <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-start sm:gap-1">
                                         <Info className="size-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-primary" />

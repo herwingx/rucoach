@@ -7,21 +7,24 @@ import {
   AdminPageHeader,
 } from "@/components/admin/admin-page-header";
 import { RoutineBuilderClient } from "../../builder/routine-builder-client";
+import { normalizeRoutineLevel } from "@/lib/constants";
 
 type RoutineExerciseRow = {
-  id: string;
+  id: string | number;
   exercise_id: string;
   order_index: number;
   sets: number | null;
   reps: string | number | null;
   rest_seconds: number | null;
   superset_group: string | null;
+  notes: string | null;
 };
 
 type RoutineDayRow = {
   id: string;
   day_number: number;
   day_name: string | null;
+  focus: string | null;
   is_rest_day: boolean | null;
   routine_exercises: RoutineExerciseRow[] | null;
 };
@@ -56,6 +59,7 @@ export default async function EditRoutinePage({ params }: Props) {
         id,
         day_number,
         day_name,
+        focus,
         is_rest_day,
         routine_exercises (
           id,
@@ -64,7 +68,8 @@ export default async function EditRoutinePage({ params }: Props) {
           sets,
           reps,
           rest_seconds,
-          superset_group
+          superset_group,
+          notes
         )
       )
     `,
@@ -98,7 +103,7 @@ export default async function EditRoutinePage({ params }: Props) {
     description: routine.description || "",
     durationWeeks: routine.duration_weeks || 4,
     goal: routine.goal ?? "",
-    level: routine.level ?? "",
+    level: normalizeRoutineLevel(routine.level) || routine.level || "",
     days: dayNames.map((name, i) => {
       const rd = existingDays.find((d) => d.day_number === i + 1);
       if (rd) {
@@ -106,17 +111,19 @@ export default async function EditRoutinePage({ params }: Props) {
           id: rd.id,
           dayNumber: rd.day_number,
           name: rd.day_name ?? name,
+          focus: rd.focus ?? "",
           isRestDay: rd.is_rest_day ?? false,
           exercises: (rd.routine_exercises ?? [])
             .slice()
             .sort((a, b) => a.order_index - b.order_index)
             .map((re) => ({
-              id: re.id,
+              id: String(re.id),
               exerciseId: re.exercise_id,
               sets: re.sets ?? 3,
-              reps: re.reps != null ? String(re.reps) : "",
+              reps: re.reps != null && String(re.reps).trim() !== "" ? String(re.reps) : "10-12",
               restSeconds: re.rest_seconds ?? 60,
               supersetGroup: re.superset_group ?? null,
+              notes: re.notes ?? "",
             })),
         };
       }
@@ -124,15 +131,9 @@ export default async function EditRoutinePage({ params }: Props) {
         id: String(i + 1),
         dayNumber: i + 1,
         name,
+        focus: "",
         isRestDay: [5, 6].includes(i),
-        exercises: [] as {
-          id: string;
-          exerciseId: string;
-          sets: number;
-          reps: string;
-          restSeconds: number;
-          supersetGroup: string | null;
-        }[],
+        exercises: [],
       };
     }),
   };

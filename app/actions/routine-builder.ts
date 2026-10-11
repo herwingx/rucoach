@@ -1,7 +1,9 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser, getUserProfile } from "@/lib/auth-utils";
+import { normalizeRoutineLevel } from "@/lib/constants";
 
 export async function getRoutineMeta(routineId: string): Promise<{
   goal: string | null;
@@ -16,7 +18,7 @@ export async function getRoutineMeta(routineId: string): Promise<{
   return data ? { goal: data.goal ?? null, level: data.level ?? null } : null;
 }
 
-export async function saveRoutineFromBuilder(data: {
+export interface BuilderRoutinePayload {
   name: string;
   description: string | null;
   duration_weeks: number;
@@ -25,6 +27,7 @@ export async function saveRoutineFromBuilder(data: {
   days: {
     day_number: number;
     day_name: string;
+    focus?: string | null;
     is_rest_day: boolean;
     exercises: {
       exercise_id: string;
@@ -33,9 +36,23 @@ export async function saveRoutineFromBuilder(data: {
       reps: string;
       rest_seconds: number;
       superset_group: string | null;
+      notes?: string | null;
     }[];
   }[];
-}): Promise<string> {
+}
+
+function computeTrainingDaysCount(days: BuilderRoutinePayload["days"]): number {
+  const withExercises = days.filter(
+    (d) => !d.is_rest_day && d.exercises.length > 0,
+  ).length;
+  if (withExercises > 0) return withExercises;
+  const nonRest = days.filter((d) => !d.is_rest_day).length;
+  return nonRest > 0 ? nonRest : 1;
+}
+
+export async function saveRoutineFromBuilder(
+  data: BuilderRoutinePayload,
+): Promise<string> {
   const user = await getAuthUser();
   const profile = await getUserProfile();
 
@@ -45,6 +62,9 @@ export async function saveRoutineFromBuilder(data: {
 
   const supabase = await createClient();
   const routineId = crypto.randomUUID();
+  const normalizedLevel =
+    normalizeRoutineLevel(data.level) || data.level || null;
+  const trainingDaysCount = computeTrainingDaysCount(data.days);
 
   const { error: routineError } = await supabase.from("routines").insert({
     id: routineId,
@@ -53,8 +73,8 @@ export async function saveRoutineFromBuilder(data: {
     description: data.description,
     duration_weeks: data.duration_weeks,
     goal: data.goal || null,
-    level: data.level || null,
-    days_per_week: data.days.length,
+    level: normalizedLevel,
+    days_per_week: trainingDaysCount,
   });
 
   if (routineError) throw new Error(routineError.message);
@@ -66,12 +86,13 @@ export async function saveRoutineFromBuilder(data: {
       routine_id: routineId,
       day_number: day.day_number,
       day_name: day.day_name,
+      focus: day.focus?.trim() || null,
       is_rest_day: day.is_rest_day,
     });
 
     if (dayError) throw new Error(dayError.message);
 
-    if (day.exercises.length > 0) {
+    if (!day.is_rest_day && day.exercises.length > 0) {
       const exercisesPayload = day.exercises.map((ex) => ({
         routine_day_id: dayId,
         exercise_id: ex.exercise_id,
@@ -80,6 +101,7 @@ export async function saveRoutineFromBuilder(data: {
         reps: ex.reps,
         rest_seconds: ex.rest_seconds,
         superset_group: ex.superset_group ?? null,
+        notes: ex.notes?.trim() || null,
       }));
       const { error: reError } = await supabase
         .from("routine_exercises")
@@ -88,31 +110,14 @@ export async function saveRoutineFromBuilder(data: {
     }
   }
 
+  revalidatePath("/admin/routines");
+  revalidatePath("/admin/dashboard");
   return routineId;
 }
 
 export async function updateRoutineFromBuilder(
   routineId: string,
-  data: {
-    name: string;
-    description: string | null;
-    duration_weeks: number;
-    goal?: string | null;
-    level?: string | null;
-    days: {
-      day_number: number;
-      day_name: string;
-      is_rest_day: boolean;
-      exercises: {
-        exercise_id: string;
-        order_index: number;
-        sets: number;
-        reps: string;
-        rest_seconds: number;
-        superset_group: string | null;
-      }[];
-    }[];
-  },
+  data: BuilderRoutinePayload,
 ): Promise<void> {
   const user = await getAuthUser();
   const profile = await getUserProfile();
@@ -133,6 +138,10 @@ export async function updateRoutineFromBuilder(
     throw new Error("No autorizado para editar esta rutina");
   }
 
+  const normalizedLevel =
+    normalizeRoutineLevel(data.level) || data.level || null;
+  const trainingDaysCount = computeTrainingDaysCount(data.days);
+
   const { error: routineError } = await supabase
     .from("routines")
     .update({
@@ -140,34 +149,116 @@ export async function updateRoutineFromBuilder(
       description: data.description,
       duration_weeks: data.duration_weeks,
       goal: data.goal || null,
-      level: data.level || null,
-      days_per_week: data.days.length,
+      level: normalizedLevel,
+      days_per_week: trainingDaysCount,
       updated_at: new Date().toISOString(),
     })
     .eq("id", routineId);
 
   if (routineError) throw new Error(routineError.message);
 
-  const { error: deleteDaysError } = await supabase
+  // Obtener los routine_days existentes para preservar sus IDs (no romper workout_sessions.routine_day_id ni override_next_day_id)
+  const { data: existingDays } = await supabase
     .from("routine_days")
-    .delete()
+    .select("id, day_number")
     .eq("routine_id", routineId);
 
-  if (deleteDaysError) throw new Error(deleteDaysError.message);
+  const existingDayByNumber = new Map<number, string>();
+  for (const ed of existingDays ?? []) {
+    existingDayByNumber.set(ed.day_number, ed.id);
+  }
+
+  const incomingDayNumbers = new Set(data.days.map((d) => d.day_number));
+  const removedDayIds = (existingDays ?? [])
+    .filter((ed) => !incomingDayNumbers.has(ed.day_number))
+    .map((ed) => ed.id);
+
+  if (removedDayIds.length > 0) {
+    await supabase.from("routine_days").delete().in("id", removedDayIds);
+  }
 
   for (const day of data.days) {
-    const dayId = crypto.randomUUID();
-    const { error: dayError } = await supabase.from("routine_days").insert({
-      id: dayId,
-      routine_id: routineId,
-      day_number: day.day_number,
-      day_name: day.day_name,
-      is_rest_day: day.is_rest_day,
-    });
+    const existingDayId = existingDayByNumber.get(day.day_number);
+    const dayId = existingDayId ?? crypto.randomUUID();
 
-    if (dayError) throw new Error(dayError.message);
+    if (existingDayId) {
+      const { error: updateDayError } = await supabase
+        .from("routine_days")
+        .update({
+          day_name: day.day_name,
+          focus: day.focus?.trim() || null,
+          is_rest_day: day.is_rest_day,
+        })
+        .eq("id", existingDayId);
+      if (updateDayError) throw new Error(updateDayError.message);
+    } else {
+      const { error: insertDayError } = await supabase
+        .from("routine_days")
+        .insert({
+          id: dayId,
+          routine_id: routineId,
+          day_number: day.day_number,
+          day_name: day.day_name,
+          focus: day.focus?.trim() || null,
+          is_rest_day: day.is_rest_day,
+        });
+      if (insertDayError) throw new Error(insertDayError.message);
+    }
 
-    if (day.exercises.length > 0) {
+    // Preservar client_exercise_overrides si el cliente había intercambiado un ejercicio que sigue en este día
+    let savedOverrides: {
+      client_routine_id: string;
+      exercise_id: string;
+      replacement_exercise_id: string;
+      reason: string | null;
+      changed_by: string;
+      notified_coach: boolean;
+    }[] = [];
+
+    if (existingDayId) {
+      const { data: oldExercises } = await supabase
+        .from("routine_exercises")
+        .select("id, exercise_id")
+        .eq("routine_day_id", existingDayId);
+
+      const oldExIds = (oldExercises ?? []).map((oe) => oe.id);
+      if (oldExIds.length > 0) {
+        const oldExIdToExerciseId = new Map(
+          (oldExercises ?? []).map((oe) => [oe.id, oe.exercise_id]),
+        );
+        const { data: overrides } = await supabase
+          .from("client_exercise_overrides")
+          .select(
+            "client_routine_id, original_routine_exercise_id, replacement_exercise_id, reason, changed_by, notified_coach",
+          )
+          .in("original_routine_exercise_id", oldExIds);
+
+        savedOverrides = (overrides ?? [])
+          .map((ov) => {
+            const origExId = oldExIdToExerciseId.get(
+              ov.original_routine_exercise_id,
+            );
+            if (!origExId) return null;
+            return {
+              client_routine_id: ov.client_routine_id,
+              exercise_id: origExId,
+              replacement_exercise_id: ov.replacement_exercise_id,
+              reason: ov.reason,
+              changed_by: ov.changed_by,
+              notified_coach: ov.notified_coach,
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null);
+      }
+
+      const { error: delExError } = await supabase
+        .from("routine_exercises")
+        .delete()
+        .eq("routine_day_id", existingDayId);
+      if (delExError) throw new Error(delExError.message);
+    }
+
+    if (!day.is_rest_day && day.exercises.length > 0) {
       const exercisesPayload = day.exercises.map((ex) => ({
         routine_day_id: dayId,
         exercise_id: ex.exercise_id,
@@ -176,13 +267,181 @@ export async function updateRoutineFromBuilder(
         reps: ex.reps,
         rest_seconds: ex.rest_seconds,
         superset_group: ex.superset_group ?? null,
+        notes: ex.notes?.trim() || null,
       }));
-      const { error: reError } = await supabase
+      const { data: insertedExercises, error: reError } = await supabase
         .from("routine_exercises")
-        .insert(exercisesPayload);
+        .insert(exercisesPayload)
+        .select("id, exercise_id");
       if (reError) throw new Error(reError.message);
+
+      if (savedOverrides.length > 0 && insertedExercises?.length) {
+        const newExIdByExerciseId = new Map<string, number>();
+        for (const ie of insertedExercises) {
+          if (!newExIdByExerciseId.has(ie.exercise_id)) {
+            newExIdByExerciseId.set(ie.exercise_id, ie.id);
+          }
+        }
+        const overridesToRestore = savedOverrides
+          .map((ov) => {
+            const newRoutineExId = newExIdByExerciseId.get(ov.exercise_id);
+            if (!newRoutineExId) return null;
+            return {
+              client_routine_id: ov.client_routine_id,
+              original_routine_exercise_id: newRoutineExId,
+              replacement_exercise_id: ov.replacement_exercise_id,
+              reason: ov.reason,
+              changed_by: ov.changed_by,
+              notified_coach: ov.notified_coach,
+            };
+          })
+          .filter((item): item is NonNullable<typeof item> => item !== null);
+
+        if (overridesToRestore.length > 0) {
+          await supabase
+            .from("client_exercise_overrides")
+            .upsert(overridesToRestore, {
+              onConflict: "client_routine_id,original_routine_exercise_id",
+            });
+        }
+      }
     }
   }
+
+  revalidatePath("/admin/routines");
+  revalidatePath(`/admin/routines/${routineId}`);
+  revalidatePath("/client/routines");
+  revalidatePath("/client/dashboard");
+}
+
+export async function cloneRoutine(routineId: string): Promise<{
+  success: boolean;
+  routineId?: string;
+  name?: string;
+  error?: string;
+}> {
+  const user = await getAuthUser();
+  const profile = await getUserProfile();
+
+  if (!user || profile?.role !== "admin") {
+    return { success: false, error: "No autorizado" };
+  }
+
+  const supabase = await createClient();
+
+  const { data: source, error: fetchError } = await supabase
+    .from("routines")
+    .select(
+      `
+      *,
+      routine_days (
+        day_number,
+        day_name,
+        focus,
+        notes,
+        is_rest_day,
+        routine_exercises (
+          exercise_id,
+          order_index,
+          sets,
+          reps,
+          rest_seconds,
+          superset_group,
+          notes
+        )
+      )
+    `,
+    )
+    .eq("id", routineId)
+    .single();
+
+  if (fetchError || !source) {
+    return { success: false, error: "No se encontró la rutina a duplicar" };
+  }
+
+  if (source.coach_id !== user.id) {
+    return { success: false, error: "No autorizado para duplicar esta rutina" };
+  }
+
+  const newRoutineId = crypto.randomUUID();
+  const newName = `${source.name} (Copia)`;
+  const normalizedLevel =
+    normalizeRoutineLevel(source.level) || source.level || null;
+
+  const sortedDays = [...(source.routine_days ?? [])].sort(
+    (a, b) => a.day_number - b.day_number,
+  );
+  const trainingDaysCount =
+    sortedDays.filter(
+      (d) => !d.is_rest_day && (d.routine_exercises?.length ?? 0) > 0,
+    ).length ||
+    sortedDays.filter((d) => !d.is_rest_day).length ||
+    source.days_per_week ||
+    1;
+
+  const { error: insertRoutineErr } = await supabase.from("routines").insert({
+    id: newRoutineId,
+    coach_id: user.id,
+    name: newName,
+    description: source.description,
+    duration_weeks: source.duration_weeks,
+    goal: source.goal,
+    level: normalizedLevel,
+    days_per_week: trainingDaysCount,
+  });
+
+  if (insertRoutineErr) {
+    return { success: false, error: insertRoutineErr.message };
+  }
+
+  for (const day of sortedDays) {
+    const newDayId = crypto.randomUUID();
+    const { error: dayErr } = await supabase.from("routine_days").insert({
+      id: newDayId,
+      routine_id: newRoutineId,
+      day_number: day.day_number,
+      day_name: day.day_name,
+      focus: day.focus ?? null,
+      notes: day.notes ?? null,
+      is_rest_day: day.is_rest_day ?? false,
+    });
+
+    if (dayErr) {
+      return { success: false, error: dayErr.message };
+    }
+
+    const sortedExercises = [...(day.routine_exercises ?? [])].sort(
+      (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0),
+    );
+
+    if (!day.is_rest_day && sortedExercises.length > 0) {
+      const payload = sortedExercises.map((ex, idx) => ({
+        routine_day_id: newDayId,
+        exercise_id: ex.exercise_id,
+        order_index: ex.order_index ?? idx,
+        sets: ex.sets ?? 3,
+        reps: ex.reps ?? "10-12",
+        rest_seconds: ex.rest_seconds ?? 60,
+        superset_group: ex.superset_group ?? null,
+        notes: ex.notes ?? null,
+      }));
+      const { error: exErr } = await supabase
+        .from("routine_exercises")
+        .insert(payload);
+      if (exErr) {
+        return { success: false, error: exErr.message };
+      }
+    }
+  }
+
+  revalidatePath("/admin/routines");
+  revalidatePath("/admin/dashboard");
+
+  return {
+    success: true,
+    routineId: newRoutineId,
+    name: newName,
+  };
 }
 
 export async function deleteRoutine(
@@ -223,5 +482,8 @@ export async function deleteRoutine(
     return { success: false, error: error.message };
   }
 
+  revalidatePath("/admin/routines");
+  revalidatePath("/admin/dashboard");
   return { success: true };
 }
+

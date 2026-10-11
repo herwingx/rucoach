@@ -62,8 +62,11 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 
 import { ExerciseSelectorDrawer } from "@/components/admin/exercises/exercise-selector-drawer";
 import { SortableExercise } from "@/components/admin/exercises/sortable-exercise";
+import { ExerciseDetailDrawer } from "@/components/client/exercise-detail-drawer";
 import { Exercise } from "@/lib/types";
+import { normalizeRoutineLevel } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { Target } from "lucide-react";
 
 interface DayExercise {
   id: string;
@@ -72,12 +75,14 @@ interface DayExercise {
   reps: string;
   restSeconds: number;
   supersetGroup: string | null;
+  notes?: string;
 }
 
 interface Day {
   id: string;
   dayNumber: number;
   name: string;
+  focus?: string;
   isRestDay: boolean;
   exercises: DayExercise[];
 }
@@ -104,9 +109,9 @@ const ROUTINE_GOALS = [
 ];
 
 const ROUTINE_LEVELS = [
-  { value: "Principiante", label: "Principiante" },
-  { value: "Intermedio", label: "Intermedio" },
-  { value: "Avanzado", label: "Avanzado" },
+  { value: "beginner", label: "Principiante" },
+  { value: "intermediate", label: "Intermedio" },
+  { value: "advanced", label: "Avanzado" },
 ];
 
 export interface RoutineBuilderClientProps {
@@ -143,13 +148,16 @@ export function RoutineBuilderClient({
     initialData?.durationWeeks ?? 4,
   );
   const [goal, setGoal] = useState(initialData?.goal ?? "");
-  const [level, setLevel] = useState(initialData?.level ?? "");
+  const [level, setLevel] = useState<string>(
+    normalizeRoutineLevel(initialData?.level) || initialData?.level || "",
+  );
   const [days, setDays] = useState<Day[]>(
     initialData?.days ??
       DAY_NAMES.map((name, i) => ({
         id: String(i + 1),
         dayNumber: i + 1,
         name,
+        focus: "",
         isRestDay: [5, 6].includes(i),
         exercises: [],
       })),
@@ -158,10 +166,14 @@ export function RoutineBuilderClient({
 
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [activeDayId, setActiveDayId] = useState<string | null>(null);
+  const [inspectedExercise, setInspectedExercise] = useState<Exercise | null>(
+    null,
+  );
 
   // Portapapeles para copiar/pegar días
   const [clipboard, setClipboard] = useState<{
     sourceDayName: string;
+    focus?: string;
     exercises: DayExercise[];
   } | null>(null);
 
@@ -175,7 +187,9 @@ export function RoutineBuilderClient({
         .then((meta) => {
           if (meta) {
             if (meta.goal) setGoal(meta.goal);
-            if (meta.level) setLevel(meta.level);
+            if (meta.level) {
+              setLevel(normalizeRoutineLevel(meta.level) || meta.level);
+            }
           }
         })
         .catch(() => {});
@@ -244,9 +258,10 @@ export function RoutineBuilderClient({
                   id: crypto.randomUUID(),
                   exerciseId: exId,
                   sets: 3,
-                  reps: "",
+                  reps: "10-12",
                   restSeconds: 60,
                   supersetGroup: null,
+                  notes: "",
                 })),
               ],
             }
@@ -269,6 +284,12 @@ export function RoutineBuilderClient({
           exercises: nextRest ? [] : d.exercises,
         };
       }),
+    );
+  };
+
+  const updateDayFocus = (dayId: string, focus: string) => {
+    setDays((prev) =>
+      prev.map((d) => (d.id === dayId ? { ...d, focus } : d)),
     );
   };
 
@@ -378,6 +399,7 @@ export function RoutineBuilderClient({
   const handleCopyDay = (day: Day) => {
     setClipboard({
       sourceDayName: day.name,
+      focus: day.focus,
       exercises: day.exercises.map((ex) => ({ ...ex })),
     });
     toast.success(`Día "${day.name}" copiado. Pégalo en otro día.`);
@@ -396,6 +418,7 @@ export function RoutineBuilderClient({
         return {
           ...d,
           isRestDay: false,
+          focus: d.focus?.trim() ? d.focus : clipboard.focus ?? "",
           exercises: [...d.exercises, ...newExercises],
         };
       }),
@@ -414,12 +437,17 @@ export function RoutineBuilderClient({
     const daysWithExercises = days.filter(
       (d) => !d.isRestDay && d.exercises.length > 0,
     );
+    if (daysWithExercises.length === 0) {
+      toast.error("Agrega al menos un ejercicio en un día de entrenamiento.");
+      return;
+    }
+
     const hasEmptyReps = daysWithExercises.some((d) =>
       d.exercises.some((ex) => !ex.reps?.trim()),
     );
     if (hasEmptyReps) {
       toast.error(
-        "Completa las reps o notas de cada ejercicio antes de guardar.",
+        "Completa el objetivo o repeticiones de cada ejercicio antes de guardar.",
       );
       return;
     }
@@ -431,18 +459,20 @@ export function RoutineBuilderClient({
         description: description.trim() || null,
         duration_weeks: durationWeeks,
         goal: goal || null,
-        level: level || null,
+        level: normalizeRoutineLevel(level) || level || null,
         days: days.map((d) => ({
           day_number: d.dayNumber,
           day_name: d.name,
+          focus: d.focus?.trim() || null,
           is_rest_day: d.isRestDay,
           exercises: d.exercises.map((ex, i) => ({
             exercise_id: ex.exerciseId,
             order_index: i,
             sets: ex.sets,
-            reps: ex.reps,
+            reps: ex.reps.trim(),
             rest_seconds: ex.restSeconds,
             superset_group: ex.supersetGroup ?? null,
+            notes: ex.notes?.trim() || null,
           })),
         })),
       };
@@ -465,6 +495,14 @@ export function RoutineBuilderClient({
 
   const trainingDays = days.filter((d) => !d.isRestDay).length;
   const restDays = days.filter((d) => d.isRestDay).length;
+  const totalWeeklySets = days.reduce(
+    (acc, d) =>
+      acc +
+      (d.isRestDay
+        ? 0
+        : d.exercises.reduce((s, ex) => s + (Number(ex.sets) || 0), 0)),
+    0,
+  );
 
   return (
     <div className="mx-auto flex h-full w-full max-w-5xl flex-col gap-6 pb-28 lg:pb-10">
@@ -683,7 +721,7 @@ export function RoutineBuilderClient({
               para duplicar días.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {clipboard && (
               <Badge
                 variant="outline"
@@ -700,6 +738,14 @@ export function RoutineBuilderClient({
               {trainingDays} entreno{trainingDays !== 1 ? "s" : ""} ·{" "}
               {restDays} descanso{restDays !== 1 ? "s" : ""}
             </Badge>
+            {totalWeeklySets > 0 && (
+              <Badge
+                variant="outline"
+                className="w-fit rounded-full border-primary/25 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary"
+              >
+                {totalWeeklySets} series / sem
+              </Badge>
+            )}
           </div>
         </div>
 
@@ -708,6 +754,10 @@ export function RoutineBuilderClient({
         <div className="flex flex-col gap-5">
           {days.map((day) => {
             const selectorActive = selectorOpen && activeDayId === day.id;
+            const dayTotalSets = day.exercises.reduce(
+              (acc, ex) => acc + (Number(ex.sets) || 0),
+              0,
+            );
             return (
               <Card
                 key={day.id}
@@ -742,9 +792,19 @@ export function RoutineBuilderClient({
                         )}
                       </div>
                       <div className="min-w-0">
-                        <CardTitle className="text-base font-semibold sm:text-lg">
-                          {day.name}
-                        </CardTitle>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <CardTitle className="text-base font-semibold sm:text-lg">
+                            {day.name}
+                          </CardTitle>
+                          {!day.isRestDay && day.exercises.length > 0 && (
+                            <Badge
+                              variant="secondary"
+                              className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                            >
+                              {day.exercises.length} ej. · {dayTotalSets} series
+                            </Badge>
+                          )}
+                        </div>
                         <CardDescription className="text-xs sm:text-sm">
                           {day.isRestDay
                             ? "Día de recuperación — sin ejercicios."
@@ -815,6 +875,23 @@ export function RoutineBuilderClient({
                       </label>
                     </div>
                   </div>
+
+                  {/* Enfoque muscular del día */}
+                  {!day.isRestDay && (
+                    <div className="relative flex items-center">
+                      <Target
+                        className="pointer-events-none absolute left-3.5 size-4 text-muted-foreground"
+                        aria-hidden
+                      />
+                      <Input
+                        value={day.focus ?? ""}
+                        onChange={(e) => updateDayFocus(day.id, e.target.value)}
+                        placeholder="Enfoque del día (opcional, ej. Empuje · Pecho, Hombro y Tríceps)..."
+                        aria-label={`Enfoque del día ${day.name}`}
+                        className="h-10 rounded-xl border-border/60 bg-muted/25 pl-10 text-sm focus-visible:bg-background"
+                      />
+                    </div>
+                  )}
                 </CardHeader>
 
                 {!day.isRestDay && (
@@ -870,6 +947,7 @@ export function RoutineBuilderClient({
                                   reps={ex.reps}
                                   restSeconds={ex.restSeconds}
                                   supersetGroup={ex.supersetGroup}
+                                  notes={ex.notes}
                                   exerciseInfo={exerciseInfo}
                                   onUpdate={(field, value) =>
                                     updateExercise(day.id, ex.id, field, value)
@@ -880,6 +958,9 @@ export function RoutineBuilderClient({
                                   }
                                   onRemoveSuperset={() =>
                                     handleRemoveSuperset(day.id, ex.id)
+                                  }
+                                  onInspectExercise={(info) =>
+                                    setInspectedExercise(info)
                                   }
                                 />
                               );
@@ -968,8 +1049,23 @@ export function RoutineBuilderClient({
         onSelectExercises={handleSelectExercises}
         loading={loadingExercises}
       />
+
+      <ExerciseDetailDrawer
+        open={Boolean(inspectedExercise)}
+        onOpenChange={(open) => {
+          if (!open) setInspectedExercise(null);
+        }}
+        exercise={inspectedExercise}
+        variant="default"
+        editHref={
+          inspectedExercise?.id
+            ? `/admin/exercises/${encodeURIComponent(inspectedExercise.id)}/edit`
+            : undefined
+        }
+      />
     </div>
   );
 }
 
 export default RoutineBuilderClient;
+

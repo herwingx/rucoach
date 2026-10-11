@@ -55,9 +55,11 @@ export function DeleteRoutineButton({
       <AlertDialogTrigger asChild>
         <Button
           variant="outline"
-          className="h-12 w-12 rounded-[1rem] border border-destructive/20 bg-destructive/5 text-destructive shadow-sm hover:bg-destructive hover:text-destructive-foreground active:scale-[0.96] transition-all flex-shrink-0"
+          aria-label="Eliminar rutina"
+          title="Eliminar rutina"
+          className="h-11 w-11 rounded-xl border border-destructive/20 bg-destructive/5 text-destructive shadow-sm hover:bg-destructive hover:text-destructive-foreground active:scale-[0.96] transition-all shrink-0"
         >
-          <Trash2 className="size-5" />
+          <Trash2 className="size-4.5" />
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>

@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -21,9 +23,27 @@ import {
   AdminCardHeaderWithActions,
   type AdminCardMenuSection,
 } from "@/components/admin/admin-card-with-actions";
-import { Eye, Edit2, Trash2, Search, Dumbbell } from "lucide-react";
-import { deleteRoutine } from "@/app/actions/routine-builder";
-import { getGoalLabel } from "@/lib/constants";
+import {
+  AssignRoutineModal,
+  type AssignableClientItem,
+} from "@/components/admin/routines/assign-routine-modal";
+import {
+  Eye,
+  Edit2,
+  Trash2,
+  Search,
+  Dumbbell,
+  Copy,
+  UserPlus,
+  Users,
+  Loader2,
+} from "lucide-react";
+import { cloneRoutine, deleteRoutine } from "@/app/actions/routine-builder";
+import {
+  getGoalLabel,
+  getLevelLabel,
+  normalizeRoutineLevel,
+} from "@/lib/constants";
 import { toast } from "sonner";
 
 export type RoutineCardItem = {
@@ -34,15 +54,22 @@ export type RoutineCardItem = {
   level: string | null;
   duration_weeks: number | null;
   days_per_week: number | null;
-  routine_days?: { id: string; is_rest_day?: boolean | null }[];
+  routine_days?: {
+    id: string;
+    is_rest_day?: boolean | null;
+    routine_exercises?: { id: string | number }[] | null;
+  }[];
+  active_clients_count?: number;
 };
 
 interface RoutineCardsClientProps {
   routines: RoutineCardItem[];
+  clients?: AssignableClientItem[];
 }
 
 export function RoutineCardsClient({
   routines: initialRoutines,
+  clients = [],
 }: RoutineCardsClientProps) {
   const router = useRouter();
   const [routines, setRoutines] = useState(initialRoutines);
@@ -51,6 +78,15 @@ export function RoutineCardsClient({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteName, setDeleteName] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [cloningId, setCloningId] = useState<string | null>(null);
+  const [assignTarget, setAssignTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  useEffect(() => {
+    setRoutines(initialRoutines);
+  }, [initialRoutines]);
 
   const filteredRoutines = useMemo(() => {
     return routines.filter((r) => {
@@ -62,9 +98,27 @@ export function RoutineCardsClient({
         (r.goal && getGoalLabel(r.goal).toLowerCase().includes(q));
       if (!matchesSearch) return false;
       if (levelFilter === "all") return true;
-      return r.level === levelFilter;
+      return normalizeRoutineLevel(r.level) === levelFilter;
     });
   }, [routines, search, levelFilter]);
+
+  const handleClone = async (routineId: string) => {
+    if (cloningId) return;
+    setCloningId(routineId);
+    try {
+      const result = await cloneRoutine(routineId);
+      if (result.success) {
+        toast.success(`Rutina duplicada: "${result.name}"`);
+        router.refresh();
+      } else {
+        toast.error(result.error || "No se pudo duplicar la rutina");
+      }
+    } catch {
+      toast.error("No se pudo duplicar la rutina. Intenta de nuevo.");
+    } finally {
+      setCloningId(null);
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -105,16 +159,28 @@ export function RoutineCardsClient({
             className="w-full sm:w-auto"
           >
             <TabsList className="grid w-full grid-cols-4 sm:inline-flex sm:w-auto bg-muted/50 p-1 h-11 rounded-xl border border-border/40 shadow-sm">
-              <TabsTrigger value="all" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">
+              <TabsTrigger
+                value="all"
+                className="rounded-lg px-3 py-1.5 text-xs sm:text-sm"
+              >
                 Todas
               </TabsTrigger>
-              <TabsTrigger value="beginner" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">
+              <TabsTrigger
+                value="beginner"
+                className="rounded-lg px-3 py-1.5 text-xs sm:text-sm"
+              >
                 Principiante
               </TabsTrigger>
-              <TabsTrigger value="intermediate" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">
+              <TabsTrigger
+                value="intermediate"
+                className="rounded-lg px-3 py-1.5 text-xs sm:text-sm"
+              >
                 Intermedio
               </TabsTrigger>
-              <TabsTrigger value="advanced" className="rounded-lg px-3 py-1.5 text-xs sm:text-sm">
+              <TabsTrigger
+                value="advanced"
+                className="rounded-lg px-3 py-1.5 text-xs sm:text-sm"
+              >
                 Avanzado
               </TabsTrigger>
             </TabsList>
@@ -139,8 +205,18 @@ export function RoutineCardsClient({
               const daysPerWeek = hasConfiguredDays
                 ? trainingDaysFromConfig
                 : (routine.days_per_week ?? 0);
+              const totalExercises = configuredDays.reduce(
+                (acc, day) =>
+                  acc +
+                  (day.is_rest_day ? 0 : (day.routine_exercises?.length ?? 0)),
+                0,
+              );
+              const activeClientsCount = routine.active_clients_count ?? 0;
               const durationWeeks = routine.duration_weeks ?? 0;
-              const intensity = Math.min(100, Math.round((daysPerWeek / 7) * 100));
+              const intensity = Math.min(
+                100,
+                Math.round((daysPerWeek / 7) * 100),
+              );
               const volumeLabel =
                 daysPerWeek >= 6
                   ? "Alta frecuencia"
@@ -152,14 +228,31 @@ export function RoutineCardsClient({
                 {
                   items: [
                     {
-                      label: "Ver",
+                      label: "Ver detalle",
                       icon: <Eye className="mr-2 size-4" />,
                       href: `/admin/routines/${routine.id}`,
                     },
                     {
-                      label: "Editar",
+                      label: "Editar en Builder",
                       icon: <Edit2 className="mr-2 size-4" />,
                       href: `/admin/routines/${routine.id}/edit`,
+                    },
+                    {
+                      label: "Asignar a asesorado",
+                      icon: <UserPlus className="mr-2 size-4" />,
+                      onClick: () =>
+                        setAssignTarget({
+                          id: routine.id,
+                          name: routine.name,
+                        }),
+                    },
+                    {
+                      label:
+                        cloningId === routine.id
+                          ? "Duplicando..."
+                          : "Duplicar rutina",
+                      icon: <Copy className="mr-2 size-4" />,
+                      onClick: () => handleClone(routine.id),
                     },
                   ],
                 },
@@ -188,18 +281,37 @@ export function RoutineCardsClient({
                 >
                   <AdminCardHeaderWithActions menuSections={menuSections}>
                     <div className="flex flex-col gap-3">
-                      <h3 className="text-[1.35rem] font-bold leading-tight tracking-tight text-foreground transition-colors group-hover:text-primary">
+                      <Link
+                        href={`/admin/routines/${routine.id}`}
+                        className="text-[1.35rem] font-bold leading-tight tracking-tight text-foreground transition-colors group-hover:text-primary hover:underline"
+                      >
                         {routine.name}
-                      </h3>
+                      </Link>
                       <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                        <Badge variant="secondary" className="px-2.5 py-0.5 rounded-full font-medium bg-secondary/70 text-secondary-foreground border-transparent">
+                        <Badge
+                          variant="secondary"
+                          className="px-2.5 py-0.5 rounded-full font-medium bg-secondary/70 text-secondary-foreground border-transparent"
+                        >
                           {volumeLabel}
                         </Badge>
-                        <Badge variant="outline" className="px-2.5 py-0.5 rounded-full font-medium border-border/60 text-muted-foreground bg-background/50">
+                        <Badge
+                          variant="outline"
+                          className="px-2.5 py-0.5 rounded-full font-medium border-border/60 text-muted-foreground bg-background/50"
+                        >
                           {routine.goal
                             ? getGoalLabel(routine.goal)
                             : "Objetivo libre"}
                         </Badge>
+                        {activeClientsCount > 0 && (
+                          <Badge
+                            variant="outline"
+                            className="px-2.5 py-0.5 rounded-full font-semibold border-primary/30 bg-primary/10 text-primary"
+                          >
+                            <Users className="mr-1 size-3" />
+                            {activeClientsCount} asesorado
+                            {activeClientsCount !== 1 ? "s" : ""}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   </AdminCardHeaderWithActions>
@@ -216,26 +328,36 @@ export function RoutineCardsClient({
                       )}
                       <div className="flex flex-col gap-2.5 text-sm">
                         <div className="flex justify-between items-center border-b border-border/30 pb-2">
-                          <span className="text-muted-foreground font-medium">Nivel</span>
-                          <span className="capitalize font-semibold text-foreground/90">
-                            {routine.level === "beginner"
-                              ? "Principiante"
-                              : routine.level === "intermediate"
-                                ? "Intermedio"
-                                : routine.level === "advanced"
-                                  ? "Avanzado"
-                                  : routine.level || "No especificado"}
+                          <span className="text-muted-foreground font-medium">
+                            Nivel
+                          </span>
+                          <span className="font-semibold text-foreground/90">
+                            {getLevelLabel(routine.level)}
                           </span>
                         </div>
                         <div className="flex justify-between items-center border-b border-border/30 pb-2">
-                          <span className="text-muted-foreground font-medium">Duración</span>
-                          <span className="font-semibold text-foreground/90">{durationWeeks || "-"} semanas</span>
+                          <span className="text-muted-foreground font-medium">
+                            Duración
+                          </span>
+                          <span className="font-semibold text-foreground/90">
+                            {durationWeeks || "-"} semanas
+                          </span>
                         </div>
-                        <div className="flex justify-between items-center pb-1">
+                        <div className="flex justify-between items-center border-b border-border/30 pb-2">
                           <span className="text-muted-foreground font-medium">
                             Días/semana
                           </span>
-                          <span className="font-semibold text-foreground/90">{daysPerWeek}</span>
+                          <span className="font-semibold text-foreground/90">
+                            {daysPerWeek} días
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pb-1">
+                          <span className="text-muted-foreground font-medium">
+                            Ejercicios totales
+                          </span>
+                          <span className="font-semibold text-foreground/90">
+                            {totalExercises}
+                          </span>
                         </div>
                       </div>
                       <div className="mt-auto flex flex-col gap-3 rounded-[1rem] border border-border/40 bg-background/30 p-4 shadow-inner ring-1 ring-inset ring-black/5 dark:ring-white/5">
@@ -250,8 +372,67 @@ export function RoutineCardsClient({
                           />
                         </div>
                         <p className="text-[11px] font-medium text-muted-foreground/80 leading-snug">
-                          Carga estimada por frecuencia para planificación semanal.
+                          Carga estimada por frecuencia para planificación
+                          semanal.
                         </p>
+                      </div>
+
+                      {/* Quick Action Bar */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="h-9 flex-1 rounded-xl text-xs font-semibold"
+                        >
+                          <Link href={`/admin/routines/${routine.id}`}>
+                            <Eye className="mr-1.5 size-3.5" />
+                            Ver plan
+                          </Link>
+                        </Button>
+                        <Button
+                          asChild
+                          variant="outline"
+                          size="sm"
+                          className="h-9 flex-1 rounded-xl text-xs font-semibold"
+                        >
+                          <Link href={`/admin/routines/${routine.id}/edit`}>
+                            <Edit2 className="mr-1.5 size-3.5" />
+                            Editar
+                          </Link>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-9 rounded-xl px-3 text-xs font-semibold"
+                          onClick={() =>
+                            setAssignTarget({
+                              id: routine.id,
+                              name: routine.name,
+                            })
+                          }
+                          title="Asignar rutina a asesorado"
+                        >
+                          <UserPlus className="mr-1.5 size-3.5" />
+                          Asignar
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="size-9 shrink-0 rounded-xl border border-border/50"
+                          onClick={() => handleClone(routine.id)}
+                          disabled={cloningId === routine.id}
+                          aria-label={`Duplicar rutina ${routine.name}`}
+                          title="Duplicar rutina"
+                        >
+                          {cloningId === routine.id ? (
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Copy className="size-3.5" />
+                          )}
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
@@ -261,6 +442,16 @@ export function RoutineCardsClient({
           </div>
         )}
       </div>
+
+      <AssignRoutineModal
+        open={Boolean(assignTarget)}
+        onOpenChange={(open) => {
+          if (!open) setAssignTarget(null);
+        }}
+        routineId={assignTarget?.id ?? null}
+        routineName={assignTarget?.name ?? ""}
+        clients={clients}
+      />
 
       <AlertDialog
         open={!!deleteId}
@@ -298,3 +489,4 @@ export function RoutineCardsClient({
 }
 
 export default RoutineCardsClient;
+

@@ -29,8 +29,8 @@ export default function AdminRoutinesLoading() {
       />
 
       <div className={ADMIN_DATA_PAGE_SHELL}>
-        <section className="mb-6 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
-          {[1, 2, 3].map((i) => (
+        <section className="mb-6 grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
             <KpiTileSkeleton key={i} />
           ))}
         </section>

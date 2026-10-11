@@ -152,6 +152,12 @@ export async function assignRoutineToClient(
     console.warn("No se pudo enviar notificación de rutina:", err);
   }
 
+  revalidatePath("/admin/routines");
+  revalidatePath(`/admin/routines/${routineId}`);
+  revalidatePath(`/admin/clients/${clientId}`);
+  revalidatePath("/client/routines");
+  revalidatePath("/client/dashboard");
+
   return data[0];
 }
 
@@ -267,6 +273,7 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
       id,
       day_number,
       day_name,
+      focus,
       is_rest_day,
       routine_exercises (
         id,
@@ -276,6 +283,7 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
         reps,
         rest_seconds,
         superset_group,
+        notes,
         exercises (
           id,
           name,
@@ -392,6 +400,7 @@ export async function getNextWorkoutDay(clientRoutineId: string) {
     week: clientRoutine.current_week,
     day: nextIdx,
     dayName: routineDay.day_name,
+    dayFocus: (routineDay as { focus?: string | null }).focus ?? null,
     isRestDay: routineDay.is_rest_day,
     exercises: exercisesWithOverrides,
     message: `Próximo bloque: ${blockLabel}`,
