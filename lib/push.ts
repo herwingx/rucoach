@@ -75,6 +75,7 @@ export async function notifyUser(
           .sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             body,
+            { TTL: 86400, urgency: "high" },
           )
           .catch((err: { statusCode?: number }) => {
             if (err?.statusCode === 404 || err?.statusCode === 410) {

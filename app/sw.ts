@@ -48,11 +48,11 @@ self.addEventListener("push", (event) => {
 
   const title = data.title || "RU Coach";
   const targetUrl = data.data?.url || data.url || "/";
-  const options: NotificationOptions & { vibrate?: number[] } = {
+  const options: NotificationOptions & { vibrate?: number[]; renotify?: boolean } = {
     body: data.body || "Tienes una nueva actualización de tu entrenamiento.",
     icon: "/android-chrome-192x192.png",
     badge: "/favicon-32x32.png",
-    tag: data.tag,
+    ...(data.tag ? { tag: data.tag, renotify: true } : {}),
     vibrate: [100, 50, 100],
     data: { url: targetUrl },
   };

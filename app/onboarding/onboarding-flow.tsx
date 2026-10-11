@@ -26,6 +26,7 @@ import {
   ShieldAlert,
   CalendarDays,
   Sparkles,
+  Smartphone,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -33,6 +34,7 @@ import {
   type OnboardingInitialData,
 } from "@/app/actions/onboarding";
 import { savePushSubscription } from "@/app/actions/web-push";
+import { openPWAInstallPrompt } from "@/components/pwa-install-cta";
 import { urlBase64ToUint8Array } from "@/lib/utils/web-push";
 import type { FitnessGoal, ExperienceLevel } from "@/lib/types";
 
@@ -308,10 +310,7 @@ export function OnboardingFlow({
 
   const handleEnableNotifications = async () => {
     if (isIOSBrowser) {
-      toast.info(
-        "En iPhone/iPad, instala la app en tu Pantalla de Inicio al entrar al panel para activar las notificaciones Push.",
-      );
-      setNotificationsEnabled(false);
+      openPWAInstallPrompt();
       return;
     }
 
@@ -332,12 +331,14 @@ export function OnboardingFlow({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapidKey),
         });
+        const subJson = subscription.toJSON();
         localStorage.setItem(
           `push_subscription_${userId}`,
-          JSON.stringify(subscription),
+          JSON.stringify(subJson),
         );
+        await savePushSubscription(subJson);
         setNotificationsEnabled(true);
-        toast.success("¡Notificaciones activadas en este dispositivo!");
+        toast.success("¡Notificaciones en tiempo real activadas!");
       } else {
         setNotificationsEnabled(false);
         toast.error(
@@ -429,12 +430,12 @@ export function OnboardingFlow({
     EXPERIENCE_LEVELS.find((l) => l.value === experienceLevel)?.label ?? "—";
 
   return (
-    <div className="min-h-dvh bg-background flex flex-col font-sans selection:bg-primary/20">
+    <div className="min-h-dvh bg-background flex flex-col font-sans selection:bg-primary/20 overflow-x-hidden">
       {/* Unified Header */}
-      <header className="h-16 border-b border-border/50 bg-background/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="container max-w-4xl mx-auto h-full flex items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-lg overflow-hidden bg-black flex items-center justify-center shrink-0 border border-border/40">
+      <header className="h-14 sm:h-16 border-b border-border/50 bg-background/85 backdrop-blur-md sticky top-0 z-50">
+        <div className="container max-w-4xl mx-auto h-full flex items-center justify-between px-3.5 sm:px-6">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="size-8 sm:size-9 rounded-lg overflow-hidden bg-black flex items-center justify-center shrink-0 border border-border/40">
               <Image
                 src="/android-chrome-512x512.png"
                 alt="Logo RU Coach"
@@ -444,7 +445,7 @@ export function OnboardingFlow({
               />
             </div>
             <div className="flex flex-col leading-none">
-              <h1 className="font-black tracking-tighter uppercase text-lg">
+              <h1 className="font-black tracking-tighter uppercase text-base sm:text-lg">
                 RU Coach
               </h1>
               <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mt-0.5">
@@ -452,9 +453,9 @@ export function OnboardingFlow({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden sm:inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
-              Paso {currentStep} de {STEPS.length}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+              Paso {currentStep}/{STEPS.length}
             </span>
             <ThemeToggle />
           </div>
@@ -462,8 +463,8 @@ export function OnboardingFlow({
       </header>
 
       {/* Modern Top Stepper Progress */}
-      <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 py-3.5 sticky top-16 z-40">
-        <div className="container max-w-4xl mx-auto px-4">
+      <div className="bg-background/95 backdrop-blur-sm border-b border-border/50 py-2.5 sm:py-3.5 sticky top-14 sm:top-16 z-40">
+        <div className="container max-w-4xl mx-auto px-2.5 sm:px-4">
           <div className="flex items-start justify-between max-w-xl mx-auto w-full">
             {STEPS.map((step, index) => {
               const Icon = step.icon;
@@ -473,11 +474,11 @@ export function OnboardingFlow({
               return (
                 <div
                   key={step.id}
-                  className="relative flex flex-1 flex-col items-center"
+                  className="relative flex flex-1 flex-col items-center min-w-0"
                 >
                   {index < STEPS.length - 1 && (
                     <div
-                      className={`absolute left-1/2 top-4 w-full h-0.5 -translate-y-1/2 transition-colors duration-300 ${
+                      className={`absolute left-1/2 top-3.5 sm:top-4 w-full h-0.5 -translate-y-1/2 transition-colors duration-300 ${
                         isComplete ? "bg-primary" : "bg-muted"
                       }`}
                       aria-hidden="true"
@@ -493,22 +494,22 @@ export function OnboardingFlow({
                       }
                     }}
                     aria-label={`Paso ${step.id}: ${step.title}`}
-                    className={`relative z-10 flex size-8 items-center justify-center rounded-full border-2 transition-all duration-300 ${
+                    className={`relative z-10 flex size-7 sm:size-8 items-center justify-center rounded-full border-2 transition-all duration-300 ${
                       isComplete
                         ? "border-primary bg-primary text-primary-foreground cursor-pointer hover:scale-105"
                         : isCurrent
-                          ? "border-primary bg-background text-primary shadow-[0_0_0_4px] shadow-primary/15 scale-105"
+                          ? "border-primary bg-background text-primary shadow-[0_0_0_3px] sm:shadow-[0_0_0_4px] shadow-primary/15 scale-105"
                           : "border-border bg-muted text-muted-foreground cursor-default"
                     }`}
                   >
                     {isComplete ? (
-                      <Check className="size-4" strokeWidth={3} />
+                      <Check className="size-3.5 sm:size-4" strokeWidth={3} />
                     ) : (
-                      <Icon className="size-4" />
+                      <Icon className="size-3.5 sm:size-4" />
                     )}
                   </button>
                   <span
-                    className={`mt-1.5 text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-center transition-colors duration-300 ${
+                    className={`mt-1 sm:mt-1.5 text-[10px] sm:text-xs font-semibold uppercase tracking-tight sm:tracking-wider text-center truncate max-w-full px-0.5 transition-colors duration-300 ${
                       isCurrent
                         ? "text-foreground"
                         : isComplete
@@ -528,13 +529,13 @@ export function OnboardingFlow({
       {/* Main Content */}
       <main
         id="main-content"
-        className="flex-1 container max-w-4xl mx-auto px-4 py-6 sm:py-8 pb-32"
+        className="flex-1 container max-w-4xl mx-auto px-3.5 sm:px-6 py-4 sm:py-8 pb-28 sm:pb-32"
       >
         <div className="max-w-xl mx-auto">
           {/* Step 1: Perfil (Datos Básicos) */}
           {currentStep === 1 && (
             <div
-              className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6"
+              className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4 sm:space-y-6"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && canProceed()) {
                   e.preventDefault();
@@ -542,14 +543,14 @@ export function OnboardingFlow({
                 }
               }}
             >
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                   Paso 1 de 5 · Identidad
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                <h2 className="text-xl sm:text-3xl font-bold tracking-tight">
                   Tu expediente de atleta
                 </h2>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed">
                   Confirma tus datos básicos para personalizar tu plataforma con{" "}
                   <span className="font-medium text-foreground break-all">
                     {userEmail}
@@ -558,17 +559,16 @@ export function OnboardingFlow({
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-border/80 bg-card/60 backdrop-blur-sm p-5 sm:p-6 shadow-sm space-y-5">
-                <div className="space-y-2">
+              <div className="rounded-2xl border border-border/80 bg-card/60 backdrop-blur-sm p-4 sm:p-6 shadow-sm space-y-4 sm:space-y-5">
+                <div className="space-y-1.5 sm:space-y-2">
                   <Label
                     htmlFor="fullName"
-                    className="text-xs uppercase font-semibold text-muted-foreground"
+                    className="text-[11px] sm:text-xs uppercase font-semibold text-muted-foreground"
                   >
                     Nombre completo *
                   </Label>
                   <Input
                     id="fullName"
-                    autoFocus
                     placeholder="Ej. Juan Pérez"
                     value={fullName}
                     onChange={(e) => {
@@ -578,33 +578,33 @@ export function OnboardingFlow({
                         setUsername(suggestUsernameFromName(nextName));
                       }
                     }}
-                    className="h-12 md:h-12 text-base px-4 rounded-xl bg-background border-border focus-visible:ring-primary/20"
+                    className="h-12 md:h-12 text-base px-3.5 sm:px-4 rounded-xl bg-background border-border focus-visible:ring-primary/20"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
+                <div className="space-y-1.5 sm:space-y-2">
+                  <div className="flex items-center justify-between gap-2">
                     <Label
                       htmlFor="username"
-                      className="text-xs uppercase font-semibold text-muted-foreground"
+                      className="text-[11px] sm:text-xs uppercase font-semibold text-muted-foreground"
                     >
                       Nombre de usuario *
                     </Label>
                     {username.length >= 3 && (
-                      <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <Check className="size-3" /> Formato válido
+                      <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1 shrink-0">
+                        <Check className="size-3" /> Válido
                       </span>
                     )}
                   </div>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">
+                    <span className="absolute left-3.5 sm:left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">
                       @
                     </span>
                     <Input
                       id="username"
                       placeholder="juan_perez"
                       maxLength={24}
-                      className="h-12 md:h-12 pl-9 text-base rounded-xl bg-background border-border focus-visible:ring-primary/20"
+                      className="h-12 md:h-12 pl-8 sm:pl-9 text-base rounded-xl bg-background border-border focus-visible:ring-primary/20"
                       value={username}
                       onChange={(e) => {
                         setUsernameTouched(true);
@@ -617,15 +617,15 @@ export function OnboardingFlow({
                       }}
                     />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground leading-snug">
                     Tu identificador único dentro de RU Coach (3 a 24 caracteres).
                   </p>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5 sm:space-y-2">
                   <Label
                     htmlFor="phone"
-                    className="text-xs uppercase font-semibold text-muted-foreground"
+                    className="text-[11px] sm:text-xs uppercase font-semibold text-muted-foreground"
                   >
                     Teléfono / WhatsApp (opcional)
                   </Label>
@@ -633,12 +633,12 @@ export function OnboardingFlow({
                     id="phone"
                     type="tel"
                     inputMode="tel"
-                    placeholder="Ej. 55 1234 5678"
+                    placeholder="Ej. 961 123 4567"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    className="h-12 md:h-12 text-base px-4 rounded-xl bg-background border-border focus-visible:ring-primary/20"
+                    className="h-12 md:h-12 text-base px-3.5 sm:px-4 rounded-xl bg-background border-border focus-visible:ring-primary/20"
                   />
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground leading-snug">
                     Permite que tu coach te contacte directamente cuando sea
                     necesario.
                   </p>
@@ -650,7 +650,7 @@ export function OnboardingFlow({
           {/* Step 2: Físico y Biometría */}
           {currentStep === 2 && (
             <div
-              className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6"
+              className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4 sm:space-y-6"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && canProceed()) {
                   e.preventDefault();
@@ -658,25 +658,25 @@ export function OnboardingFlow({
                 }
               }}
             >
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                   Paso 2 de 5 · Punto de Partida
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                <h2 className="text-xl sm:text-3xl font-bold tracking-tight">
                   Físico y Biometría Inicial
                 </h2>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed">
                   Se registrará automáticamente como tu primera medición en tus
                   gráficas de progreso.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-border/80 bg-card/60 backdrop-blur-sm p-5 sm:p-6 shadow-sm space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
+              <div className="rounded-2xl border border-border/80 bg-card/60 backdrop-blur-sm p-4 sm:p-6 shadow-sm space-y-4 sm:space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
+                  <div className="space-y-1.5 sm:space-y-2 min-w-0">
                     <Label
                       htmlFor="birthDate"
-                      className="text-xs uppercase font-semibold text-muted-foreground"
+                      className="text-[11px] sm:text-xs uppercase font-semibold text-muted-foreground"
                     >
                       Fecha de nacimiento *
                     </Label>
@@ -693,13 +693,13 @@ export function OnboardingFlow({
                         .slice(0, 10)}
                       value={birthDate}
                       onChange={(e) => setBirthDate(e.target.value)}
-                      className="h-12 md:h-12 px-3 text-base rounded-xl bg-background border-border focus-visible:ring-primary/20"
+                      className="h-12 md:h-12 w-full max-w-full min-w-0 appearance-none block px-3 text-base rounded-xl bg-background border-border focus-visible:ring-primary/20"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 sm:space-y-2 min-w-0">
                     <Label
                       htmlFor="gender"
-                      className="text-xs uppercase font-semibold text-muted-foreground"
+                      className="text-[11px] sm:text-xs uppercase font-semibold text-muted-foreground"
                     >
                       Género *
                     </Label>
@@ -721,11 +721,11 @@ export function OnboardingFlow({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 items-start">
+                  <div className="space-y-1.5 sm:space-y-2 min-w-0">
                     <Label
                       htmlFor="height"
-                      className="text-xs uppercase font-semibold text-muted-foreground"
+                      className="text-[11px] sm:text-xs uppercase font-semibold text-muted-foreground leading-tight"
                     >
                       Estatura (cm) *
                     </Label>
@@ -738,18 +738,18 @@ export function OnboardingFlow({
                       placeholder="Ej. 175"
                       value={height}
                       onChange={(e) => setHeight(e.target.value)}
-                      className="h-12 md:h-12 text-base px-4 rounded-xl bg-background border-border focus-visible:ring-primary/20"
+                      className="h-12 md:h-12 text-base px-3 sm:px-4 rounded-xl bg-background border-border focus-visible:ring-primary/20"
                     />
                     {height && !isHeightValid && (
                       <p className="text-[11px] text-destructive">
-                        Entre 100 y 250 cm
+                        100 a 250 cm
                       </p>
                     )}
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 sm:space-y-2 min-w-0">
                     <Label
                       htmlFor="weight"
-                      className="text-xs uppercase font-semibold text-muted-foreground"
+                      className="text-[11px] sm:text-xs uppercase font-semibold text-muted-foreground leading-tight"
                     >
                       Peso actual (kg) *
                     </Label>
@@ -763,18 +763,18 @@ export function OnboardingFlow({
                       placeholder="Ej. 70.5"
                       value={initialWeight}
                       onChange={(e) => setInitialWeight(e.target.value)}
-                      className="h-12 md:h-12 text-base px-4 rounded-xl bg-background border-border focus-visible:ring-primary/20"
+                      className="h-12 md:h-12 text-base px-3 sm:px-4 rounded-xl bg-background border-border focus-visible:ring-primary/20"
                     />
                     {initialWeight && !isWeightValid && (
                       <p className="text-[11px] text-destructive">
-                        Entre 30 y 300 kg
+                        30 a 300 kg
                       </p>
                     )}
                   </div>
                 </div>
 
                 {bmiValue && (
-                  <div className="flex items-center justify-between rounded-xl border border-primary/25 bg-primary/10 px-4 py-3 text-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 rounded-xl border border-primary/25 bg-primary/10 px-3.5 py-2.5 text-xs">
                     <span className="text-foreground/80 font-medium">
                       Línea base calculada
                     </span>
@@ -784,21 +784,21 @@ export function OnboardingFlow({
                   </div>
                 )}
 
-                <div className="pt-4 border-t border-border/60 space-y-3">
+                <div className="pt-3.5 sm:pt-4 border-t border-border/60 space-y-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Composición corporal adicional (Opcional)
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
                       Si conoces tu cintura o % de grasa actual, agrégalos a tu
                       primera medición.
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 items-start">
+                    <div className="space-y-1.5 min-w-0">
                       <Label
                         htmlFor="waistCm"
-                        className="text-xs text-muted-foreground"
+                        className="text-[11px] sm:text-xs text-muted-foreground leading-tight"
                       >
                         Cintura (cm)
                       </Label>
@@ -807,16 +807,16 @@ export function OnboardingFlow({
                         type="number"
                         inputMode="decimal"
                         step="0.1"
-                        placeholder="Opcional (ej. 82)"
+                        placeholder="Ej. 82 cm"
                         value={waistCm}
                         onChange={(e) => setWaistCm(e.target.value)}
-                        className="h-11 text-sm px-3.5 rounded-xl bg-background border-border"
+                        className="h-11 text-base sm:text-sm px-3 rounded-xl bg-background border-border"
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 min-w-0">
                       <Label
                         htmlFor="bodyFatPct"
-                        className="text-xs text-muted-foreground"
+                        className="text-[11px] sm:text-xs text-muted-foreground leading-tight"
                       >
                         % Grasa corporal
                       </Label>
@@ -825,10 +825,10 @@ export function OnboardingFlow({
                         type="number"
                         inputMode="decimal"
                         step="0.1"
-                        placeholder="Opcional (ej. 18)"
+                        placeholder="Ej. 18 %"
                         value={bodyFatPct}
                         onChange={(e) => setBodyFatPct(e.target.value)}
-                        className="h-11 text-sm px-3.5 rounded-xl bg-background border-border"
+                        className="h-11 text-base sm:text-sm px-3 rounded-xl bg-background border-border"
                       />
                     </div>
                   </div>
@@ -839,33 +839,33 @@ export function OnboardingFlow({
 
           {/* Step 3: Objetivo */}
           {currentStep === 3 && (
-            <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
-              <div className="space-y-1.5">
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4 sm:space-y-6">
+              <div className="space-y-1">
                 <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                   Paso 3 de 5 · Meta
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                <h2 className="text-xl sm:text-3xl font-bold tracking-tight">
                   Tu Objetivo Principal
                 </h2>
-                <p className="text-muted-foreground text-sm">
+                <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed">
                   Esto define el enfoque de volumen, intensidad y progresión de
                   tu plan.
                 </p>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2.5 sm:space-y-3">
                 {FITNESS_GOALS.map((goal) => (
                   <button
                     key={goal.value}
                     type="button"
                     onClick={() => setFitnessGoal(goal.value)}
-                    className={`group w-full flex items-center p-4 rounded-2xl border transition-all duration-200 cursor-pointer ${
+                    className={`group w-full flex items-center gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl border transition-all duration-200 cursor-pointer ${
                       fitnessGoal === goal.value
                         ? "border-primary bg-primary/10 ring-1 ring-primary/30 shadow-sm"
                         : "border-border/80 bg-card/50 hover:border-primary/40 hover:bg-muted/50"
                     }`}
                   >
                     <div
-                      className={`p-3 rounded-xl mr-4 transition-colors shrink-0 ${
+                      className={`size-10 sm:size-11 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
                         fitnessGoal === goal.value
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-muted-foreground group-hover:text-foreground"
@@ -873,9 +873,9 @@ export function OnboardingFlow({
                     >
                       <Target className="size-5" />
                     </div>
-                    <div className="text-left flex-1 min-w-0 pr-3">
+                    <div className="text-left flex-1 min-w-0">
                       <p
-                        className={`font-semibold text-base ${
+                        className={`font-bold text-sm sm:text-base leading-snug ${
                           fitnessGoal === goal.value
                             ? "text-foreground"
                             : "text-foreground/90"
@@ -883,7 +883,7 @@ export function OnboardingFlow({
                       >
                         {goal.label}
                       </p>
-                      <p className="text-xs sm:text-sm text-muted-foreground">
+                      <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed mt-0.5">
                         {goal.description}
                       </p>
                     </div>
@@ -906,34 +906,34 @@ export function OnboardingFlow({
 
           {/* Step 4: Experiencia, Disponibilidad y Salud Articular */}
           {currentStep === 4 && (
-            <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4 sm:space-y-6">
               <div>
-                <div className="mb-5 space-y-1.5">
+                <div className="mb-4 sm:mb-5 space-y-1">
                   <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                     Paso 4 de 5 · Planificación y Salud
                   </span>
-                  <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+                  <h2 className="text-xl sm:text-3xl font-bold tracking-tight">
                     Experiencia y Salud Articular
                   </h2>
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed">
                     Información clave para que tu coach diseñe una rutina segura
                     y adaptada a tu semana.
                   </p>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-2.5 sm:space-y-3">
                   {EXPERIENCE_LEVELS.map((level) => (
                     <button
                       key={level.value}
                       type="button"
                       onClick={() => setExperienceLevel(level.value)}
-                      className={`group w-full flex items-center p-4 rounded-2xl border transition-all duration-200 cursor-pointer ${
+                      className={`group w-full flex items-center gap-3 sm:gap-4 p-3.5 sm:p-4 rounded-2xl border transition-all duration-200 cursor-pointer ${
                         experienceLevel === level.value
                           ? "border-primary bg-primary/10 ring-1 ring-primary/30 shadow-sm"
                           : "border-border/80 bg-card/50 hover:border-primary/40 hover:bg-muted/50"
                       }`}
                     >
                       <div
-                        className={`p-3 rounded-xl mr-4 transition-colors shrink-0 ${
+                        className={`size-10 sm:size-11 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
                           experienceLevel === level.value
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-muted-foreground group-hover:text-foreground"
@@ -941,9 +941,9 @@ export function OnboardingFlow({
                       >
                         <Dumbbell className="size-5" />
                       </div>
-                      <div className="text-left flex-1 min-w-0 pr-3">
+                      <div className="text-left flex-1 min-w-0">
                         <p
-                          className={`font-semibold text-base ${
+                          className={`font-bold text-sm sm:text-base leading-snug ${
                             experienceLevel === level.value
                               ? "text-foreground"
                               : "text-foreground/90"
@@ -951,7 +951,7 @@ export function OnboardingFlow({
                         >
                           {level.label}
                         </p>
-                        <p className="text-xs sm:text-sm text-muted-foreground">
+                        <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed mt-0.5">
                           {level.description}
                         </p>
                       </div>
@@ -972,20 +972,20 @@ export function OnboardingFlow({
               </div>
 
               {/* Disponibilidad semanal */}
-              <div className="rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-5 space-y-3.5 shadow-sm">
+              <div className="rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-5 space-y-3 shadow-sm">
                 <div className="flex items-center gap-2">
                   <CalendarDays className="size-4 text-primary shrink-0" />
-                  <p className="text-sm font-semibold">
+                  <p className="text-xs sm:text-sm font-semibold">
                     ¿Cuántos días por semana puedes entrenar?
                   </p>
                 </div>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-5 gap-1.5 sm:gap-2.5">
                   {TRAINING_DAYS_OPTIONS.map((days) => (
                     <button
                       key={days}
                       type="button"
                       onClick={() => setTrainingDaysPerWeek(days)}
-                      className={`h-14 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${
+                      className={`h-13 sm:h-14 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer ${
                         trainingDaysPerWeek === days
                           ? "border-primary bg-primary text-primary-foreground shadow-sm scale-[1.02]"
                           : "border-border bg-background hover:border-primary/40 text-foreground"
@@ -1003,25 +1003,25 @@ export function OnboardingFlow({
               </div>
 
               {/* Lesiones o molestias articulares */}
-              <div className="rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-5 space-y-4 shadow-sm">
-                <div className="space-y-0.5">
+              <div className="rounded-2xl border border-border/80 bg-card/60 p-4 sm:p-5 space-y-3.5 sm:space-y-4 shadow-sm">
+                <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <ShieldAlert className="size-4 text-amber-500 shrink-0" />
-                    <p className="text-sm font-semibold">
+                    <p className="text-xs sm:text-sm font-semibold">
                       ¿Tienes alguna molestia o lesión articular actual?
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-snug">
                     Si indicas una molestia, tu coach verá una alerta en tu ficha
                     para adaptar tus ejercicios.
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
                   <button
                     type="button"
                     onClick={() => setHasInjury(false)}
-                    className={`h-11 rounded-xl border text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                    className={`h-11 px-2.5 rounded-xl border text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                       !hasInjury
                         ? "border-primary bg-primary/10 text-foreground ring-1 ring-primary/30"
                         : "border-border bg-background text-muted-foreground hover:text-foreground"
@@ -1032,7 +1032,7 @@ export function OnboardingFlow({
                   <button
                     type="button"
                     onClick={() => setHasInjury(true)}
-                    className={`h-11 rounded-xl border text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                    className={`h-11 px-2.5 rounded-xl border text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
                       hasInjury
                         ? "border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-500/30"
                         : "border-border bg-background text-muted-foreground hover:text-foreground"
@@ -1054,7 +1054,7 @@ export function OnboardingFlow({
                       >
                         <SelectTrigger
                           id="injuryRegion"
-                          className="h-11 w-full rounded-xl bg-background"
+                          className="h-12 md:h-12 data-[size=default]:h-12 md:data-[size=default]:h-12 w-full rounded-xl bg-background text-base sm:text-sm"
                         >
                           <SelectValue />
                         </SelectTrigger>
@@ -1069,10 +1069,10 @@ export function OnboardingFlow({
                     </div>
 
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <Label className="text-xs">Intensidad de la molestia</Label>
                         <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full shrink-0 ${
                             injurySeverity <= 3
                               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                               : injurySeverity <= 6
@@ -1088,13 +1088,13 @@ export function OnboardingFlow({
                               : "Intensa"}
                         </span>
                       </div>
-                      <div className="grid grid-cols-10 gap-1">
+                      <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((lvl) => (
                           <button
                             key={lvl}
                             type="button"
                             onClick={() => setInjurySeverity(lvl)}
-                            className={`h-9 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                            className={`h-10 sm:h-9 rounded-lg text-xs sm:text-sm font-bold border transition-all cursor-pointer ${
                               injurySeverity === lvl
                                 ? lvl <= 3
                                   ? "border-emerald-500 bg-emerald-500 text-white"
@@ -1120,7 +1120,7 @@ export function OnboardingFlow({
                         placeholder="Ej. Molestia en hombro derecho al hacer press vertical..."
                         value={injuryNotes}
                         onChange={(e) => setInjuryNotes(e.target.value)}
-                        className="rounded-xl bg-background text-sm resize-none"
+                        className="rounded-xl bg-background text-base sm:text-sm resize-none"
                       />
                     </div>
                   </div>
@@ -1131,18 +1131,18 @@ export function OnboardingFlow({
 
           {/* Step 5: Resumen y Notificaciones */}
           {currentStep === 5 && (
-            <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
-              <div className="space-y-1.5 text-center mt-1">
-                <div className="mx-auto size-16 rounded-full bg-primary/10 flex items-center justify-center mb-3 ring-8 ring-primary/5">
-                  <Sparkles className="size-8 text-primary" />
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-4 sm:space-y-6">
+              <div className="space-y-1 text-center mt-0.5">
+                <div className="mx-auto size-14 sm:size-16 rounded-full bg-primary/10 flex items-center justify-center mb-2.5 ring-8 ring-primary/5">
+                  <Sparkles className="size-7 sm:size-8 text-primary" />
                 </div>
                 <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                   Paso 5 de 5 · Confirmación
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+                <h2 className="text-xl sm:text-3xl font-black tracking-tight">
                   ¡Tu expediente está listo!
                 </h2>
-                <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+                <p className="text-muted-foreground text-xs sm:text-sm max-w-sm mx-auto leading-relaxed">
                   Revisa tus datos iniciales (toca cualquier bloque si deseas
                   editarlo) y comienza tu plan.
                 </p>
@@ -1150,13 +1150,13 @@ export function OnboardingFlow({
 
               {/* Resumen del Expediente (Interactivo para editar rápido) */}
               <div className="rounded-2xl border border-border/80 bg-card/60 backdrop-blur-sm p-4 sm:p-5 space-y-3.5 shadow-sm">
-                <div className="flex items-center justify-between border-b border-border/50 pb-3">
+                <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-3">
                   <button
                     type="button"
                     onClick={() => setCurrentStep(1)}
-                    className="text-left group cursor-pointer"
+                    className="text-left group cursor-pointer min-w-0"
                   >
-                    <p className="font-bold text-base text-foreground group-hover:text-primary transition-colors">
+                    <p className="font-bold text-sm sm:text-base text-foreground group-hover:text-primary transition-colors truncate">
                       {fullName}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -1164,18 +1164,18 @@ export function OnboardingFlow({
                       <span className="underline ml-1 opacity-75">Editar</span>
                     </p>
                   </button>
-                  <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                  <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary shrink-0">
                     Nivel 1 · 0 XP
                   </span>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 text-xs">
                   <button
                     type="button"
                     onClick={() => setCurrentStep(2)}
                     className="rounded-xl bg-muted/40 hover:bg-muted/70 p-2.5 text-left transition-colors cursor-pointer"
                   >
-                    <p className="text-muted-foreground">Biometría</p>
-                    <p className="font-semibold text-foreground mt-0.5">
+                    <p className="text-[11px] text-muted-foreground">Biometría</p>
+                    <p className="font-semibold text-foreground mt-0.5 leading-snug">
                       {initialWeight} kg · {height} cm
                     </p>
                   </button>
@@ -1184,8 +1184,8 @@ export function OnboardingFlow({
                     onClick={() => setCurrentStep(3)}
                     className="rounded-xl bg-muted/40 hover:bg-muted/70 p-2.5 text-left transition-colors cursor-pointer"
                   >
-                    <p className="text-muted-foreground">Objetivo</p>
-                    <p className="font-semibold text-foreground mt-0.5 truncate">
+                    <p className="text-[11px] text-muted-foreground">Objetivo</p>
+                    <p className="font-semibold text-foreground mt-0.5 leading-snug">
                       {selectedGoalLabel}
                     </p>
                   </button>
@@ -1194,8 +1194,8 @@ export function OnboardingFlow({
                     onClick={() => setCurrentStep(4)}
                     className="rounded-xl bg-muted/40 hover:bg-muted/70 p-2.5 text-left transition-colors cursor-pointer"
                   >
-                    <p className="text-muted-foreground">Experiencia</p>
-                    <p className="font-semibold text-foreground mt-0.5">
+                    <p className="text-[11px] text-muted-foreground">Experiencia</p>
+                    <p className="font-semibold text-foreground mt-0.5 leading-snug">
                       {selectedExpLabel}
                     </p>
                   </button>
@@ -1204,8 +1204,8 @@ export function OnboardingFlow({
                     onClick={() => setCurrentStep(4)}
                     className="rounded-xl bg-muted/40 hover:bg-muted/70 p-2.5 text-left transition-colors cursor-pointer"
                   >
-                    <p className="text-muted-foreground">Disponibilidad</p>
-                    <p className="font-semibold text-foreground mt-0.5">
+                    <p className="text-[11px] text-muted-foreground">Disponibilidad</p>
+                    <p className="font-semibold text-foreground mt-0.5 leading-snug">
                       {trainingDaysPerWeek === 6 ? "6+" : trainingDaysPerWeek}{" "}
                       días / sem
                     </p>
@@ -1230,25 +1230,35 @@ export function OnboardingFlow({
                 )}
               </div>
 
-              {/* Notificaciones Push */}
-              <div className="space-y-3 p-5 bg-muted/30 rounded-2xl border border-border text-center">
-                <div className="space-y-1 mb-2">
+              {/* Notificaciones Push (Android + iOS 16.4+ PWA) */}
+              <div className="space-y-3 p-4 sm:p-5 bg-muted/30 rounded-2xl border border-border text-center">
+                <div className="space-y-1">
                   <p className="text-sm font-bold">
-                    Notificaciones del Entrenador
+                    Notificaciones en Tiempo Real
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
                     {isIOSBrowser
-                      ? "En iPhone/iPad, podrás activar las notificaciones Push desde tu Perfil en cuanto agregues la app a tu Pantalla de Inicio."
-                      : "Recibe avisos cuando tu coach te asigne una nueva rutina o te envíe un mensaje."}
+                      ? "En iPhone/iPad, agrega RU Coach a tu Pantalla de Inicio para recibir notificaciones Push nativas en tiempo real."
+                      : "Recibe avisos al instante cuando Rodrigo te asigne una nueva rutina, registre tu pago o te envíe un mensaje."}
                   </p>
                 </div>
 
-                {!isIOSBrowser && (
+                {isIOSBrowser ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleEnableNotifications}
+                    className="w-full min-h-12 h-auto py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold whitespace-normal leading-snug"
+                  >
+                    <Smartphone className="mr-2 size-4 text-primary shrink-0" />
+                    <span>Ver cómo instalar en iPhone / iPad</span>
+                  </Button>
+                ) : (
                   <Button
                     type="button"
                     variant={notificationsEnabled ? "default" : "outline"}
                     onClick={handleEnableNotifications}
-                    className={`w-full h-12 rounded-xl text-sm sm:text-base font-semibold transition-all ${
+                    className={`w-full min-h-12 h-auto py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold whitespace-normal leading-snug transition-all ${
                       notificationsEnabled
                         ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
                         : ""
@@ -1256,13 +1266,13 @@ export function OnboardingFlow({
                   >
                     {notificationsEnabled ? (
                       <>
-                        <Check className="mr-2 size-4" /> Notificaciones
-                        activadas
+                        <Check className="mr-2 size-4 shrink-0" />
+                        <span>Notificaciones en tiempo real activadas</span>
                       </>
                     ) : (
                       <>
-                        <Bell className="mr-2 size-4" /> Activar notificaciones
-                        en este dispositivo
+                        <Bell className="mr-2 size-4 shrink-0" />
+                        <span>Activar notificaciones en tiempo real</span>
                       </>
                     )}
                   </Button>
@@ -1274,27 +1284,29 @@ export function OnboardingFlow({
       </main>
 
       {/* Fixed Bottom Navigation Area */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 pb-safe bg-background/90 backdrop-blur-xl border-t border-border/60 z-50">
-        <div className="container max-w-xl mx-auto flex items-center justify-between gap-3 sm:gap-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleBack}
-            disabled={currentStep === 1 || isSubmitting}
-            className="h-12 px-4 sm:px-6 rounded-xl font-semibold border-border hover:bg-muted"
-          >
-            <ChevronLeft className="size-5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Atrás</span>
-          </Button>
+      <div className="fixed bottom-0 left-0 right-0 p-3.5 sm:p-4 pb-safe bg-background/95 backdrop-blur-xl border-t border-border/60 z-50">
+        <div className="container max-w-xl mx-auto flex items-center justify-between gap-2.5 sm:gap-4">
+          {currentStep > 1 && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleBack}
+              disabled={isSubmitting}
+              className="h-12 px-4 sm:px-6 rounded-xl font-semibold border-border hover:bg-muted shrink-0"
+            >
+              <ChevronLeft className="size-4 mr-1" />
+              <span>Atrás</span>
+            </Button>
+          )}
 
           {currentStep < STEPS.length ? (
             <Button
               type="button"
               onClick={handleNext}
               disabled={!canProceed() || isSubmitting}
-              className="flex-1 h-12 rounded-xl bg-primary text-primary-foreground font-bold text-base hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
+              className="flex-1 h-12 rounded-xl bg-primary text-primary-foreground font-bold text-sm sm:text-base hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
             >
-              Siguiente
+              <span>Siguiente</span>
               <ChevronRight className="size-5 ml-1" />
             </Button>
           ) : (
@@ -1302,12 +1314,12 @@ export function OnboardingFlow({
               type="button"
               onClick={handleComplete}
               disabled={isSubmitting}
-              className="flex-1 h-12 rounded-xl bg-primary text-primary-foreground font-bold text-base hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
+              className="flex-1 h-12 rounded-xl bg-primary text-primary-foreground font-bold text-sm sm:text-base hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
             >
               {isSubmitting ? (
                 <div className="flex items-center gap-2">
                   <div className="size-5 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                  <span>Guardando expediente...</span>
+                  <span>Guardando...</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">

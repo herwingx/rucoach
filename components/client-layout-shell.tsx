@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic'
 import { usePathname } from 'next/navigation'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
+import { RealtimeNotifications } from '@/components/realtime-notifications'
 
 const ClientSidebar = dynamic(
   () => import('@/components/client-sidebar').then((m) => m.ClientSidebar),
@@ -17,6 +18,7 @@ export function ClientLayoutShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider defaultOpen={true} className="flex-1 min-h-0">
+      <RealtimeNotifications role="client" />
       <ClientSidebar />
       <SidebarInset className={isMessagesRoute ? 'min-h-0 flex-1' : ''}>
         <div

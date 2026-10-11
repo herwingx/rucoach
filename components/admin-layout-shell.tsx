@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { AdminSidebar } from '@/components/admin-sidebar'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
+import { RealtimeNotifications } from '@/components/realtime-notifications'
 import { cn } from '@/lib/utils'
 
 export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
@@ -12,6 +13,7 @@ export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider defaultOpen={true} className="flex-1 min-h-0">
+      <RealtimeNotifications role="admin" />
       <AdminSidebar />
       <SidebarInset className={cn(isMessages && 'flex-1 min-h-0')}>
         <div
