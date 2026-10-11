@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,9 @@ import {
   Eye,
   MessageSquarePlus,
   MessageSquareText,
+  ArrowUp,
+  ArrowDown,
+  Copy,
 } from 'lucide-react'
 import { Exercise } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -28,6 +31,10 @@ const SUPERSET_COLORS: Record<string, { bg: string; text: string; ring: string }
   D: { bg: 'bg-amber-500/15',  text: 'text-amber-500',  ring: 'ring-amber-500/30'  },
   E: { bg: 'bg-rose-500/15',   text: 'text-rose-500',   ring: 'ring-rose-500/30'   },
 }
+
+const QUICK_SETS = [2, 3, 4, 5]
+const QUICK_REPS = ['6-8', '8-10', '10-12', '12-15', '15', 'Al fallo']
+const QUICK_REST = [30, 45, 60, 90, 120, 180]
 
 function getSupersetColor(group: string | null | undefined) {
   if (!group) return null
@@ -44,8 +51,13 @@ interface SortableExerciseProps {
   supersetGroup?: string | null
   notes?: string | null
   exerciseInfo?: Exercise
+  canMoveUp?: boolean
+  canMoveDown?: boolean
   onUpdate: (field: string, value: string | number) => void
   onRemove: () => void
+  onMoveUp?: () => void
+  onMoveDown?: () => void
+  onDuplicate?: () => void
   onToggleSuperset?: () => void   // añadir/quitar del siguiente grupo disponible
   onRemoveSuperset?: () => void   // quitar la biserie de este ejercicio
   onInspectExercise?: (exercise: Exercise) => void
@@ -59,14 +71,31 @@ export function SortableExercise({
   supersetGroup,
   notes,
   exerciseInfo,
+  canMoveUp = false,
+  canMoveDown = false,
   onUpdate,
   onRemove,
+  onMoveUp,
+  onMoveDown,
+  onDuplicate,
   onToggleSuperset,
   onRemoveSuperset,
   onInspectExercise,
 }: SortableExerciseProps) {
   const [imgFailed, setImgFailed] = useState(false)
   const [showNotesInput, setShowNotesInput] = useState(Boolean(notes?.trim()))
+  const [setsInput, setSetsInput] = useState(() => String(sets))
+  const [restInput, setRestInput] = useState(() => String(restSeconds))
+  const [activePresetField, setActivePresetField] = useState<'sets' | 'reps' | 'rest' | null>(null)
+
+  useEffect(() => {
+    setSetsInput(String(sets))
+  }, [sets])
+
+  useEffect(() => {
+    setRestInput(String(restSeconds))
+  }, [restSeconds])
+
   const {
     attributes,
     listeners,
@@ -83,6 +112,51 @@ export function SortableExercise({
 
   const color = getSupersetColor(supersetGroup)
   const hasNotes = Boolean(notes?.trim())
+
+  const handleSetsChange = (raw: string) => {
+    setSetsInput(raw)
+    const trimmed = raw.trim()
+    if (trimmed !== '') {
+      const parsed = Number(trimmed)
+      if (!Number.isNaN(parsed) && parsed >= 1) {
+        onUpdate('sets', Math.floor(parsed))
+      }
+    }
+  }
+
+  const handleSetsBlur = () => {
+    const normalized = Math.max(1, Math.floor(Number(setsInput) || 3))
+    setSetsInput(String(normalized))
+    if (normalized !== sets) {
+      onUpdate('sets', normalized)
+    }
+    setActivePresetField((prev) => (prev === 'sets' ? null : prev))
+  }
+
+  const handleRestChange = (raw: string) => {
+    setRestInput(raw)
+    const trimmed = raw.trim()
+    if (trimmed !== '') {
+      const parsed = Number(trimmed)
+      if (!Number.isNaN(parsed) && parsed >= 0) {
+        onUpdate('restSeconds', Math.floor(parsed))
+      }
+    }
+  }
+
+  const handleRestBlur = () => {
+    const trimmed = restInput.trim()
+    const parsed = Number(trimmed)
+    const normalized =
+      trimmed === '' || Number.isNaN(parsed)
+        ? Math.max(0, Number(restInput) || 60)
+        : Math.max(0, Math.floor(parsed))
+    setRestInput(String(normalized))
+    if (normalized !== restSeconds) {
+      onUpdate('restSeconds', normalized)
+    }
+    setActivePresetField((prev) => (prev === 'rest' ? null : prev))
+  }
 
   return (
     <div
@@ -113,20 +187,58 @@ export function SortableExercise({
       )}
 
       <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3.5">
-          <button
-            type="button"
-            className={cn(
-              'flex items-center justify-center shrink-0 cursor-grab touch-none rounded-xl p-1.5 sm:p-2 text-muted-foreground/40 transition-colors',
-              'hover:bg-primary/5 hover:text-primary active:cursor-grabbing',
-              'min-h-10 min-w-7 sm:min-w-8 size-9 sm:size-10',
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+          {/* Controles de orden: Subir + Arrastrar + Bajar */}
+          <div className="flex shrink-0 flex-col items-center justify-center rounded-xl border border-border/40 bg-muted/20 p-0.5">
+            {onMoveUp && (
+              <button
+                type="button"
+                onClick={onMoveUp}
+                disabled={!canMoveUp}
+                aria-label="Subir ejercicio"
+                title="Subir ejercicio"
+                className={cn(
+                  'flex h-5 w-7 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors',
+                  canMoveUp
+                    ? 'hover:bg-primary/10 hover:text-primary active:scale-95'
+                    : 'opacity-25 cursor-not-allowed',
+                )}
+              >
+                <ArrowUp className="size-3.5" />
+              </button>
             )}
-            aria-label="Reordenar ejercicio"
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="size-5" />
-          </button>
+            <button
+              type="button"
+              className={cn(
+                'flex items-center justify-center shrink-0 cursor-grab touch-none rounded-lg text-muted-foreground/50 transition-colors',
+                'hover:bg-primary/5 hover:text-primary active:cursor-grabbing',
+                onMoveUp || onMoveDown ? 'h-6 w-7' : 'min-h-10 min-w-7 sm:min-w-8 size-9 sm:size-10',
+              )}
+              aria-label="Arrastrar para reordenar ejercicio"
+              title="Arrastrar para reordenar"
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical className="size-4" />
+            </button>
+            {onMoveDown && (
+              <button
+                type="button"
+                onClick={onMoveDown}
+                disabled={!canMoveDown}
+                aria-label="Bajar ejercicio"
+                title="Bajar ejercicio"
+                className={cn(
+                  'flex h-5 w-7 items-center justify-center rounded-lg text-muted-foreground/60 transition-colors',
+                  canMoveDown
+                    ? 'hover:bg-primary/10 hover:text-primary active:scale-95'
+                    : 'opacity-25 cursor-not-allowed',
+                )}
+              >
+                <ArrowDown className="size-3.5" />
+              </button>
+            )}
+          </div>
 
           <button
             type="button"
@@ -220,6 +332,20 @@ export function SortableExercise({
               )}
             </Button>
 
+            {onDuplicate && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0 rounded-xl text-muted-foreground/60 hover:bg-primary/10 hover:text-primary transition-colors"
+                onClick={onDuplicate}
+                aria-label="Duplicar ejercicio"
+                title="Duplicar ejercicio"
+              >
+                <Copy className="size-4" />
+              </Button>
+            )}
+
             {supersetGroup ? (
               <Button
                 type="button"
@@ -259,127 +385,220 @@ export function SortableExercise({
           </div>
         </div>
 
-        <div className="flex w-full items-end justify-between gap-3 border-t border-border/40 pt-3 sm:w-auto sm:border-0 sm:pt-0">
-          <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:w-auto sm:items-end sm:gap-2.5">
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                Series
-              </span>
-              <Input
-                type="number"
-                inputMode="numeric"
-                value={sets}
-                min={1}
-                aria-label="Series"
-                onChange={(e) => onUpdate('sets', Math.max(1, Number(e.target.value) || 1))}
-                className="h-10 w-full sm:w-14 rounded-xl border-border/80 bg-background px-2 text-center font-bold tabular-nums ring-primary/10 focus-visible:ring-4"
-              />
+        <div className="flex w-full flex-col gap-2 border-t border-border/40 pt-3 sm:w-auto sm:border-0 sm:pt-0">
+          <div className="flex w-full items-end justify-between gap-3 sm:w-auto">
+            <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:w-auto sm:items-end sm:gap-2.5">
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                  Series
+                </span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={setsInput}
+                  aria-label="Series"
+                  onFocus={() => setActivePresetField('sets')}
+                  onChange={(e) => handleSetsChange(e.target.value)}
+                  onBlur={handleSetsBlur}
+                  className="h-10 w-full sm:w-14 rounded-xl border-border/80 bg-background px-2 text-center font-bold tabular-nums ring-primary/10 focus-visible:ring-4"
+                />
+              </div>
+
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                  Objetivo / Reps
+                </span>
+                <Input
+                  value={reps}
+                  aria-label="Objetivo o repeticiones"
+                  onFocus={() => setActivePresetField('reps')}
+                  onBlur={() =>
+                    setActivePresetField((prev) => (prev === 'reps' ? null : prev))
+                  }
+                  onChange={(e) => onUpdate('reps', e.target.value)}
+                  placeholder="10-12"
+                  className="h-10 w-full sm:w-32 rounded-xl border-border/80 bg-background px-2.5 sm:px-3 text-sm font-medium ring-primary/10 focus-visible:ring-4"
+                />
+              </div>
+
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                  Pausa (s)
+                </span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={restInput}
+                  aria-label="Descanso en segundos"
+                  onFocus={() => setActivePresetField('rest')}
+                  onChange={(e) => handleRestChange(e.target.value)}
+                  onBlur={handleRestBlur}
+                  className="h-10 w-full sm:w-16 rounded-xl border-border/80 bg-background px-2 text-center font-bold tabular-nums ring-primary/10 focus-visible:ring-4"
+                />
+              </div>
             </div>
 
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                Objetivo / Reps
-              </span>
-              <Input
-                value={reps}
-                aria-label="Objetivo o repeticiones"
-                onChange={(e) => onUpdate('reps', e.target.value)}
-                placeholder="10-12"
-                className="h-10 w-full sm:w-32 rounded-xl border-border/80 bg-background px-2.5 sm:px-3 text-sm font-medium ring-primary/10 focus-visible:ring-4"
-              />
-            </div>
+            {/* Acciones en desktop: ficha + nota + duplicar + biserie + eliminar */}
+            <div className="hidden sm:flex items-center gap-1">
+              {exerciseInfo && onInspectExercise && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-xl text-muted-foreground/50 hover:bg-primary/10 hover:text-primary transition-colors"
+                  onClick={() => onInspectExercise(exerciseInfo)}
+                  aria-label="Ver ficha técnica"
+                  title="Ver ficha técnica"
+                >
+                  <Eye className="size-4" />
+                </Button>
+              )}
 
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                Pausa (s)
-              </span>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={5}
-                value={restSeconds}
-                aria-label="Descanso en segundos"
-                onChange={(e) => onUpdate('restSeconds', Number(e.target.value) || 0)}
-                className="h-10 w-full sm:w-16 rounded-xl border-border/80 bg-background px-2 text-center font-bold tabular-nums ring-primary/10 focus-visible:ring-4"
-              />
-            </div>
-          </div>
-
-          {/* Acciones en desktop: ficha + nota + biserie + eliminar */}
-          <div className="hidden sm:flex items-center gap-1">
-            {exerciseInfo && onInspectExercise && (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="size-9 shrink-0 rounded-xl text-muted-foreground/50 hover:bg-primary/10 hover:text-primary transition-colors"
-                onClick={() => onInspectExercise(exerciseInfo)}
-                aria-label="Ver ficha técnica"
-                title="Ver ficha técnica"
+                className={cn(
+                  'size-9 shrink-0 rounded-xl transition-colors',
+                  hasNotes || showNotesInput
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground/50 hover:bg-primary/10 hover:text-primary',
+                )}
+                onClick={() => setShowNotesInput((prev) => !prev)}
+                aria-label="Indicación para el ejercicio"
+                title="Añadir o editar indicación para el cliente"
               >
-                <Eye className="size-4" />
+                {hasNotes ? (
+                  <MessageSquareText className="size-4" />
+                ) : (
+                  <MessageSquarePlus className="size-4" />
+                )}
               </Button>
-            )}
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                'size-9 shrink-0 rounded-xl transition-colors',
-                hasNotes || showNotesInput
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground/50 hover:bg-primary/10 hover:text-primary',
+              {onDuplicate && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-xl text-muted-foreground/50 hover:bg-primary/10 hover:text-primary transition-colors"
+                  onClick={onDuplicate}
+                  aria-label="Duplicar ejercicio"
+                  title="Duplicar ejercicio"
+                >
+                  <Copy className="size-4" />
+                </Button>
               )}
-              onClick={() => setShowNotesInput((prev) => !prev)}
-              aria-label="Indicación para el ejercicio"
-              title="Añadir o editar indicación para el cliente"
-            >
-              {hasNotes ? (
-                <MessageSquareText className="size-4" />
+
+              {supersetGroup ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-xl text-muted-foreground/50 hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
+                  onClick={onRemoveSuperset}
+                  aria-label="Quitar de biserie"
+                  title="Quitar de biserie"
+                >
+                  <Unlink className="size-4" />
+                </Button>
               ) : (
-                <MessageSquarePlus className="size-4" />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-xl text-muted-foreground/50 hover:bg-violet-500/10 hover:text-violet-500 transition-colors"
+                  onClick={onToggleSuperset}
+                  aria-label="Añadir a biserie"
+                  title="Añadir a biserie (unir con ejercicio anterior)"
+                >
+                  <Link2 className="size-4" />
+                </Button>
               )}
-            </Button>
 
-            {supersetGroup ? (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="size-9 shrink-0 rounded-xl text-muted-foreground/50 hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
-                onClick={onRemoveSuperset}
-                aria-label="Quitar de biserie"
-                title="Quitar de biserie"
+                className="size-9 shrink-0 rounded-xl text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                onClick={onRemove}
+                aria-label="Quitar ejercicio"
               >
-                <Unlink className="size-4" />
+                <X className="size-4" />
               </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-9 shrink-0 rounded-xl text-muted-foreground/50 hover:bg-violet-500/10 hover:text-violet-500 transition-colors"
-                onClick={onToggleSuperset}
-                aria-label="Añadir a biserie"
-                title="Añadir a biserie (unir con ejercicio anterior)"
-              >
-                <Link2 className="size-4" />
-              </Button>
-            )}
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-9 shrink-0 rounded-xl text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive transition-colors"
-              onClick={onRemove}
-              aria-label="Quitar ejercicio"
-            >
-              <X className="size-4" />
-            </Button>
+            </div>
           </div>
+
+          {/* Chips rápidos contextuales cuando el coach enfoca Series, Reps o Pausa */}
+          {activePresetField && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 mr-1">
+                {activePresetField === 'sets'
+                  ? 'Series:'
+                  : activePresetField === 'reps'
+                    ? 'Reps:'
+                    : 'Pausa:'}
+              </span>
+              {activePresetField === 'sets' &&
+                QUICK_SETS.map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setSetsInput(String(val))
+                      onUpdate('sets', val)
+                    }}
+                    className={cn(
+                      'h-6 rounded-lg border px-2 text-[11px] font-bold tabular-nums transition-colors',
+                      sets === val
+                        ? 'border-primary bg-primary/15 text-primary'
+                        : 'border-border/60 bg-muted/30 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                    )}
+                  >
+                    {val}
+                  </button>
+                ))}
+              {activePresetField === 'reps' &&
+                QUICK_REPS.map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => onUpdate('reps', val)}
+                    className={cn(
+                      'h-6 rounded-lg border px-2 text-[11px] font-semibold transition-colors',
+                      reps === val
+                        ? 'border-primary bg-primary/15 text-primary'
+                        : 'border-border/60 bg-muted/30 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                    )}
+                  >
+                    {val}
+                  </button>
+                ))}
+              {activePresetField === 'rest' &&
+                QUICK_REST.map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setRestInput(String(val))
+                      onUpdate('restSeconds', val)
+                    }}
+                    className={cn(
+                      'h-6 rounded-lg border px-2 text-[11px] font-bold tabular-nums transition-colors',
+                      restSeconds === val
+                        ? 'border-primary bg-primary/15 text-primary'
+                        : 'border-border/60 bg-muted/30 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                    )}
+                  >
+                    {val}s
+                  </button>
+                ))}
+            </div>
+          )}
         </div>
       </div>
 

@@ -297,6 +297,51 @@ export async function updateAdminExercise(
   return { id: exerciseId };
 }
 
+export async function deleteAdminExercise(
+  exerciseId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const user = await getAuthUser();
+  const profile = await getUserProfile();
+
+  if (!user || profile?.role !== "admin") {
+    return { success: false, error: "No autorizado" };
+  }
+
+  if (!exerciseId) {
+    return { success: false, error: "ID de ejercicio inválido" };
+  }
+
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("exercises")
+    .delete()
+    .eq("id", exerciseId);
+
+  if (error) {
+    console.error("deleteAdminExercise", error);
+    if (error.code === "23503") {
+      return {
+        success: false,
+        error:
+          "Este ejercicio no se puede eliminar porque está siendo usado en una rutina o historial de entrenamiento.",
+      };
+    }
+    return {
+      success: false,
+      error: error.message || "No se pudo eliminar el ejercicio.",
+    };
+  }
+
+  revalidatePath("/admin/exercises");
+  revalidatePath("/admin/routines");
+  revalidatePath("/admin/routines/builder");
+  revalidatePath("/client/routines");
+  revalidatePath("/client/workout/start");
+
+  return { success: true };
+}
+
 export async function getExercisesForSelector() {
   const supabase = await createClient();
 

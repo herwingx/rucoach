@@ -49,6 +49,7 @@ export default async function ClientDashboard() {
   // Batch 2: workoutSessions, prsThisMonth, client_routines (need client.id)
   let workoutSessions:
     | {
+        id?: string;
         total_volume_kg?: number | null;
         status?: string;
         started_at?: string;
@@ -146,6 +147,26 @@ export default async function ClientDashboard() {
     (s: any) => s.status === "completed" && s.started_at,
   );
 
+  // Sync prsThisMonth with admin logic: max(pr_events, exercise_logs with is_pr=true and !is_warmup)
+  const monthStartMs = startOfMonth.getTime();
+  const sessionIdsThisMonth = completedSessions
+    .filter((s) => {
+      if (!s.started_at || !s.id) return false;
+      const t = new Date(s.started_at).getTime();
+      return !Number.isNaN(t) && t >= monthStartMs;
+    })
+    .map((s) => s.id as string);
+
+  if (sessionIdsThisMonth.length > 0) {
+    const { data: prLogRows } = await supabase
+      .from("exercise_logs")
+      .select("workout_session_id, is_warmup")
+      .eq("is_pr", true)
+      .in("workout_session_id", sessionIdsThisMonth);
+    const prLogsCount = (prLogRows || []).filter((r) => !r.is_warmup).length;
+    prsThisMonth = Math.max(prsThisMonth, prLogsCount);
+  }
+
   // Calculate total volume from completed sessions
   const totalVolume = completedSessions.reduce(
     (sum, s) => sum + (s.total_volume_kg || 0),
@@ -165,15 +186,19 @@ export default async function ClientDashboard() {
     }
   };
 
+  const toDateKey = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const totalWorkoutsCompleted = completedSessions.length;
   const chartDataMap = new Map<string, number>();
   for (let i = 89; i >= 0; i--) {
     const d = new Date(nowInTz);
     d.setDate(d.getDate() - i);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    chartDataMap.set(`${yyyy}-${mm}-${dd}`, 0);
+    chartDataMap.set(toDateKey(d), 0);
   }
   for (const s of completedSessions) {
     const dateStr = formatDateInTimezone(new Date(s.started_at!), timeZone);
@@ -205,6 +230,12 @@ export default async function ClientDashboard() {
     overriddenDay ??
     getNextRoutineDay(routineDaysList, lastCompletedWithDayId);
 
+  if (nextWorkoutRoutineDay?.routine_exercises?.length) {
+    nextWorkoutRoutineDay.routine_exercises = [
+      ...nextWorkoutRoutineDay.routine_exercises,
+    ].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+  }
+
   if (
     activeClientRoutineId &&
     nextWorkoutRoutineDay?.routine_exercises?.length
@@ -219,6 +250,45 @@ export default async function ClientDashboard() {
     );
   }
 
+  // Weekly progress (Monday to Sunday in gym timezone)
+  const todayStr = toDateKey(nowInTz);
+  const currentDayOfWeek = nowInTz.getDay(); // 0 = Sun, 1 = Mon, ...
+  const diffToMonday = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek;
+  const mondayOfThisWeek = new Date(nowInTz);
+  mondayOfThisWeek.setDate(nowInTz.getDate() + diffToMonday);
+  mondayOfThisWeek.setHours(0, 0, 0, 0);
+
+  const trainedDatesSet = new Set<string>(
+    completedSessions.map((s) =>
+      formatDateInTimezone(new Date(s.started_at!), timeZone),
+    ),
+  );
+
+  const weekDayLabels = ["L", "M", "X", "J", "V", "S", "D"];
+  const weekDaysStatus = weekDayLabels.map((label, idx) => {
+    const d = new Date(mondayOfThisWeek);
+    d.setDate(mondayOfThisWeek.getDate() + idx);
+    const dateStr = toDateKey(d);
+    return {
+      label,
+      dateStr,
+      completed: trainedDatesSet.has(dateStr),
+      isToday: dateStr === todayStr,
+    };
+  });
+
+  const currentWeekDatesSet = new Set(weekDaysStatus.map((d) => d.dateStr));
+  const workoutsThisWeek = completedSessions.filter((s) =>
+    currentWeekDatesSet.has(
+      formatDateInTimezone(new Date(s.started_at!), timeZone),
+    ),
+  ).length;
+
+  const weeklyTarget =
+    assignedRoutine?.days_per_week ||
+    routineDaysList.filter((d) => !d.is_rest_day).length ||
+    4;
+
   return (
     <ClientDashboardContent
       profile={profile}
@@ -232,6 +302,11 @@ export default async function ClientDashboard() {
       userAchievements={userAchievements || []}
       chartData={chartData}
       membershipEnd={client?.membership_end ?? null}
+      currentWeek={clientCurrentWeek}
+      durationWeeks={assignedRoutine?.duration_weeks ?? null}
+      workoutsThisWeek={workoutsThisWeek}
+      weeklyTarget={weeklyTarget}
+      weekDaysStatus={weekDaysStatus}
     />
   );
 }

@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { getAuthUser } from "@/lib/auth-utils";
+import { revalidatePath } from "next/cache";
 
 export async function updateGymSettings(data: {
   gym_name?: string;
@@ -57,6 +58,11 @@ export async function updateGymSettings(data: {
     if (error) return { success: false, error: error.message };
   }
 
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/client/dashboard");
+  revalidatePath("/suspended");
+
   return { success: true };
 }
 
@@ -107,8 +113,6 @@ export async function upsertMembershipPlan(input: {
   const durationDays = Math.max(1, Math.round(Number(input.duration_days) || 30));
   const price = Math.max(0, Number(input.price) || 0);
   const description = input.description?.trim() || null;
-
-  const { revalidatePath } = await import("next/cache");
 
   if (input.id) {
     const { data, error } = await supabase
@@ -213,10 +217,54 @@ export async function toggleMembershipPlanActive(
 
   if (error) return { success: false, error: error.message };
 
-  const { revalidatePath } = await import("next/cache");
   revalidatePath("/admin/settings");
   revalidatePath("/admin/payments/new");
   revalidatePath("/admin/payments");
+
+  return { success: true };
+}
+
+export async function deleteMembershipPlan(
+  id: string,
+): Promise<{ success: boolean; error?: string }> {
+  const user = await getAuthUser();
+  if (!user) return { success: false, error: "No autenticado" };
+
+  const supabase = await createClient();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "admin") {
+    return { success: false, error: "No autorizado" };
+  }
+
+  if (!id) {
+    return { success: false, error: "ID de plan inválido" };
+  }
+
+  const { error } = await supabase
+    .from("membership_plans")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    if (error.code === "23503") {
+      return {
+        success: false,
+        error:
+          "Este plan está asociado a pagos existentes. Desactívalo en lugar de eliminarlo.",
+      };
+    }
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/payments/new");
+  revalidatePath("/admin/payments");
+  revalidatePath("/admin/clients");
 
   return { success: true };
 }

@@ -1,23 +1,9 @@
 import { getAuthData } from "@/lib/auth-utils";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { GymSettingsForm } from "./gym-settings-form";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  CreditCard,
-  Library,
-  User,
-  Settings,
-} from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { CreditCard, User, Settings } from "lucide-react";
 import {
   ADMIN_DATA_PAGE_SHELL,
   AdminPageHeader,
@@ -36,7 +22,7 @@ export default async function AdminSettingsPage({
   if (!user || role !== "admin") redirect("/auth/login");
 
   const resolvedParams = searchParams ? await searchParams : {};
-  const validTabs = ["profile", "plans", "general", "biblioteca"];
+  const validTabs = ["profile", "plans", "general"];
   const defaultTab =
     resolvedParams?.tab && validTabs.includes(resolvedParams.tab)
       ? resolvedParams.tab
@@ -76,7 +62,6 @@ export default async function AdminSettingsPage({
 
       <div className={cn(ADMIN_DATA_PAGE_SHELL, "space-y-8")}>
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-
           <Tabs defaultValue={defaultTab} className="flex flex-col gap-6">
             <TabsList className="no-scrollbar flex h-auto w-full sm:w-fit items-center justify-start overflow-x-auto rounded-2xl border border-border/40 bg-muted/50 p-1 shadow-sm">
               <TabsTrigger
@@ -99,13 +84,6 @@ export default async function AdminSettingsPage({
               >
                 <Settings className="size-4" />
                 General
-              </TabsTrigger>
-              <TabsTrigger
-                value="biblioteca"
-                className="shrink-0 gap-2 rounded-xl px-4 py-2 data-[state=active]:shadow-md"
-              >
-                <Library className="size-4" />
-                Biblioteca
               </TabsTrigger>
             </TabsList>
             <TabsContent value="profile" className="mt-0">
@@ -135,47 +113,6 @@ export default async function AdminSettingsPage({
                     : null
                 }
               />
-            </TabsContent>
-
-            <TabsContent value="biblioteca" className="mt-0">
-              <Card className="overflow-hidden border-dashed bg-muted/30">
-                <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
-                  <div className="flex flex-col gap-1">
-                    <CardTitle className="text-lg">
-                      Biblioteca de ejercicios
-                    </CardTitle>
-                    <CardDescription>
-                      Catálogo con GIF, técnica y altas nuevas — mismo listado
-                      que en el menú lateral.
-                    </CardDescription>
-                  </div>
-                  <Button
-                    asChild
-                    variant="secondary"
-                    size="sm"
-                    className="shrink-0"
-                  >
-                    <Link href="/admin/exercises">
-                      <Library data-icon="inline-start" />
-                      Abrir catálogo
-                    </Link>
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-muted-foreground/20 bg-background/50 px-4 py-6 text-center">
-                    <div className="flex flex-col gap-1">
-                      <p className="text-sm font-medium text-foreground">
-                        Añade movimientos y revisa demostraciones
-                      </p>
-                      <p className="mx-auto max-w-sm text-xs text-muted-foreground">
-                        Desde el catálogo puedes abrir la ficha completa (como
-                        la ve el asesorado) y crear ejercicios con URL de GIF o
-                        imagen.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
             </TabsContent>
           </Tabs>
         </div>

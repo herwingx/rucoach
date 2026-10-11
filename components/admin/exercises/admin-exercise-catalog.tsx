@@ -7,10 +7,32 @@ import type { Exercise } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Library, Search as SearchIcon, Eye, Pencil, ListOrdered, SlidersHorizontal, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Library, Search as SearchIcon, Eye, Pencil, ListOrdered, SlidersHorizontal, ChevronLeft, ChevronRight, Loader2, X, Dumbbell, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { exName, exEquipment, exTargetMuscles, exInstructions } from '@/lib/exercise-i18n'
 import { ExerciseDetailDrawer } from '@/components/client/exercise-detail-drawer'
+import { deleteAdminExercise } from '@/app/actions/exercises'
+import { toast } from 'sonner'
+
+const EQUIPMENT_FILTERS = [
+  { value: 'barra', label: 'Barra' },
+  { value: 'mancuerna', label: 'Mancuerna' },
+  { value: 'máquina', label: 'Máquina' },
+  { value: 'polea', label: 'Polea' },
+  { value: 'peso corporal', label: 'Peso corporal' },
+  { value: 'pesa rusa', label: 'Pesa rusa' },
+  { value: 'bandas', label: 'Bandas' },
+] as const
 
 const MUSCLE_LABELS_ES: Record<string, string> = {
   chest: 'Pecho',
@@ -78,6 +100,7 @@ interface AdminExerciseCatalogProps {
   initialFilters: {
     search: string
     bodyPart: string | null
+    equipment?: string | null
   }
 }
 
@@ -96,6 +119,8 @@ export function AdminExerciseCatalog({
   const [isPending, setIsPending] = useState(false)
   const [detailExercise, setDetailExercise] = useState<Exercise | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
+  const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Sync internal state with URL if it changes externally (e.g. back button)
   useEffect(() => {
@@ -142,6 +167,11 @@ export function AdminExerciseCatalog({
     router.push(`?${createQueryString({ bodyPart: bp, page: '1' })}`)
   }
 
+  const handleEquipmentChange = (eq: string | null) => {
+    setIsPending(true)
+    router.push(`?${createQueryString({ equipment: eq, page: '1' })}`)
+  }
+
   const handlePageChange = (page: number) => {
     setIsPending(true)
     router.push(`?${createQueryString({ page: page.toString() })}`)
@@ -176,8 +206,32 @@ export function AdminExerciseCatalog({
     router.push('?')
   }
 
+  const handleConfirmDelete = async () => {
+    if (!exerciseToDelete) return
+    setIsDeleting(true)
+    try {
+      const res = await deleteAdminExercise(exerciseToDelete.id)
+      if (!res.success) {
+        toast.error(res.error || 'No se pudo eliminar el ejercicio')
+        return
+      }
+      toast.success(`"${exName(exerciseToDelete)}" eliminado del catálogo`)
+      if (detailExercise?.id === exerciseToDelete.id) {
+        setDetailOpen(false)
+        setDetailExercise(null)
+      }
+      setExerciseToDelete(null)
+      router.refresh()
+    } catch {
+      toast.error('Error inesperado al eliminar el ejercicio')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const activeBodyPart = searchParams.get('bodyPart')
-  const hasActiveFilters = Boolean(search.trim() || activeBodyPart)
+  const activeEquipment = searchParams.get('equipment')
+  const hasActiveFilters = Boolean(search.trim() || activeBodyPart || activeEquipment)
 
   const getEditHref = (exerciseId: string) => {
     const qs = searchParams.toString()
@@ -289,6 +343,61 @@ export function AdminExerciseCatalog({
                 </div>
               </div>
 
+              <div className="flex flex-col gap-3">
+                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Dumbbell className="size-3.5" aria-hidden />
+                  Equipamiento
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Badge
+                    role="button"
+                    tabIndex={0}
+                    variant={!activeEquipment ? 'default' : 'secondary'}
+                    className={cn(
+                      'min-h-[36px] items-center justify-center shrink-0 cursor-pointer rounded-full px-4 text-[13px] font-medium transition-all active:scale-95 border-transparent',
+                      !activeEquipment
+                        ? 'shadow-md shadow-primary/20 bg-primary leading-none text-primary-foreground hover:bg-primary/95 hover:shadow-lg'
+                        : 'bg-muted/60 text-muted-foreground hover:bg-secondary hover:text-secondary-foreground',
+                    )}
+                    onClick={() => handleEquipmentChange(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleEquipmentChange(null)
+                      }
+                    }}
+                  >
+                    Todos
+                  </Badge>
+                  {EQUIPMENT_FILTERS.map((eq) => {
+                    const isActive = activeEquipment === eq.value
+                    return (
+                      <Badge
+                        key={eq.value}
+                        role="button"
+                        tabIndex={0}
+                        variant={isActive ? 'default' : 'outline'}
+                        className={cn(
+                          'min-h-[36px] items-center justify-center shrink-0 cursor-pointer rounded-full px-4 text-[13px] font-medium transition-all active:scale-95',
+                          isActive
+                            ? 'shadow-md shadow-primary/20 bg-primary leading-none text-primary-foreground hover:bg-primary/95 hover:shadow-lg border-transparent'
+                            : 'bg-background/50 hover:bg-secondary/60 text-muted-foreground hover:text-foreground border-border/60 hover:border-border',
+                        )}
+                        onClick={() => handleEquipmentChange(isActive ? null : eq.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            handleEquipmentChange(isActive ? null : eq.value)
+                          }
+                        }}
+                      >
+                        {eq.label}
+                      </Badge>
+                    )
+                  })}
+                </div>
+              </div>
+
               {hasActiveFilters ? (
                 <div className="pt-2 border-t border-border/50">
                   <Button
@@ -319,11 +428,21 @@ export function AdminExerciseCatalog({
                 <span className="tabular-nums font-semibold text-foreground">{totalCount}</span>
                 <span className="ml-1.5">ejercicios</span>
               </p>
-              {activeBodyPart ? (
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                  <span className="size-1.5 rounded-full bg-primary animate-pulse" />
-                  Zona muscular: <span className="font-semibold text-foreground capitalize">{activeBodyPart}</span>
-                </p>
+              {(activeBodyPart || activeEquipment) ? (
+                <div className="flex flex-wrap items-center gap-3 mt-0.5">
+                  {activeBodyPart ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+                      Zona muscular: <span className="font-semibold text-foreground capitalize">{activeBodyPart}</span>
+                    </p>
+                  ) : null}
+                  {activeEquipment ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <span className="size-1.5 rounded-full bg-primary animate-pulse" />
+                      Equipamiento: <span className="font-semibold text-foreground capitalize">{activeEquipment}</span>
+                    </p>
+                  ) : null}
+                </div>
               ) : null}
             </div>
 
@@ -361,7 +480,7 @@ export function AdminExerciseCatalog({
             <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border/80 bg-muted/10 px-4 py-16 text-center ring-1 ring-primary/5">
               <p className="font-medium text-foreground">Sin resultados</p>
               <p className="max-w-sm text-sm text-muted-foreground text-pretty">
-                Prueba otra búsqueda o quita filtros de zona.
+                Prueba otra búsqueda o quita filtros de zona o equipamiento.
               </p>
               <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
                 Limpiar filtros
@@ -440,12 +559,12 @@ export function AdminExerciseCatalog({
                       {exEquipment(ex) ? (
                         <p className="line-clamp-1 text-xs text-muted-foreground font-medium mt-0.5">{exEquipment(ex)}</p>
                       ) : null}
-                      <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="mt-2 flex items-center gap-2">
                         <Button
                           type="button"
                           variant="secondary"
                           size="sm"
-                          className="min-h-[40px] w-full rounded-xl font-semibold bg-secondary/80 hover:bg-secondary transition-colors"
+                          className="min-h-[40px] flex-1 rounded-xl font-semibold bg-secondary/80 hover:bg-secondary transition-colors"
                           onClick={() => openDetail(ex)}
                         >
                           <Eye className="size-4 mr-1.5 text-muted-foreground" aria-hidden="true" />
@@ -455,12 +574,23 @@ export function AdminExerciseCatalog({
                           asChild
                           variant="outline"
                           size="sm"
-                          className="min-h-[40px] w-full rounded-xl font-semibold border-border/70 hover:bg-muted/60 transition-colors"
+                          className="min-h-[40px] flex-1 rounded-xl font-semibold border-border/70 hover:bg-muted/60 transition-colors"
                         >
                           <Link href={getEditHref(ex.id)}>
                             <Pencil className="size-3.5 mr-1.5 text-muted-foreground" aria-hidden="true" />
                             Editar
                           </Link>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="min-h-[40px] size-10 shrink-0 rounded-xl border-border/70 text-muted-foreground hover:border-destructive/30 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          onClick={() => setExerciseToDelete(ex)}
+                          aria-label={`Eliminar ${exName(ex)}`}
+                          title="Eliminar ejercicio"
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
                         </Button>
                       </div>
                     </div>
@@ -530,6 +660,48 @@ export function AdminExerciseCatalog({
         variant="default"
         editHref={detailExercise ? getEditHref(detailExercise.id) : undefined}
       />
+
+      <AlertDialog
+        open={Boolean(exerciseToDelete)}
+        onOpenChange={(open) => {
+          if (!open && !isDeleting) setExerciseToDelete(null)
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar ejercicio del catálogo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estás por eliminar permanentemente{' '}
+              <span className="font-semibold text-foreground capitalize">
+                {exerciseToDelete ? exName(exerciseToDelete) : ''}
+              </span>
+              . Si está asignado a una rutina o historial de entrenamiento, no se podrá eliminar para proteger los registros.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting} className="rounded-xl">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleConfirmDelete()
+              }}
+              disabled={isDeleting}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Eliminando…
+                </>
+              ) : (
+                'Sí, eliminar'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

@@ -18,6 +18,9 @@ interface NextWorkoutCardProps {
   /** True cuando hay rutina activa pero aún no hay `routineDay` (no confundir con “sin rutina”). */
   hasAssignedRoutine?: boolean
   isRoutineCompleted?: boolean
+  currentWeek?: number | null
+  durationWeeks?: number | null
+  focus?: string | null
 }
 
 export function NextWorkoutCard({
@@ -25,6 +28,9 @@ export function NextWorkoutCard({
   routineName,
   hasAssignedRoutine,
   isRoutineCompleted,
+  currentWeek,
+  durationWeeks,
+  focus,
 }: NextWorkoutCardProps) {
   if (isRoutineCompleted) {
     return (
@@ -49,14 +55,17 @@ export function NextWorkoutCard({
     if (hasAssignedRoutine) {
       return (
         <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">
-          <CardContent className="p-10 text-center">
+          <CardContent className="p-10 text-center flex flex-col items-center">
             <div className="size-16 rounded-2xl bg-muted/20 mx-auto mb-6 flex items-center justify-center border border-dashed border-border">
               <Clock className="size-8 text-muted-foreground/40" />
             </div>
             <h3 className="text-lg font-black tracking-tight mb-2">Bloque de Recuperación</h3>
-            <p className="text-sm font-medium text-muted-foreground max-w-xs mx-auto leading-relaxed">
+            <p className="text-sm font-medium text-muted-foreground max-w-xs mx-auto leading-relaxed mb-6">
               Tu ciclo actual no tiene sesiones programadas para hoy. Aprovecha para optimizar tu descanso.
             </p>
+            <Button variant="outline" className="h-11 px-6 font-black text-[10px] uppercase tracking-widest rounded-2xl" asChild>
+              <Link href="/client/routines">Ver rutina / Cambiar día</Link>
+            </Button>
           </CardContent>
         </Card>
       )
@@ -78,11 +87,12 @@ export function NextWorkoutCard({
 
   const exerciseCount = routineDay.routine_exercises?.length || 0
   const estimatedTime = exerciseCount * 10 // Realer estimate
+  const dayFocus = focus ?? routineDay.focus
 
   return (
     <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm transition-all hover:bg-card">
       <CardHeader className="pb-6 pt-8 px-6 sm:px-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <div className="size-2 rounded-full bg-primary animate-pulse" />
@@ -99,10 +109,28 @@ export function NextWorkoutCard({
                 </span>
               )}
             </CardTitle>
+            {dayFocus && (
+              <p className="text-xs sm:text-sm font-bold text-muted-foreground mt-0.5">
+                Enfoque: <span className="text-foreground/90">{dayFocus}</span>
+              </p>
+            )}
           </div>
-          <Badge className="w-fit font-black text-[10px] uppercase tracking-widest px-3 py-1.5 bg-muted/20 text-muted-foreground border-none rounded-xl">
-            {routineName}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            {currentWeek != null && currentWeek > 0 && (
+              <Badge
+                variant="outline"
+                className="w-fit font-black text-[10px] uppercase tracking-widest px-3 py-1.5 bg-primary/10 text-primary border-primary/20 rounded-xl"
+              >
+                Semana {currentWeek}
+                {durationWeeks ? ` de ${durationWeeks}` : ""}
+              </Badge>
+            )}
+            {routineName && (
+              <Badge className="w-fit font-black text-[10px] uppercase tracking-widest px-3 py-1.5 bg-muted/20 text-muted-foreground border-none rounded-xl">
+                {routineName}
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
       
@@ -163,14 +191,25 @@ export function NextWorkoutCard({
           </div>
         )}
 
-        {/* Start button CTA */}
-        <Button asChild className="h-14 w-full text-base font-black uppercase tracking-[0.15em] rounded-2xl shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:translate-y-[-2px] active:translate-y-[0] active:scale-[0.98] group">
-          <Link href={`/client/workout/start`}>
-            <Play className="size-5 mr-3 fill-current shrink-0 group-hover:scale-125 transition-transform duration-300" />
-            Comenzar Entrenamiento
-            <ChevronRight className="size-5 ml-auto opacity-50 group-hover:opacity-100 transition-all" />
-          </Link>
-        </Button>
+        {/* Start button + Secondary Routine CTA */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button asChild className="h-14 flex-1 text-base font-black uppercase tracking-[0.15em] rounded-2xl shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:translate-y-[-2px] active:translate-y-[0] active:scale-[0.98] group">
+            <Link href={`/client/workout/start`}>
+              <Play className="size-5 mr-3 fill-current shrink-0 group-hover:scale-125 transition-transform duration-300" />
+              Comenzar Entrenamiento
+              <ChevronRight className="size-5 ml-auto opacity-50 group-hover:opacity-100 transition-all" />
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            className="h-14 sm:w-auto px-5 text-xs font-black uppercase tracking-widest rounded-2xl border-border/60 bg-background/40 hover:bg-background hover:border-primary/30 transition-all"
+          >
+            <Link href="/client/routines">
+              Ver rutina / Cambiar día
+            </Link>
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

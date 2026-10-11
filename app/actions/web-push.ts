@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyUser } from "@/lib/push";
 
 export interface PushSubscriptionInput {
   endpoint?: string;
@@ -115,6 +116,45 @@ export async function removePushSubscription(
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Error al eliminar suscripción";
+    return { success: false, error: message };
+  }
+}
+
+export async function sendTestPushNotification(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: "Usuario no autenticado." };
+    }
+
+    const result = await notifyUser(user.id, {
+      title: "Notificaciones activas · RU Coach",
+      body: "¡Perfecto! Tu dispositivo ya recibe alertas en tiempo real.",
+      url: "/admin/dashboard",
+      tag: "test-notification",
+    });
+
+    if (!result.success || result.delivered === 0) {
+      return {
+        success: false,
+        error:
+          "No se encontró una suscripción activa en este dispositivo. Desactiva y vuelve a activar las notificaciones.",
+      };
+    }
+
+    return { success: true };
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Error al enviar notificación de prueba";
     return { success: false, error: message };
   }
 }

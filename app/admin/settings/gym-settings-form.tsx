@@ -40,17 +40,30 @@ interface GymSettingsFormProps {
 }
 
 const CURRENCIES = [
-  { value: "MXN", label: "MXN ($)" },
-  { value: "USD", label: "USD ($)" },
-  { value: "EUR", label: "EUR (€)" },
+  { value: "MXN", label: "MXN ($) · Peso mexicano" },
+  { value: "USD", label: "USD ($) · Dólar estadounidense" },
+  { value: "EUR", label: "EUR (€) · Euro" },
+  { value: "COP", label: "COP ($) · Peso colombiano" },
+  { value: "ARS", label: "ARS ($) · Peso argentino" },
+  { value: "CLP", label: "CLP ($) · Peso chileno" },
+  { value: "PEN", label: "PEN (S/) · Sol peruano" },
 ];
 
 const TIMEZONES = [
-  { value: "America/Mexico_City", label: "Ciudad de México" },
-  { value: "America/New_York", label: "Nueva York" },
-  { value: "America/Los_Angeles", label: "Los Ángeles" },
-  { value: "America/Chicago", label: "Chicago" },
-  { value: "Europe/Madrid", label: "Madrid" },
+  { value: "America/Mexico_City", label: "Ciudad de México (Centro)" },
+  { value: "America/Monterrey", label: "Monterrey (Noreste)" },
+  { value: "America/Cancun", label: "Cancún (Sureste)" },
+  { value: "America/Mazatlan", label: "Mazatlán / Culiacán (Pacífico)" },
+  { value: "America/Hermosillo", label: "Hermosillo / Sonora" },
+  { value: "America/Tijuana", label: "Tijuana / Baja California" },
+  { value: "America/Bogota", label: "Bogotá, Colombia" },
+  { value: "America/Lima", label: "Lima, Perú" },
+  { value: "America/Santiago", label: "Santiago, Chile" },
+  { value: "America/Argentina/Buenos_Aires", label: "Buenos Aires, Argentina" },
+  { value: "America/New_York", label: "Nueva York (Este EE. UU.)" },
+  { value: "America/Chicago", label: "Chicago / Texas (Centro EE. UU.)" },
+  { value: "America/Los_Angeles", label: "Los Ángeles (Pacífico EE. UU.)" },
+  { value: "Europe/Madrid", label: "Madrid, España" },
 ];
 
 export function GymSettingsForm({ initialData }: GymSettingsFormProps) {

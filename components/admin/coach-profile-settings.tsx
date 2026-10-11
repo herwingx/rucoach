@@ -2,12 +2,16 @@
 
 import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Camera, Download, Loader2, Lock, Upload } from 'lucide-react'
+import { Bell, Camera, Download, Loader2, Lock, Send, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { createClient } from '@/lib/supabase/client'
 import { getR2PresignedUrl } from '@/app/actions/r2-storage'
-import { savePushSubscription, removePushSubscription } from '@/app/actions/web-push'
+import {
+  savePushSubscription,
+  removePushSubscription,
+  sendTestPushNotification,
+} from '@/app/actions/web-push'
 import { urlBase64ToUint8Array } from '@/lib/utils/web-push'
 import {
   detectPWAPlatform,
@@ -16,6 +20,7 @@ import {
 } from '@/components/pwa-install-cta'
 import { R2_PUBLIC_URL } from '@/lib/constants'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '@/components/ui/password-input'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,6 +48,7 @@ export function CoachProfileSettings({
   const [pushSupported, setPushSupported] = useState(false)
   const [pushSubscribed, setPushSubscribed] = useState(false)
   const [pushLoading, setPushLoading] = useState(false)
+  const [testingPush, setTestingPush] = useState(false)
   const [standalone, setStandalone] = useState(true)
   const [isIOSDevice, setIsIOSDevice] = useState(false)
   const [newPassword, setNewPassword] = useState('')
@@ -129,6 +135,22 @@ export function CoachProfileSettings({
       toast.error('No se pudieron configurar las notificaciones Push.')
     } finally {
       setPushLoading(false)
+    }
+  }
+
+  const handleTestPush = async () => {
+    setTestingPush(true)
+    try {
+      const res = await sendTestPushNotification()
+      if (!res.success) {
+        toast.error(res.error || 'No se pudo enviar la notificación de prueba.')
+        return
+      }
+      toast.success('Notificación de prueba enviada a tu dispositivo')
+    } catch {
+      toast.error('Error al enviar la notificación de prueba.')
+    } finally {
+      setTestingPush(false)
     }
   }
 
@@ -370,35 +392,59 @@ export function CoachProfileSettings({
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/15 p-4">
-            <div className="flex items-start gap-3">
-              <Bell className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-semibold">
-                  Notificaciones Push en este dispositivo
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  {!pushSupported && isIOSDevice && !standalone
-                    ? 'En iPhone/iPad, primero instala RU Coach en tu pantalla de inicio (botón «Instalar App» arriba) para activar las notificaciones.'
-                    : 'Recibe avisos en tiempo real de entrenamientos completados, PRs, cambios de ejercicio, reportes de dolor y mensajes.'}
-                </span>
+          <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/15 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Bell className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-semibold">
+                    Notificaciones Push en este dispositivo
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {!pushSupported && isIOSDevice && !standalone
+                      ? 'En iPhone/iPad, primero instala RU Coach en tu pantalla de inicio (botón «Instalar App» arriba) para activar las notificaciones.'
+                      : 'Recibe avisos en tiempo real de entrenamientos completados, PRs, cambios de ejercicio, reportes de dolor y mensajes.'}
+                  </span>
+                </div>
               </div>
+              <Switch
+                checked={pushSubscribed}
+                onCheckedChange={handleTogglePush}
+                disabled={!pushSupported || pushLoading}
+                aria-label="Activar notificaciones Push del Coach"
+              />
             </div>
-            <Switch
-              checked={pushSubscribed}
-              onCheckedChange={handleTogglePush}
-              disabled={!pushSupported || pushLoading}
-              aria-label="Activar notificaciones Push del Coach"
-            />
+
+            {pushSubscribed && (
+              <div className="flex items-center justify-between gap-3 border-t border-border/40 pt-3">
+                <span className="text-xs text-muted-foreground">
+                  ¿Quieres comprobar que tu dispositivo recibe alertas?
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleTestPush}
+                  disabled={testingPush || pushLoading}
+                  className="shrink-0 rounded-xl text-xs font-semibold"
+                >
+                  {testingPush ? (
+                    <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                  ) : (
+                    <Send className="mr-1.5 size-3.5" />
+                  )}
+                  Probar notificación
+                </Button>
+              </div>
+            )}
           </div>
 
           <FieldGroup>
             <div className="grid gap-4 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="coach-new-password">Nueva contraseña</FieldLabel>
-                <Input
+                <PasswordInput
                   id="coach-new-password"
-                  type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Mínimo 6 caracteres"
@@ -407,9 +453,8 @@ export function CoachProfileSettings({
               </Field>
               <Field>
                 <FieldLabel htmlFor="coach-confirm-password">Confirmar contraseña</FieldLabel>
-                <Input
+                <PasswordInput
                   id="coach-confirm-password"
-                  type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Repite la contraseña"

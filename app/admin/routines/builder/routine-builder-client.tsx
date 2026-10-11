@@ -25,6 +25,8 @@ import {
   ClipboardCopy,
   ClipboardPaste,
   Link2,
+  RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -47,7 +49,8 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -87,6 +90,16 @@ interface Day {
   exercises: DayExercise[];
 }
 
+interface RoutineDraft {
+  name: string;
+  description: string;
+  durationWeeks: number;
+  goal: string;
+  level: string;
+  days: Day[];
+  updatedAt: number;
+}
+
 const DAY_NAMES = [
   "Lunes",
   "Martes",
@@ -96,6 +109,8 @@ const DAY_NAMES = [
   "Sábado",
   "Domingo",
 ];
+
+const SHORT_DAY_NAMES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 // Letras disponibles para grupos de biserie
 const SUPERSET_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H"];
@@ -135,6 +150,8 @@ export function RoutineBuilderClient({
   initialData,
 }: RoutineBuilderClientProps) {
   const router = useRouter();
+  const draftStorageKey = `ru-routine-builder-draft-${routineId || "new"}`;
+
   const [exercises, setExercises] = useState<Exercise[]>(initialExercises);
   const [loadingExercises, setLoadingExercises] = useState(
     initialExercises.length === 0,
@@ -164,6 +181,9 @@ export function RoutineBuilderClient({
   );
   const [saving, setSaving] = useState(false);
 
+  const [pendingDraft, setPendingDraft] = useState<RoutineDraft | null>(null);
+  const [draftChecked, setDraftChecked] = useState(false);
+
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [activeDayId, setActiveDayId] = useState<string | null>(null);
   const [inspectedExercise, setInspectedExercise] = useState<Exercise | null>(
@@ -176,6 +196,101 @@ export function RoutineBuilderClient({
     focus?: string;
     exercises: DayExercise[];
   } | null>(null);
+
+  // Detectar borrador guardado al abrir el builder
+  useEffect(() => {
+    try {
+      if (!routineId) {
+        const raw = localStorage.getItem(draftStorageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as RoutineDraft;
+          const hasDraftContent =
+            Boolean(parsed?.name?.trim()) ||
+            (Array.isArray(parsed?.days) &&
+              parsed.days.some(
+                (d) =>
+                  !d.isRestDay &&
+                  Array.isArray(d.exercises) &&
+                  d.exercises.length > 0,
+              ));
+          if (hasDraftContent) {
+            setPendingDraft(parsed);
+          }
+        }
+      }
+    } catch {
+      // Ignore storage access errors
+    } finally {
+      setDraftChecked(true);
+    }
+  }, [routineId, draftStorageKey]);
+
+  // Auto-guardar borrador en localStorage al editar
+  useEffect(() => {
+    if (!draftChecked) return;
+    const hasContent =
+      Boolean(name.trim()) ||
+      Boolean(description.trim()) ||
+      Boolean(goal) ||
+      Boolean(level) ||
+      days.some((d) => !d.isRestDay && d.exercises.length > 0);
+
+    // Si hay un borrador pendiente de restaurar y el usuario aún no ha escrito nada nuevo, no sobrescribirlo
+    if (pendingDraft && !hasContent) return;
+
+    if (!hasContent) return;
+
+    try {
+      const payload: RoutineDraft = {
+        name,
+        description,
+        durationWeeks,
+        goal,
+        level,
+        days,
+        updatedAt: Date.now(),
+      };
+      localStorage.setItem(draftStorageKey, JSON.stringify(payload));
+    } catch {
+      // Ignore quota or private mode errors
+    }
+  }, [
+    draftChecked,
+    pendingDraft,
+    draftStorageKey,
+    name,
+    description,
+    durationWeeks,
+    goal,
+    level,
+    days,
+  ]);
+
+  const handleRestoreDraft = () => {
+    if (!pendingDraft) return;
+    setName(pendingDraft.name ?? "");
+    setDescription(pendingDraft.description ?? "");
+    setDurationWeeks(pendingDraft.durationWeeks ?? 4);
+    setGoal(pendingDraft.goal ?? "");
+    setLevel(
+      normalizeRoutineLevel(pendingDraft.level) || pendingDraft.level || "",
+    );
+    if (Array.isArray(pendingDraft.days) && pendingDraft.days.length > 0) {
+      setDays(pendingDraft.days);
+    }
+    setPendingDraft(null);
+    toast.success("Borrador restaurado.");
+  };
+
+  const handleDiscardDraft = () => {
+    try {
+      localStorage.removeItem(draftStorageKey);
+    } catch {
+      // Ignore storage errors
+    }
+    setPendingDraft(null);
+    toast.info("Borrador descartado.");
+  };
 
   useEffect(() => {
     if (
@@ -213,8 +328,11 @@ export function RoutineBuilderClient({
   }, [initialExercises]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: 6 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 150, tolerance: 6 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -299,8 +417,8 @@ export function RoutineBuilderClient({
     field: string,
     value: string | number,
   ) => {
-    setDays(
-      days.map((d) =>
+    setDays((prev) =>
+      prev.map((d) =>
         d.id === dayId
           ? {
               ...d,
@@ -314,13 +432,49 @@ export function RoutineBuilderClient({
   };
 
   const removeExercise = (dayId: string, exId: string) => {
-    setDays(
-      days.map((d) =>
+    setDays((prev) =>
+      prev.map((d) =>
         d.id === dayId
           ? { ...d, exercises: d.exercises.filter((ex) => ex.id !== exId) }
           : d,
       ),
     );
+  };
+
+  const moveExercise = (dayId: string, index: number, direction: -1 | 1) => {
+    setDays((prev) =>
+      prev.map((d) => {
+        if (d.id !== dayId) return d;
+        const nextIndex = index + direction;
+        if (nextIndex < 0 || nextIndex >= d.exercises.length) return d;
+        return {
+          ...d,
+          exercises: arrayMove(d.exercises, index, nextIndex),
+        };
+      }),
+    );
+  };
+
+  const duplicateExercise = (dayId: string, exId: string) => {
+    setDays((prev) =>
+      prev.map((d) => {
+        if (d.id !== dayId) return d;
+        const idx = d.exercises.findIndex((ex) => ex.id === exId);
+        if (idx < 0) return d;
+        const source = d.exercises[idx];
+        const copy: DayExercise = {
+          ...source,
+          id: crypto.randomUUID(),
+        };
+        const nextExercises = [...d.exercises];
+        nextExercises.splice(idx + 1, 0, copy);
+        return {
+          ...d,
+          exercises: nextExercises,
+        };
+      }),
+    );
+    toast.success("Ejercicio duplicado.");
   };
 
   /**
@@ -479,10 +633,16 @@ export function RoutineBuilderClient({
 
       if (routineId) {
         await updateRoutineFromBuilder(routineId, payload);
+        try {
+          localStorage.removeItem(draftStorageKey);
+        } catch {}
         toast.success("Rutina actualizada.");
         router.push(`/admin/routines/${routineId}`);
       } else {
         const id = await saveRoutineFromBuilder(payload);
+        try {
+          localStorage.removeItem(draftStorageKey);
+        } catch {}
         toast.success("Rutina creada.");
         router.push(`/admin/routines/${id}`);
       }
@@ -529,6 +689,47 @@ export function RoutineBuilderClient({
               </Button>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {pendingDraft && !routineId && (
+        <div className="flex flex-col gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+              <RotateCcw className="size-4" aria-hidden />
+            </div>
+            <div className="space-y-0.5">
+              <p className="text-sm font-bold text-foreground">
+                Tienes un borrador sin guardar
+                {pendingDraft.name?.trim() ? `: "${pendingDraft.name.trim()}"` : ""}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Recupera el progreso guardado automáticamente en este dispositivo o descártalo para empezar de cero.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              className="rounded-xl gap-1.5"
+              onClick={handleRestoreDraft}
+            >
+              <RotateCcw className="size-3.5" />
+              Restaurar borrador
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="rounded-xl gap-1.5 text-muted-foreground hover:text-destructive"
+              onClick={handleDiscardDraft}
+            >
+              <Trash2 className="size-3.5" />
+              Descartar
+            </Button>
+          </div>
         </div>
       )}
 
@@ -700,7 +901,7 @@ export function RoutineBuilderClient({
         </CardContent>
       </Card>
 
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
@@ -749,6 +950,53 @@ export function RoutineBuilderClient({
           </div>
         </div>
 
+        {/* Barra de salto rápido por día */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+          {days.map((day, idx) => {
+            const shortLabel =
+              SHORT_DAY_NAMES[day.dayNumber - 1] ??
+              SHORT_DAY_NAMES[idx] ??
+              day.name.slice(0, 3);
+            const hasExercises = !day.isRestDay && day.exercises.length > 0;
+            return (
+              <button
+                key={day.id}
+                type="button"
+                onClick={() => {
+                  document
+                    .getElementById(`builder-day-${day.id}`)
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                className={cn(
+                  "flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-all active:scale-95",
+                  day.isRestDay
+                    ? "border-dashed border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/40"
+                    : hasExercises
+                      ? "border-primary/30 bg-primary/10 text-primary shadow-2xs hover:bg-primary/15"
+                      : "border-border bg-card text-foreground hover:border-primary/30",
+                )}
+                title={`Ir a ${day.name}`}
+              >
+                <span>{shortLabel}</span>
+                {day.isRestDay ? (
+                  <Moon className="size-3 opacity-70" aria-hidden />
+                ) : (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.2 text-[10px] font-bold tabular-nums",
+                      hasExercises
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {day.exercises.length}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         <Separator />
 
         <div className="flex flex-col gap-5">
@@ -761,8 +1009,9 @@ export function RoutineBuilderClient({
             return (
               <Card
                 key={day.id}
+                id={`builder-day-${day.id}`}
                 className={cn(
-                  "overflow-hidden rounded-xl border shadow-sm transition-[border-color,box-shadow,background-color] duration-200",
+                  "scroll-mt-28 overflow-hidden rounded-xl border shadow-sm transition-[border-color,box-shadow,background-color] duration-200",
                   day.isRestDay
                     ? "border-dashed border-muted-foreground/25 bg-muted/15"
                     : "border-border bg-card",
@@ -808,7 +1057,7 @@ export function RoutineBuilderClient({
                         <CardDescription className="text-xs sm:text-sm">
                           {day.isRestDay
                             ? "Día de recuperación — sin ejercicios."
-                            : "Construye la sesión: ordena los ejercicios arrastrando el asa."}
+                            : "Construye la sesión: ordena los ejercicios con las flechas o arrastrando."}
                         </CardDescription>
                       </div>
                     </div>
@@ -933,7 +1182,7 @@ export function RoutineBuilderClient({
                           strategy={verticalListSortingStrategy}
                         >
                           <div className="flex flex-col gap-3">
-                            {day.exercises.map((ex) => {
+                            {day.exercises.map((ex, idx) => {
                               const exerciseInfo = exercises.find(
                                 (e) => e.id === ex.exerciseId,
                               );
@@ -949,10 +1198,17 @@ export function RoutineBuilderClient({
                                   supersetGroup={ex.supersetGroup}
                                   notes={ex.notes}
                                   exerciseInfo={exerciseInfo}
+                                  canMoveUp={idx > 0}
+                                  canMoveDown={idx < day.exercises.length - 1}
                                   onUpdate={(field, value) =>
                                     updateExercise(day.id, ex.id, field, value)
                                   }
                                   onRemove={() => removeExercise(day.id, ex.id)}
+                                  onMoveUp={() => moveExercise(day.id, idx, -1)}
+                                  onMoveDown={() => moveExercise(day.id, idx, 1)}
+                                  onDuplicate={() =>
+                                    duplicateExercise(day.id, ex.id)
+                                  }
                                   onToggleSuperset={() =>
                                     handleToggleSuperset(day.id, ex.id)
                                   }
@@ -1048,6 +1304,11 @@ export function RoutineBuilderClient({
         exercises={exercises}
         onSelectExercises={handleSelectExercises}
         loading={loadingExercises}
+        existingExerciseIds={
+          days
+            .find((d) => d.id === activeDayId)
+            ?.exercises.map((e) => e.exerciseId) ?? []
+        }
       />
 
       <ExerciseDetailDrawer

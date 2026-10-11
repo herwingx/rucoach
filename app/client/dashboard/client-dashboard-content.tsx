@@ -20,7 +20,15 @@ const ClientWorkoutChart = dynamic(
 );
 import { NextWorkoutCard } from "@/components/client/next-workout-card";
 import { AchievementBadge } from "@/components/client/achievement-badge";
-import { Award, CalendarClock, ChevronRight, CreditCard } from "lucide-react";
+import {
+  Award,
+  CalendarClock,
+  Check,
+  ChevronRight,
+  CreditCard,
+  Flame,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import type {
   Profile,
   Routine,
@@ -32,6 +40,13 @@ import {
   ClientStackPageHeader,
   CLIENT_DATA_PAGE_SHELL,
 } from "@/components/client/client-app-page-parts";
+
+export interface WeekDayStatus {
+  label: string;
+  dateStr: string;
+  completed: boolean;
+  isToday: boolean;
+}
 
 interface ClientDashboardContentProps {
   profile: Profile | null;
@@ -46,6 +61,11 @@ interface ClientDashboardContentProps {
   userAchievements: UserAchievement[];
   chartData: { date: string; sessions: number }[];
   membershipEnd?: string | null;
+  currentWeek?: number | null;
+  durationWeeks?: number | null;
+  workoutsThisWeek?: number;
+  weeklyTarget?: number;
+  weekDaysStatus?: WeekDayStatus[];
 }
 
 export function ClientDashboardContent({
@@ -60,6 +80,11 @@ export function ClientDashboardContent({
   userAchievements,
   chartData,
   membershipEnd,
+  currentWeek,
+  durationWeeks,
+  workoutsThisWeek = 0,
+  weeklyTarget = 4,
+  weekDaysStatus = [],
 }: ClientDashboardContentProps) {
   const userLabel =
     profile?.full_name?.split(/\s+/).filter(Boolean)[0] || "Asesorado";
@@ -132,7 +157,7 @@ export function ClientDashboardContent({
           </div>
         )}
 
-        <aside className="flex flex-col gap-8 lg:col-span-12 xl:col-span-4 xl:sticky xl:top-[calc(112px+1.5rem)] xl:self-start">
+        <aside className="order-2 xl:order-1 flex flex-col gap-8 lg:col-span-12 xl:col-span-4 xl:sticky xl:top-[calc(112px+1.5rem)] xl:self-start">
           <LevelProgress
             levelInfo={levelInfo}
             username={profile?.username || profile?.full_name}
@@ -146,15 +171,85 @@ export function ClientDashboardContent({
           />
         </aside>
 
-        <section className="flex min-w-0 flex-col gap-8 lg:col-span-12 xl:col-span-8">
-          <ClientWorkoutChart data={chartData} />
+        <section className="order-1 xl:order-2 flex min-w-0 flex-col gap-8 lg:col-span-12 xl:col-span-8">
+          <div className="flex flex-col gap-4">
+            {weekDaysStatus.length > 0 && (
+              <Card className="overflow-hidden border-border/80 shadow-sm ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">
+                <CardContent className="p-4 sm:p-6 flex flex-col gap-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <Flame className="size-4" aria-hidden />
+                      </div>
+                      <span className="text-xs font-black uppercase tracking-widest text-foreground">
+                        Meta Semanal
+                      </span>
+                    </div>
+                    <span
+                      className={cn(
+                        "rounded-xl px-3 py-1 text-[11px] font-black uppercase tracking-wider tabular-nums",
+                        workoutsThisWeek >= weeklyTarget
+                          ? "bg-success/15 text-success border border-success/30"
+                          : "bg-primary/10 text-primary border border-primary/20",
+                      )}
+                    >
+                      {workoutsThisWeek} / {weeklyTarget} entrenos esta semana
+                    </span>
+                  </div>
 
-          <NextWorkoutCard
-            routineDay={nextWorkoutRoutineDay as any}
-            routineName={assignedRoutine?.name}
-            hasAssignedRoutine={!!assignedRoutine}
-            isRoutineCompleted={isRoutineCompleted}
-          />
+                  <div className="grid grid-cols-7 gap-2 sm:gap-3">
+                    {weekDaysStatus.map((day) => (
+                      <div
+                        key={day.dateStr}
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-1.5 rounded-2xl py-2.5 px-1 border transition-all",
+                          day.completed
+                            ? "border-success/40 bg-success/10 text-success shadow-xs"
+                            : day.isToday
+                              ? "border-primary/60 bg-primary/10 text-primary ring-2 ring-primary/20"
+                              : "border-border/40 bg-muted/10 text-muted-foreground/60",
+                        )}
+                      >
+                        <span className="text-[10px] font-black uppercase tracking-widest">
+                          {day.label}
+                        </span>
+                        <div
+                          className={cn(
+                            "flex size-6 sm:size-7 items-center justify-center rounded-full text-[10px] font-black",
+                            day.completed
+                              ? "bg-success text-success-foreground shadow-xs"
+                              : day.isToday
+                                ? "bg-primary/20 text-primary"
+                                : "bg-background/50 text-muted-foreground/40",
+                          )}
+                        >
+                          {day.completed ? (
+                            <Check className="size-3.5 stroke-[3]" aria-hidden />
+                          ) : day.isToday ? (
+                            <span className="size-2 rounded-full bg-primary animate-pulse" />
+                          ) : (
+                            <span className="size-1.5 rounded-full bg-muted-foreground/25" />
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <NextWorkoutCard
+              routineDay={nextWorkoutRoutineDay as any}
+              routineName={assignedRoutine?.name}
+              hasAssignedRoutine={!!assignedRoutine}
+              isRoutineCompleted={isRoutineCompleted}
+              currentWeek={currentWeek}
+              durationWeeks={durationWeeks}
+              focus={nextWorkoutRoutineDay?.focus}
+            />
+          </div>
+
+          <ClientWorkoutChart data={chartData} />
 
           {userAchievements.length > 0 ? (
             <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">

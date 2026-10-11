@@ -25,6 +25,7 @@ export type CoachOverviewMetrics = {
 
 export type CoachClientCard = {
   id: string;
+  userId?: string | null;
   fullName: string;
   avatarUrl?: string | null;
   planName?: string | null;
@@ -49,6 +50,8 @@ export type CoachClientCard = {
   clientRoutineId?: string | null;
   currentWeek?: number | null;
   durationWeeks?: number | null;
+  activePainReports?: { bodyPart: string; severity: number }[];
+  unreadMessagesCount?: number;
 };
 
 type ClientDbRow = {
@@ -130,6 +133,26 @@ export async function CoachOverview() {
   const timeZone = gymSettings?.timezone || "America/Mexico_City";
   const nowInTz = getNowInTimezone(timeZone);
 
+  const formatDateInTimezone = (date: Date, tz: string): string => {
+    try {
+      return new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(date);
+    } catch {
+      return date.toISOString().slice(0, 10);
+    }
+  };
+
+  const toDateKey = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const latestCompletedByClient = await fetchLatestCompletedSessionByClients(
     supabase,
     clientIds,
@@ -182,20 +205,39 @@ export async function CoachOverview() {
     client_routine_id: routineByClient.get(c.id)?.id ?? null,
     current_week: routineByClient.get(c.id)?.current_week ?? 1,
   }));
+
   if (clientsSummary.length === 0) {
+    const emptyChartData: { date: string; sessions: number }[] = [];
+    for (let i = 89; i >= 0; i--) {
+      const d = new Date(nowInTz);
+      d.setDate(d.getDate() - i);
+      emptyChartData.push({ date: toDateKey(d), sessions: 0 });
+    }
     return (
-      <div className="flex flex-col gap-4">
-        <div className="text-lg font-semibold">
-          No tienes asesorados todavía
-        </div>
-        <div className="text-sm text-muted-foreground">
-          Crea asesorados en Asesorados para que aparezcan aquí.
-        </div>
-      </div>
+      <CoachOverviewClient
+        cards={[]}
+        metrics={{
+          totalTrainingsThisWeek: 0,
+          prsThisMonth: 0,
+          prsLastMonth: 0,
+          mostActiveClientId: null,
+          mostActiveClientName: null,
+          attentionClientId: null,
+          attentionClientName: null,
+          attentionReason: null,
+          trainingsLastWeek: 0,
+          totalClients: 0,
+          attentionCount: 0,
+          activeThisWeekCount: 0,
+          chartData: emptyChartData,
+        }}
+        planNames={[]}
+        routineNames={[]}
+      />
     );
   }
 
-  // 2) Fetch streak days + last_workout_at
+  // 2) Fetch streak days + last_workout_at + active pain reports + unread messages
   const userIds = clientsSummary.map((c) => c.user_id).filter(Boolean);
   const profilesByUserId = new Map<
     string,
@@ -214,6 +256,48 @@ export async function CoachOverview() {
         last_workout_at: p.last_workout_at,
       });
     }
+  }
+
+  const [painReportsRes, unreadMessagesRes] = await Promise.all([
+    supabase
+      .from("client_pain_reports")
+      .select("client_id, body_part, severity")
+      .in("client_id", clientIds)
+      .eq("active", true),
+    supabase
+      .from("messages")
+      .select("from_user_id")
+      .eq("to_user_id", user.id)
+      .eq("is_read", false),
+  ]);
+
+  const painReportsByClient = new Map<
+    string,
+    { bodyPart: string; severity: number }[]
+  >();
+  for (const pr of painReportsRes.data || []) {
+    if (!pr.client_id) continue;
+    const list = painReportsByClient.get(pr.client_id) || [];
+    list.push({
+      bodyPart: pr.body_part,
+      severity: Number(pr.severity) || 0,
+    });
+    painReportsByClient.set(pr.client_id, list);
+  }
+  for (const [cid, list] of painReportsByClient.entries()) {
+    painReportsByClient.set(
+      cid,
+      list.sort((a, b) => b.severity - a.severity),
+    );
+  }
+
+  const unreadMessagesByUserId = new Map<string, number>();
+  for (const msg of unreadMessagesRes.data || []) {
+    if (!msg.from_user_id) continue;
+    unreadMessagesByUserId.set(
+      msg.from_user_id,
+      (unreadMessagesByUserId.get(msg.from_user_id) || 0) + 1,
+    );
   }
 
   // 3) Fetch routines for filter labels
@@ -405,16 +489,16 @@ export async function CoachOverview() {
     }
   }
 
-  // Chart data: sessions per day for last 90 days
+  // Chart data: sessions per day for last 90 days in gym timezone
   const chartDataMap = new Map<string, number>();
   for (let i = 89; i >= 0; i--) {
     const d = new Date(nowInTz);
     d.setDate(d.getDate() - i);
-    d.setHours(0, 0, 0, 0);
-    chartDataMap.set(d.toISOString().slice(0, 10), 0);
+    chartDataMap.set(toDateKey(d), 0);
   }
   for (const s of sessionsList) {
-    const dateStr = (s.started_at || "").slice(0, 10);
+    if (!s.started_at) continue;
+    const dateStr = formatDateInTimezone(new Date(s.started_at), timeZone);
     if (chartDataMap.has(dateStr)) {
       chartDataMap.set(dateStr, (chartDataMap.get(dateStr) || 0) + 1);
     }
@@ -502,8 +586,15 @@ export async function CoachOverview() {
     const prEvents30d = Math.max(fromEvents, fromLogs);
     const prStalled30d = prEvents30d === 0;
 
+    const activePainReports = painReportsByClient.get(c.id) || [];
+    const unreadMessagesCount = c.user_id
+      ? (unreadMessagesByUserId.get(c.user_id) || 0)
+      : 0;
+
     let attentionReason: string | null = null;
-    if (isRoutineCompleted) attentionReason = "Rutina completada";
+    if (activePainReports.length > 0)
+      attentionReason = `Dolor activo: ${activePainReports[0].bodyPart}`;
+    else if (isRoutineCompleted) attentionReason = "Rutina completada";
     else if (isPending) attentionReason = "Falta registro";
     else if (isExpired) attentionReason = "Plan vencido";
     else if (isSuspended) attentionReason = "Suspendido";
@@ -521,6 +612,7 @@ export async function CoachOverview() {
 
     return {
       id: c.id,
+      userId: c.user_id ?? null,
       fullName: c.full_name ?? "Cliente",
       avatarUrl: c.avatar_url,
       planName: c.plan_name ?? null,
@@ -547,6 +639,8 @@ export async function CoachOverview() {
       clientRoutineId: (c as any).client_routine_id,
       currentWeek: c.current_week,
       durationWeeks: routineMeta?.durationWeeks ?? null,
+      activePainReports,
+      unreadMessagesCount,
     };
   });
 
@@ -557,9 +651,10 @@ export async function CoachOverview() {
 
   if (attentionCandidates.length > 0) {
     // Prioridad de atención:
-    // 0. Routine Completed, 1. Expired, 2. No routine, 3. Inactivo +7d, 4. Pending
+    // Máxima: Dolor activo (6), luego Rutina completada (5), Plan vencido (4), Sin rutina (3), Inactivo +7d (2), Falta registro (1)
     const sorted = [...attentionCandidates].sort((a, b) => {
       const getScore = (c: CoachClientCard) => {
+        if (c.activePainReports && c.activePainReports.length > 0) return 6;
         if (c.attentionReason === "Rutina completada") return 5;
         if (c.status === "expired") return 4;
         if (c.status === "active" && !c.assignedRoutineId) return 3;

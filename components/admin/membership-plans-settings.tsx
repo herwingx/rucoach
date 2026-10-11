@@ -21,11 +21,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { CreditCard, Edit2, Plus, CalendarClock } from "lucide-react";
+import { CreditCard, Edit2, Plus, CalendarClock, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   type MembershipPlanRecord,
+  deleteMembershipPlan,
   toggleMembershipPlanActive,
   upsertMembershipPlan,
 } from "@/app/actions/gym-settings";
@@ -50,6 +61,10 @@ export function MembershipPlansSettings({
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [planToDelete, setPlanToDelete] = useState<MembershipPlanRecord | null>(
+    null,
+  );
+  const [deleting, setDeleting] = useState(false);
 
   const openCreateDialog = () => {
     setEditingPlan(null);
@@ -125,6 +140,23 @@ export function MembershipPlansSettings({
       );
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!planToDelete) return;
+    setDeleting(true);
+    try {
+      const res = await deleteMembershipPlan(planToDelete.id);
+      if (!res.success) {
+        toast.error(res.error || "No se pudo eliminar el plan");
+        return;
+      }
+      setPlans((prev) => prev.filter((p) => p.id !== planToDelete.id));
+      toast.success(`Plan "${planToDelete.name}" eliminado`);
+      setPlanToDelete(null);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -235,16 +267,29 @@ export function MembershipPlansSettings({
                       Disponible en cobros
                     </span>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openEditDialog(plan)}
-                    className="h-8 gap-1.5 rounded-lg text-xs font-semibold"
-                  >
-                    <Edit2 className="size-3.5" />
-                    Editar
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEditDialog(plan)}
+                      className="h-8 gap-1.5 rounded-lg text-xs font-semibold"
+                    >
+                      <Edit2 className="size-3.5" />
+                      Editar
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setPlanToDelete(plan)}
+                      className="size-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      aria-label={`Eliminar plan ${plan.name}`}
+                      title="Eliminar plan"
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -353,6 +398,48 @@ export function MembershipPlansSettings({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={Boolean(planToDelete)}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setPlanToDelete(null);
+        }}
+      >
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar plan de asesoría?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estás por eliminar el plan{" "}
+              <span className="font-semibold text-foreground">
+                {planToDelete?.name}
+              </span>
+              . Los cobros anteriores registrados no se verán afectados, pero este paquete ya no aparecerá al registrar nuevos pagos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting} className="rounded-xl">
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleConfirmDelete();
+              }}
+              disabled={deleting}
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  Eliminando…
+                </>
+              ) : (
+                "Sí, eliminar"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

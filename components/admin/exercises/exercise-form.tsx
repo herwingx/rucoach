@@ -25,7 +25,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   createAdminExercise,
+  deleteAdminExercise,
   updateAdminExercise,
 } from "@/app/actions/exercises";
 import { getR2PresignedUrl } from "@/app/actions/r2-storage";
@@ -43,6 +55,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -172,12 +185,16 @@ export function ExerciseForm({
 
   // Media URLs & R2 Upload State
   const [uploadingGif, setUploadingGif] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [gifUrl, setGifUrl] = useState(initialExercise?.gif_url ?? "");
   const [imageUrl, setImageUrl] = useState(initialExercise?.image_url ?? "");
   const [demoVideoUrl, setDemoVideoUrl] = useState(
     initialExercise?.demo_video_url ?? "",
   );
 
+  const gifInputRef = useRef<HTMLInputElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
   const stepRefs = useRef<(HTMLTextAreaElement | null)[]>([]);
 
   const focusStep = (index: number) => {
@@ -273,19 +290,21 @@ export function ExerciseForm({
 
   async function handleGifUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
 
     setUploadingGif(true);
     try {
-      const ext = file.name.split(".").pop() || "gif";
+      const ext = file.name.split(".").pop()?.toLowerCase() || "gif";
       const path = `exercises/${crypto.randomUUID()}.${ext}`;
+      const contentType = file.type || "image/gif";
 
-      const signedUrl = await getR2PresignedUrl(path, file.type);
+      const signedUrl = await getR2PresignedUrl(path, contentType);
 
       const res = await fetch(signedUrl, {
         method: "PUT",
         body: file,
-        headers: { "Content-Type": file.type },
+        headers: { "Content-Type": contentType },
       });
 
       if (!res.ok) throw new Error("Error al subir a R2");
@@ -298,6 +317,57 @@ export function ExerciseForm({
       console.error(err);
     } finally {
       setUploadingGif(false);
+    }
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `exercises/images/${crypto.randomUUID()}.${ext}`;
+      const contentType = file.type || "image/jpeg";
+
+      const signedUrl = await getR2PresignedUrl(path, contentType);
+
+      const res = await fetch(signedUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": contentType },
+      });
+
+      if (!res.ok) throw new Error("Error al subir imagen a R2");
+
+      const finalUrl = `${R2_PUBLIC_URL}/${path}`;
+      setImageUrl(finalUrl);
+      toast.success("Imagen subida a R2 correctamente");
+    } catch (err) {
+      toast.error("Error al subir la imagen");
+      console.error(err);
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  async function handleDeleteExercise() {
+    if (!isEdit || !initialExercise) return;
+    setDeleting(true);
+    try {
+      const res = await deleteAdminExercise(initialExercise.id);
+      if (!res.success) {
+        toast.error(res.error || "No se pudo eliminar el ejercicio");
+        return;
+      }
+      toast.success("Ejercicio eliminado del catálogo");
+      router.push("/admin/exercises");
+      router.refresh();
+    } catch {
+      toast.error("Error inesperado al eliminar el ejercicio");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -760,12 +830,20 @@ export function ExerciseForm({
             Sube un archivo GIF/WebP a Cloudflare R2 o pega una URL directa.
           </FieldDescription>
           <FieldContent className="space-y-3">
+            <input
+              ref={gifInputRef}
+              type="file"
+              accept="image/gif,image/webp"
+              className="sr-only"
+              onChange={handleGifUpload}
+            />
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 type="button"
                 variant="outline"
-                className="relative h-10 rounded-xl overflow-hidden"
+                className="h-10 rounded-xl"
                 disabled={uploadingGif}
+                onClick={() => gifInputRef.current?.click()}
               >
                 {uploadingGif ? (
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -773,21 +851,27 @@ export function ExerciseForm({
                   <Upload className="w-4 h-4 mr-2" />
                 )}
                 {gifUrl ? "Cambiar archivo GIF" : "Subir GIF a R2"}
-                <input
-                  type="file"
-                  accept="image/gif,image/webp"
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                  onChange={handleGifUpload}
-                />
               </Button>
               {gifUrl && (
-                <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[240px]">
-                  <Check
-                    className="size-3.5 text-primary shrink-0"
-                    aria-hidden
-                  />
-                  <span className="truncate">{gifUrl.split("/").pop()}</span>
-                </span>
+                <>
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[240px]">
+                    <Check
+                      className="size-3.5 text-primary shrink-0"
+                      aria-hidden
+                    />
+                    <span className="truncate">{gifUrl.split("/").pop()}</span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 rounded-lg px-2.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setGifUrl("")}
+                  >
+                    <X className="size-3.5 mr-1" />
+                    Quitar GIF
+                  </Button>
+                </>
               )}
             </div>
             <Input
@@ -806,7 +890,7 @@ export function ExerciseForm({
                   alt="Vista previa del ejercicio"
                   className="size-20 rounded-lg border border-border/40 bg-white object-contain mix-blend-multiply"
                 />
-                <div className=" pr-2 text-xs text-muted-foreground">
+                <div className="pr-2 text-xs text-muted-foreground">
                   <p className="font-semibold text-foreground">
                     Vista previa multimedia
                   </p>
@@ -820,9 +904,56 @@ export function ExerciseForm({
         <div className="grid gap-5 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor="ex-img">
-              URL imagen estática (opcional)
+              Imagen estática (opcional)
             </FieldLabel>
-            <FieldContent>
+            <FieldDescription>
+              Sube JPG/PNG/WebP a Cloudflare R2 o pega una URL directa.
+            </FieldDescription>
+            <FieldContent className="space-y-3">
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={handleImageUpload}
+              />
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 rounded-xl"
+                  disabled={uploadingImage}
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  {uploadingImage ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <Upload className="w-4 h-4 mr-2" />
+                  )}
+                  {imageUrl ? "Cambiar imagen" : "Subir imagen a R2"}
+                </Button>
+                {imageUrl && (
+                  <>
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground truncate max-w-[160px]">
+                      <Check
+                        className="size-3.5 text-primary shrink-0"
+                        aria-hidden
+                      />
+                      <span className="truncate">{imageUrl.split("/").pop()}</span>
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 rounded-lg px-2.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setImageUrl("")}
+                    >
+                      <X className="size-3.5 mr-1" />
+                      Quitar
+                    </Button>
+                  </>
+                )}
+              </div>
               <Input
                 id="ex-img"
                 name="imageUrl"
@@ -830,7 +961,7 @@ export function ExerciseForm({
                 value={imageUrl}
                 onChange={(e) => setImageUrl(e.target.value)}
                 className="h-11 rounded-xl"
-                placeholder="https://…"
+                placeholder="https://… o sube una imagen arriba"
               />
             </FieldContent>
           </Field>
@@ -839,6 +970,9 @@ export function ExerciseForm({
             <FieldLabel htmlFor="ex-video">
               URL de vídeo demo (opcional)
             </FieldLabel>
+            <FieldDescription>
+              Enlace de referencia (YouTube, Vimeo o MP4).
+            </FieldDescription>
             <FieldContent>
               <Input
                 id="ex-video"
@@ -854,32 +988,86 @@ export function ExerciseForm({
         </div>
       </FieldGroup>
 
-      <div className="flex flex-col-reverse gap-2.5 pt-2 sm:flex-row sm:justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          className="h-11 rounded-xl font-semibold"
-          onClick={() => router.push(returnHref)}
-          disabled={pending}
-        >
-          Cancelar
-        </Button>
-        <Button
-          type="submit"
-          className="h-11 rounded-xl font-semibold"
-          disabled={pending}
-        >
-          {pending ? (
-            <>
-              <Loader2 className="animate-spin" data-icon="inline-start" />
-              Guardando…
-            </>
-          ) : isEdit ? (
-            "Guardar cambios"
-          ) : (
-            "Crear ejercicio"
+      <div className="flex flex-col-reverse gap-2.5 pt-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          {isEdit && initialExercise && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="h-11 w-full sm:w-auto rounded-xl font-semibold text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={pending || deleting}
+                >
+                  <Trash2 className="size-4 mr-1.5" />
+                  Eliminar ejercicio
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-2xl">
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar ejercicio del catálogo?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Estás por eliminar permanentemente{" "}
+                    <span className="font-semibold text-foreground capitalize">
+                      {name.trim() || exName(initialExercise)}
+                    </span>
+                    . Si está asignado a una rutina o historial de entrenamiento, no se podrá eliminar para proteger los registros.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting} className="rounded-xl">
+                    Cancelar
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleDeleteExercise();
+                    }}
+                    disabled={deleting}
+                    className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {deleting ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Eliminando…
+                      </>
+                    ) : (
+                      "Sí, eliminar"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
-        </Button>
+        </div>
+
+        <div className="flex flex-col-reverse gap-2.5 sm:flex-row sm:items-center">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 rounded-xl font-semibold"
+            onClick={() => router.push(returnHref)}
+            disabled={pending || deleting}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="submit"
+            className="h-11 rounded-xl font-semibold"
+            disabled={pending || deleting}
+          >
+            {pending ? (
+              <>
+                <Loader2 className="animate-spin" data-icon="inline-start" />
+                Guardando…
+              </>
+            ) : isEdit ? (
+              "Guardar cambios"
+            ) : (
+              "Crear ejercicio"
+            )}
+          </Button>
+        </div>
       </div>
     </form>
   );

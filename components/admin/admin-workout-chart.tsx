@@ -54,13 +54,13 @@ export function AdminWorkoutChart({ data }: { data: ChartDataPoint[] }) {
     if (!data.length) return [];
     const ref = data[data.length - 1]?.date;
     if (!ref) return data;
-    const referenceDate = new Date(ref);
+    const referenceDate = new Date(`${ref}T12:00:00`);
     let daysToSubtract = 90;
     if (timeRange === "30d") daysToSubtract = 30;
     else if (timeRange === "7d") daysToSubtract = 7;
     const startDate = new Date(referenceDate);
-    startDate.setDate(startDate.getDate() - daysToSubtract);
-    return data.filter((item) => new Date(item.date) >= startDate);
+    startDate.setDate(startDate.getDate() - (daysToSubtract - 1));
+    return data.filter((item) => new Date(`${item.date}T12:00:00`) >= startDate);
   }, [data, timeRange]);
 
   const sessionsInRange = React.useMemo(
@@ -152,7 +152,7 @@ export function AdminWorkoutChart({ data }: { data: ChartDataPoint[] }) {
   }, [filteredData]);
 
   return (
-    <Card className="@container/card overflow-hidden border-border/60 shadow-md ring-1 ring-border/40">
+    <Card className="@container/card overflow-hidden rounded-3xl border-border/60 shadow-md ring-1 ring-border/40">
       <CardHeader>
         <CardTitle>Sesiones completadas</CardTitle>
         <CardDescription>

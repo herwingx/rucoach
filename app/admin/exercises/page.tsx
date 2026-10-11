@@ -17,13 +17,14 @@ interface AdminExercisesPageProps {
     page?: string;
     search?: string;
     bodyPart?: string;
+    equipment?: string;
   }>;
 }
 
 export default async function AdminExercisesPage({
   searchParams,
 }: AdminExercisesPageProps) {
-  const { page: pageStr, search, bodyPart } = await searchParams;
+  const { page: pageStr, search, bodyPart, equipment } = await searchParams;
   const { user, role } = await getAuthData();
   if (!user || role !== "admin") redirect("/auth/login");
 
@@ -42,6 +43,12 @@ export default async function AdminExercisesPage({
 
   if (bodyPart) {
     query = query.contains("body_parts_es", [bodyPart]);
+  }
+
+  if (equipment) {
+    query = query.or(
+      `equipment_es.ilike.%${equipment}%,equipment.ilike.%${equipment}%`,
+    );
   }
 
   const {
@@ -96,7 +103,11 @@ export default async function AdminExercisesPage({
             totalPages={totalPages}
             currentPage={page}
             allBodyParts={allBodyParts}
-            initialFilters={{ search: search || "", bodyPart: bodyPart || null }}
+            initialFilters={{
+              search: search || "",
+              bodyPart: bodyPart || null,
+              equipment: equipment || null,
+            }}
           />
         </Suspense>
       </div>

@@ -16,9 +16,26 @@ interface ExerciseSelectorProps {
   onClose?: () => void
   showCloseButton?: boolean
   loading?: boolean
+  existingExerciseIds?: string[]
 }
 
 const ITEMS_PER_PAGE = 30
+
+const EQUIPMENT_QUICK_FILTERS = [
+  { id: 'barra', label: 'Barra', keywords: ['barra', 'barbell', 'ez bar'] },
+  { id: 'mancuerna', label: 'Mancuerna', keywords: ['mancuerna', 'dumbbell', 'kettlebell', 'pesa rusa'] },
+  { id: 'maquina', label: 'Máquina', keywords: ['maquina', 'machine', 'smith', 'multipower', 'palanca', 'leverage', 'trineo', 'sled'] },
+  { id: 'polea', label: 'Polea', keywords: ['polea', 'cable', 'cuerda'] },
+  { id: 'peso_corporal', label: 'Peso corporal', keywords: ['peso corporal', 'body weight', 'bodyweight', 'corporal', 'asistido', 'assisted', 'calistenia'] },
+] as const
+
+function normalizeSearchText(str: string): string {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+}
 
 export function ExerciseSelector({
   exercises,
@@ -26,18 +43,25 @@ export function ExerciseSelector({
   onClose,
   showCloseButton = false,
   loading = false,
+  existingExerciseIds = [],
 }: ExerciseSelectorProps) {
   const [search, setSearch] = useState('')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeBodyPart, setActiveBodyPart] = useState<string | null>(null)
+  const [activeEquipment, setActiveEquipment] = useState<string | null>(null)
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
 
+  const existingIdsSet = useMemo(
+    () => new Set(existingExerciseIds),
+    [existingExerciseIds],
+  )
+
   // Reset pagination when filters change
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE)
-  }, [search, activeBodyPart])
+  }, [search, activeBodyPart, activeEquipment])
 
   const bodyParts = useMemo(() => {
     const set = new Set<string>()
@@ -48,17 +72,47 @@ export function ExerciseSelector({
   }, [exercises])
 
   const filteredExercises = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(search)
+    const queryTokens = normalizedQuery ? normalizedQuery.split(/\s+/).filter(Boolean) : []
+    const eqFilter = activeEquipment
+      ? EQUIPMENT_QUICK_FILTERS.find((f) => f.id === activeEquipment)
+      : null
+
     return exercises.filter((ex) => {
-      const matchSearch = search
-        ? exName(ex).toLowerCase().includes(search.toLowerCase())
-        : true
+      const eqText = normalizeSearchText(
+        [exEquipment(ex) ?? '', ex.equipment ?? '', ...(ex.equipments ?? [])].join(' '),
+      )
+      const eqWithSynonyms =
+        eqText.includes('cable') ? `${eqText} polea` : eqText
+
+      const matchSearch =
+        queryTokens.length > 0
+          ? (() => {
+              const searchable = normalizeSearchText(
+                [
+                  exName(ex),
+                  ex.name ?? '',
+                  eqWithSynonyms,
+                  ...exBodyParts(ex),
+                  ...exTargetMuscles(ex),
+                  ex.primary_muscle ?? '',
+                ].join(' '),
+              )
+              return queryTokens.every((token) => searchable.includes(token))
+            })()
+          : true
+
       const matchBodyPart = activeBodyPart
         ? exBodyParts(ex).includes(activeBodyPart)
         : true
 
-      return matchSearch && matchBodyPart
+      const matchEquipment = eqFilter
+        ? eqFilter.keywords.some((kw) => eqWithSynonyms.includes(kw))
+        : true
+
+      return matchSearch && matchBodyPart && matchEquipment
     })
-  }, [exercises, search, activeBodyPart])
+  }, [exercises, search, activeBodyPart, activeEquipment])
 
   const visibleExercises = useMemo(() => {
     return filteredExercises.slice(0, visibleCount)
@@ -102,13 +156,14 @@ export function ExerciseSelector({
   const clearFilters = () => {
     setSearch('')
     setActiveBodyPart(null)
+    setActiveEquipment(null)
   }
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-background">
       {/* Header & Filters */}
-      <div className="shrink-0 border-b border-border bg-card/50 backdrop-blur-md px-4 pt-5 pb-4 sm:px-6">
-        <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="shrink-0 border-b border-border bg-card/50 backdrop-blur-md px-4 pt-5 pb-3.5 sm:px-6">
+        <div className="mb-3.5 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Library className="size-5" aria-hidden />
@@ -137,14 +192,14 @@ export function ExerciseSelector({
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="relative">
             <SearchIcon
               className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden
             />
             <Input
-              placeholder="Busca por nombre o equipo..."
+              placeholder="Busca por nombre, músculo o equipo (ej. mancuerna, polea, pecho)..."
               className="h-11 rounded-2xl border-border/80 bg-background pl-10 ring-primary/10 transition-shadow focus-visible:ring-4"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -162,18 +217,18 @@ export function ExerciseSelector({
             )}
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
               <SlidersHorizontal className="size-3" aria-hidden />
               Zonas Musculares
             </div>
-            <div className="flex w-full gap-2 overflow-x-auto no-scrollbar pb-1">
+            <div className="flex w-full gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
               <Badge
                 role="button"
                 tabIndex={0}
                 variant={!activeBodyPart ? 'default' : 'secondary'}
                 className={cn(
-                  'h-8 shrink-0 cursor-pointer rounded-full px-3 text-xs transition-all',
+                  'h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs transition-all',
                   !activeBodyPart ? 'shadow-sm ring-2 ring-primary/20' : 'hover:bg-secondary/80'
                 )}
                 onClick={() => setActiveBodyPart(null)}
@@ -193,7 +248,7 @@ export function ExerciseSelector({
                   tabIndex={0}
                   variant={activeBodyPart === bp ? 'default' : 'outline'}
                   className={cn(
-                    'h-8 shrink-0 cursor-pointer rounded-full px-3 text-xs capitalize transition-all',
+                    'h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs capitalize transition-all',
                     activeBodyPart === bp ? 'shadow-sm ring-2 ring-primary/20' : 'text-muted-foreground hover:border-primary/40 hover:text-foreground'
                   )}
                   onClick={() => setActiveBodyPart(activeBodyPart === bp ? null : bp)}
@@ -205,6 +260,58 @@ export function ExerciseSelector({
                   }}
                 >
                   {bp}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">
+              <Dumbbell className="size-3" aria-hidden />
+              Equipamiento
+            </div>
+            <div className="flex w-full gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+              <Badge
+                role="button"
+                tabIndex={0}
+                variant={!activeEquipment ? 'default' : 'secondary'}
+                className={cn(
+                  'h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs transition-all',
+                  !activeEquipment ? 'shadow-sm ring-2 ring-primary/20' : 'hover:bg-secondary/80'
+                )}
+                onClick={() => setActiveEquipment(null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    setActiveEquipment(null)
+                  }
+                }}
+              >
+                Todos
+              </Badge>
+              {EQUIPMENT_QUICK_FILTERS.map((eq) => (
+                <Badge
+                  key={eq.id}
+                  role="button"
+                  tabIndex={0}
+                  variant={activeEquipment === eq.id ? 'default' : 'outline'}
+                  className={cn(
+                    'h-7 shrink-0 cursor-pointer rounded-full px-3 text-xs transition-all',
+                    activeEquipment === eq.id
+                      ? 'shadow-sm ring-2 ring-primary/20'
+                      : 'text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                  )}
+                  onClick={() =>
+                    setActiveEquipment(activeEquipment === eq.id ? null : eq.id)
+                  }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setActiveEquipment(activeEquipment === eq.id ? null : eq.id)
+                    }
+                  }}
+                >
+                  {eq.label}
                 </Badge>
               ))}
             </div>
@@ -254,6 +361,7 @@ export function ExerciseSelector({
           <div className="grid grid-cols-1 gap-3 pb-32">
             {visibleExercises.map((ex) => {
               const isSelected = selectedIds.has(ex.id)
+              const isAlreadyInDay = existingIdsSet.has(ex.id)
               return (
                 <div
                   key={ex.id}
@@ -298,6 +406,14 @@ export function ExerciseSelector({
                       {exName(ex)}
                     </p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {isAlreadyInDay && (
+                        <Badge
+                          variant="outline"
+                          className="h-5 rounded-md border-emerald-500/30 bg-emerald-500/10 px-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
+                        >
+                          Ya en este día
+                        </Badge>
+                      )}
                       {exTargetMuscles(ex).length > 0 && (
                         <Badge variant="secondary" className="h-5 rounded-md px-1.5 text-[10px] font-semibold uppercase tracking-wider bg-primary/5 text-primary/80 border-0">
                           {exTargetMuscles(ex)[0]}
