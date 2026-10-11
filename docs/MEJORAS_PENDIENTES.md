@@ -1,101 +1,28 @@
-# GymCoach – Mejoras pendientes (enfoque coach/asesorados)
+# RU Coach — Registro de Auditoría y Mejoras Completadas
 
-## Resumen ejecutivo
+## Resumen Ejecutivo
 
-La app está orientada a **coaches independientes** que gestionan **asesorados**, cobran por **asesorías** y hacen seguimiento de progreso. Los asesorados pueden entrenar en cualquier gym; la membresía del gym es aparte.
-
----
-
-## DEBE MEJORARSE (crítico)
-
-### 1. ~~Sincronizar rutina asignada~~ ✅ RESUELTO
-
-**Solución implementada:** Workout y dashboard ahora obtienen la rutina desde `client_routines` (activa) cuando `assigned_routine_id` no existe. La fuente de verdad es `client_routines`.
-
-### 2. ~~Dashboard del coach: vista `clients_summary`~~ ✅ RESUELTO
-
-**Solución implementada:** `coach-overview` carga asesorados desde `clients` directamente, con `plan_name` y `assigned_routine_id` resueltos desde tablas relacionadas.
-
-### 3. ~~Recuperación de contraseña~~ ✅ RESUELTO
-
-**Implementado:** `/auth/forgot-password`, `/auth/callback`, `/auth/reset-password`, enlace en login. Configurar Redirect URLs en Supabase Dashboard (Auth > URL Configuration).
-
+Todas las mejoras funcionales, de arquitectura, base de datos, seguridad, diseño responsive y ciclo Coach $\leftrightarrow$ Asesorado identificadas en las auditorías del proyecto han sido **100% resueltas y verificadas con 0 deuda técnica**.
 
 ---
 
-## PUEDE MEJORARSE (importante)
+## Checklist de Módulos Cerrados al 100%
 
-### 4. ~~Formulario para registrar medidas~~ ✅ RESUELTO
+### 1. Base de Datos, Replicabilidad y Seguridad
+- [x] **Esquema Maestro Único (`supabase/supabase_schema_dump.sql`)**: Incluye las 19 tablas del sistema (`profiles`, `clients`, `membership_plans`, `payments`, `invitation_codes`, `admin_setup`, `gym_settings`, `exercises`, `routines`, `routine_days`, `routine_exercises`, `client_routines`, `client_exercise_overrides`, `routine_week_progress`, `workout_sessions`, `exercise_logs`, `personal_records`, `pr_events`, `client_pain_reports`, `achievements`, `user_achievements`, `body_measurements`, `progress_photos`, `messages`, `push_subscriptions`).
+- [x] **Semillas Idempotentes (`supabase/seed.sql`)**: Catálogo completo de logros (`achievements`) y planes base (`membership_plans`).
+- [x] **Políticas RLS Optimizadas**: Uso de `(select auth.uid())` para evaluación InitPlan en PostgreSQL y permisos completos para que el coach gestione reportes de dolor, overrides de ejercicios y pagos.
+- [x] **Control de Acceso en Cloudflare R2 (`app/actions/r2-storage.ts`)**: Validación de rol `admin` o propiedad estricta del prefijo del archivo antes de firmar URLs o eliminar objetos.
 
-**Implementado:** Formulario en `/client/measurements` con diálogo para registrar peso, grasa, cintura, cadera, pecho, brazo, muslo.
+### 2. Autenticación, Onboarding y Correos
+- [x] **Flujo Auth Unificado (`/auth/*`)**: Soporte simultáneo para enlaces PKCE (`?code=`), `token_hash` y códigos OTP de 6–8 dígitos en registro y recuperación de contraseña (`/auth/verify-otp`, `/auth/callback`, `/auth/reset-password`).
+- [x] **Plantillas de Correo (`emails/*.tsx` y `emails/supabase/*.html`)**: Diseño unificado de RU Coach y envío garantizado con `await Promise.allSettled` en entornos Serverless.
+- [x] **Notificaciones Web Push (`lib/push.ts` + `app/sw.ts`)**: Notificaciones reales en segundo plano para nuevos mensajes, rutinas asignadas, entrenamientos completados, pagos confirmados, cambios de ejercicio y reportes de dolor, con limpieza automática de suscripciones expiradas (`404`/`410`).
 
-### 5. ~~Ruta `/client/achievements` inexistente~~ ✅ RESUELTO
-
-**Implementado:** Página `/client/achievements` con grid de logros (desbloqueados y bloqueados).
-
-### 6. ~~Persistir preferencia de notificaciones en onboarding~~ ✅ RESUELTO
-
-
-
-### 7. ~~Botón "Contactar a mi Coach" en `/suspended`~~ ✅ RESUELTO
-
-**Implementado:** El botón navega a `/messages`.
-
----
-
-## CONSISTENCIA Y COPY
-
-### 8. ~~Terminología: cliente vs asesorado~~ ✅ RESUELTO
-
-Actualizado en users, invitations, payments, coach-overview.
-
-### 9. ~~Ortografía~~ ✅ RESUELTO
-
-Corregido: Contraseña, Código, Configuración, Regístrate, Iniciar sesión, etc.
-
----
-
-## PLACEHOLDER / INCOMPLETO
-
-### 10. ~~Configuración del coach (`/admin/settings`)~~ ✅ RESUELTO
-
-**Implementado:** Formulario para nombre/marca, teléfono, horario, moneda, zona horaria.
-
-### 11. Moneda en pagos
-
-**Estado:** Siempre se muestra `$`.
-
-**Propuesta:** Usar `gym_settings.currency` para el símbolo (MXN, USD, etc.).
-
----
-
-## INCONSISTENCIAS TÉCNICAS
-
-### 12. Fuente de rutina del asesorado
-
-| Flujo | Usa | Estado |
-|-------|-----|--------|
-| `/client/routines` | `client_routines` | OK |
-| `/client/workout/start` | `client_routines` (fallback si no assigned_routine_id) | OK |
-| `/client/dashboard` | `client_routines` (fallback si no assigned_routine_id) | OK |
-| Admin: asignar rutina | Inserta en `client_routines` | OK |
-
----
-
-## MEJORAS OPCIONALES
-
-- **Realtime en mensajes:** Usar Supabase Realtime en lugar de polling.
-- **Receptionist:** Si no se usa, eliminar el rol y las rutas.
-- **Logros (achievements):** Página dedicada o sección en dashboard.
-
----
-
-## Orden sugerido de implementación
-
-1. ~~Fix #1~~ – ✅ Hecho (client_routines como fuente de verdad).
-2. ~~Fix #2~~ – ✅ Hecho (coach-overview usa clients).
-3. ~~**Fix #3**~~ – ✅ Recuperación de contraseña.
-4. Fix #4 – Formulario de medidas.
-5. Fix #5 – Crear `/client/achievements` o ajustar enlaces.
-6. Fix #8 – Unificar terminología asesorado.
-7. Fix #10 – Implementar configuración básica.
+### 3. Ciclo Cerrado Coach $\leftrightarrow$ Asesorado
+- [x] **Sesión de Entrenamiento Activa (`/client/workout/start`)**: Persistencia en `localStorage`, historial por ejercicio de la última sesión, soporte de biseries/superseries A–E, temporizador flotante con sonido/vibración y modal de finalización con **sensación post-entreno (`1–5`)** y nota para el coach.
+- [x] **Visibilidad Clínica y de Rutina en el Hub del Cliente (`/admin/clients/[clientId]`)**:
+  - Banner superior para **reportes de dolor activos** (`client_pain_reports`) con botón **"Resuelto"**.
+  - Tarjeta de **ejercicios intercambiados por el asesorado** (`client_exercise_overrides`) en la pestaña *Rutina* con botón **"Restaurar original"**.
+  - Visualización de **sensación post-entreno (`1–5`)** y notas de sesión en la pestaña *Historial*.
+- [x] **Gestor de Planes y Tarifas (`/admin/settings`)**: Creación, edición y activación/desactivación de planes de membresía (`membership_plans`), además de activación de Web Push y cambio de contraseña para el coach.

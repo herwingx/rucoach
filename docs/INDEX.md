@@ -1,211 +1,81 @@
-# GymCoach - Documentacion Completa
+# Índice de Documentación — RU Coach
 
-## Indice de Documentos
+## Por Dónde Empezar
 
----
-
-## Guias de Inicio Rapido
-
-| Documento | Descripcion | Para |
-|-----------|-------------|------|
-| [README.md](./README.md) | Guia general completa | Todos |
-| [ADMIN_FIRST_LOGIN.md](./ADMIN_FIRST_LOGIN.md) | Flujo profesional de setup inicial | Coach |
+1. **[README Principal](../README.md)** — Visión general del proyecto, stack tecnológico, comandos y arranque rápido.
+2. **[Resumen de Documentación (`docs/README.md`)](./README.md)** — Módulos implementados para el Coach, Asesorado y Recepción.
+3. **[Guía de Base de Datos (`docs/DATABASE_GUIDE.md`)](./DATABASE_GUIDE.md)** — Cómo levantar el esquema completo (`supabase/supabase_schema_dump.sql`), los datos semilla (`supabase/seed.sql`) y los 1,324 ejercicios bilingües.
+4. **[Guía de Despliegue (`docs/DEPLOYMENT.md`)](./DEPLOYMENT.md)** — Checklist completo para llevar la aplicación a producción en Vercel + Supabase + Cloudflare R2 + Resend.
+5. **[Guía Maestra de Migración a Producción `rucoach.app` (`docs/MIGRACION_PRODUCCION_RUCOACH_APP.md`)](./MIGRACION_PRODUCCION_RUCOACH_APP.md)** — Paso a paso detallado para Name.com → Cloudflare → Resend → Nueva Cuenta de Supabase → Vercel y configuración de MCPs.
 
 ---
 
-## Funcionalidades Core
+## Documentación Técnica y Operativa
 
-| Documento | Descripcion | Para |
-|-----------|-------------|------|
-| [ROUTINES.md](./ROUTINES.md) | Sistema de rutinas y asignacion | Coach |
-| [PROGRESSION.md](./PROGRESSION.md) | Sistema de progresion de carga | Coach/Cliente |
+### Arquitectura y Base de Datos
+- **[`ARCHITECTURE.md`](./ARCHITECTURE.md)**
+  - Stack tecnológico (Next.js 16, React 19, Tailwind v4, Supabase, R2, Serwist PWA, Web Push)
+  - Estructura completa del proyecto (`app/`, `components/`, `lib/`, `supabase/`, `emails/`)
+  - Modelo de datos (19 tablas en PostgreSQL con RLS optimizado)
+  - Flujos de autenticación, protección de rutas (`proxy.ts`) y notificaciones (`lib/push.ts` + `lib/email.ts`)
+- **[`DATABASE_GUIDE.md`](./DATABASE_GUIDE.md)**
+  - Esquema consolidado en `supabase/supabase_schema_dump.sql`
+  - Semillas idempotentes en `supabase/seed.sql`
+  - Script de migración de ejercicios bilingües (`scripts/migrate-exercises.ts`)
+- **[`R2_MIGRATION_GUIDE.md`](./R2_MIGRATION_GUIDE.md)**
+  - Configuración de Cloudflare R2, tokens S3, reglas CORS y subida masiva de GIFs con Rclone
 
----
+### Manuales del Sistema de Entrenamiento
+- **[`ROUTINES.md`](./ROUTINES.md)**
+  - Creación y edición en el Constructor de Rutinas (`/admin/routines/builder`)
+  - Uso de Biseries y Superseries (`superset_group` A–E)
+  - Asignación de rutinas, intercambio de ejercicios (`client_exercise_overrides`) y cambio de día (`override_next_day_id`)
+- **[`PROGRESSION.md`](./PROGRESSION.md)**
+  - Cómo funciona la sesión activa (`/client/workout/start`) y el registro serie por serie
+  - Sensación post-entrenamiento (`feeling_score` 1–5) y notas al coach
+  - Detección automática de Récords Personales (`personal_records` y `pr_events`)
+  - Algoritmo de auto-progresión (`lib/auto-progression.ts`) y bloqueo de seguridad ante reportes de dolor (`client_pain_reports`)
 
-## Arquitectura y Tecnico
-
-| Documento | Descripcion | Para |
-|-----------|-------------|------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | Arquitectura tecnica completa | Desarrolladores |
-| [DATABASE_GUIDE.md](./DATABASE_GUIDE.md) | Guía de configuración y migración de BD | Desarrolladores |
-| [R2_MIGRATION_GUIDE.md](./R2_MIGRATION_GUIDE.md) | Configuración y carga masiva en R2 | Desarrolladores |
-
----
-
-## Planes y Roadmap
-
-| Documento | Descripcion | Para |
-|-----------|-------------|------|
-| [PLAN_MEJORAS_PREMIUM.md](./PLAN_MEJORAS_PREMIUM.md) | Plan de mejoras Fase 2 Premium | Desarrolladores |
-
----
-
-## Estado del Proyecto
-
-### Fase 1: Core (COMPLETADA)
-
-| Feature | Status |
-|---------|--------|
-| Autenticacion con roles | Completado |
-| Sistema de invitaciones | Completado |
-| CRUD de rutinas | Completado |
-| Asignacion de rutinas | Completado |
-| Tracking de ejercicios | Completado |
-| Sistema de XP/Nivel | Completado |
-| Achievements | Completado |
-| PRs automaticos | Completado |
-| Dark/Light mode | Completado |
-| PWA | Completado |
-
-### Fase 2: Premium (PENDIENTE)
-
-| Feature | Prioridad | Esfuerzo | Status |
-|---------|-----------|----------|--------|
-| Dashboard Coach mejorado | 1 | Medio | Pendiente |
-| Perfil detallado cliente | 2 | Alto | Pendiente |
-| Graficas de progreso | 3 | Medio | Pendiente |
-| Medidas corporales | 4 | Bajo | Pendiente |
-| Comparador de fotos | 5 | Medio | Pendiente |
-| Calendario | 6 | Medio | Pendiente |
-| Notas del coach | 7 | Bajo | Pendiente |
-| Mensajeria | 8 | Alto | Pendiente |
-
-Ver detalles completos en [PLAN_MEJORAS_PREMIUM.md](./PLAN_MEJORAS_PREMIUM.md)
+### Historial de Auditorías y Mejoras Completadas
+- **[`MEJORAS_PENDIENTES.md`](./MEJORAS_PENDIENTES.md)** — Registro histórico de fixes y mejoras cerradas al 100%
+- **[`PLAN_MEJORAS_PREMIUM.md`](./PLAN_MEJORAS_PREMIUM.md)** — Hoja de ruta de funcionalidades premium (todas las fases 1 y 2 completadas)
 
 ---
 
-## Flujos Principales
+## Mapa de Archivos Clave del Repositorio
 
-### Flujo del Admin/Coach
-
+```text
+gym-coaching/
+├── README.md                          # Guía principal del repositorio
+├── proxy.ts                           # Middleware de sesión y rutas en Next.js 16
+├── next.config.mjs                    # Configuración de Next.js 16, Serwist PWA y headers de seguridad
+├── supabase/
+│   ├── supabase_schema_dump.sql       # Esquema maestro PostgreSQL (19 tablas, triggers, RLS, Storage, Realtime)
+│   └── seed.sql                       # Datos semilla (logros de gamificación y planes de membresía)
+├── app/
+│   ├── sw.ts                          # Service Worker (Serwist + receptor de notificaciones Web Push)
+│   ├── actions/                       # Server Actions (workout, routines, overrides, payments, messages, R2, push)
+│   ├── auth/                          # Flujos de login, registro, OTP, recuperación y admin-setup
+│   ├── onboarding/                    # Onboarding de 4 pasos para el asesorado
+│   ├── admin/                         # Portal del Coach (dashboard, clients, routines, exercises, payments, messages, settings)
+│   ├── client/                        # Portal del Asesorado (dashboard, routines, workout, progress, measurements, photos, calendar, achievements, messages, profile)
+│   └── receptionist/                  # Portal de Recepción (dashboard, check-in, clients, payments)
+├── components/
+│   ├── admin/                         # Componentes del panel de Coach
+│   ├── client/                        # Componentes del portal del Asesorado
+│   ├── chat/                          # Chat en tiempo real (Coach <-> Asesorado)
+│   ├── charts/                        # Gráficas de progreso, volumen y medidas (Recharts / TanStack Charts)
+│   ├── photos/                        # Subida a R2, galería y comparador Antes/Después
+│   ├── routines/                      # Tarjetas de días y ejercicios con soporte de superseries
+│   └── ui/                            # Sistema de componentes base (shadcn/ui + Radix UI)
+├── lib/
+│   ├── supabase/                      # Clientes Supabase (browser, server, admin, proxy)
+│   ├── auto-progression.ts            # Motor de auto-progresión y protección por dolor
+│   ├── gamification.ts                # Motor de XP, niveles, rachas y desbloqueo de logros
+│   ├── push.ts                        # Envío de notificaciones Web Push (VAPID) en servidor
+│   ├── email.ts                       # Envío de correos transaccionales con Resend
+│   └── r2.ts                          # Cliente S3 para Cloudflare R2
+└── emails/
+    ├── *.tsx                          # Plantillas React Email (Bienvenida, Invitación, Nueva Rutina, Pago)
+    └── supabase/*.html                # Plantillas HTML para pegar en Supabase Auth Dashboard
 ```
-1. Setup Inicial
-   /auth/admin-setup -> Crear cuenta con codigo
-   
-2. Onboarding (propuesto)
-   /admin/onboarding -> Configurar gym, planes, primera rutina
-   
-3. Operacion Diaria
-   /admin/dashboard -> Ver estado de asesorados
-   /admin/invitations -> Generar codigos
-   /admin/clients/pending -> Aprobar nuevos
-   /admin/routines -> Crear/editar rutinas
-   /admin/clients/[id]/assign-routine -> Asignar rutina
-   /admin/payments -> Registrar pagos
-```
-
-### Flujo del Cliente/Asesorado
-
-```
-1. Registro
-   /auth/sign-up -> Con codigo de invitacion
-   
-2. Onboarding
-   /onboarding -> 4 pasos de configuracion
-   
-3. Operacion Diaria
-   /client/dashboard -> Ver stats y proxima sesion
-   /client/routines -> Ver rutina asignada
-   /client/workout/start -> Iniciar entrenamiento
-   /client/progress -> Ver graficas
-   /client/profile -> Editar perfil
-```
-
----
-
-## Base de Datos - Tablas Clave
-
-| Tabla | Proposito |
-|-------|-----------|
-| `profiles` | Usuarios, roles, gamificacion |
-| `clients` | Clientes con status y membresia |
-| `routines` | Plantillas de rutinas |
-| `routine_days` | Dias de cada rutina |
-| `routine_exercises` | Ejercicios por dia |
-| `exercises` | Biblioteca de ejercicios |
-| `client_routines` | Asignacion rutina-cliente |
-| `exercise_logs` | Registro de sets ejecutados |
-| `personal_records` | PRs por ejercicio |
-| `workout_sessions` | Sesiones completadas |
-| `achievements` | Logros disponibles |
-| `user_achievements` | Logros desbloqueados |
-| `invitation_codes` | Codigos de invitacion |
-| `body_measurements` | Medidas corporales |
-| `payments` | Pagos registrados |
-
----
-
-## Variables de Entorno
-
-```env
-# Supabase (automatico)
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-
-# Admin Setup
-ADMIN_SETUP_CODE=GYMCOACH2024
-```
-
----
-
-## Rutas Principales
-
-### Admin
-```
-/admin/dashboard         Panel principal
-/admin/clients           Lista de clientes
-/admin/clients/[id]      Detalle de cliente
-/admin/clients/pending   Aprobar nuevos
-/admin/routines          Lista de rutinas
-/admin/routines/new      Crear rutina
-/admin/routines/[id]     Editar rutina
-/admin/payments          Historial de pagos
-/admin/invitations       Codigos de invitacion
-/admin/users             Gestionar usuarios
-/admin/settings          Configuracion
-```
-
-### Client
-```
-/client/dashboard        Panel principal
-/client/routines         Mi rutina asignada
-/client/workout/start    Iniciar entrenamiento
-/client/progress         Mi progreso
-/client/profile          Mi perfil
-```
-
-### Auth
-```
-/auth/login              Iniciar sesion
-/auth/sign-up            Registrarse (con codigo)
-/auth/admin-setup        Setup inicial admin
-/onboarding              Onboarding cliente
-/suspended               Cuenta suspendida
-```
-
----
-
-## Quick Reference
-
-### Codigos Importantes
-- **Admin Setup Code:** `GYMCOACH2024`
-- **Roles:** `admin`, `client`, `receptionist`
-- **Status Cliente:** `active`, `suspended`, `expired`
-
-### Gamificacion
-- **XP por workout:** 50
-- **XP por PR:** 100
-- **XP por nivel:** 100
-- **Streak bonus:** 7 dias = 200 XP
-
----
-
-## Contacto
-
-Para soporte o preguntas, revisar la documentacion completa en `/docs/`.
-
----
-
-**Version:** 1.0
-**Ultima actualizacion:** Marzo 2026

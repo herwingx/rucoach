@@ -1,217 +1,109 @@
-# Guía de Rutinas - GymCoach Premium
+# Guía de Rutinas y Prescripción — RU Coach
 
 ## Índice
-- [Crear una Rutina](#crear-una-rutina)
-- [Editar una Rutina](#editar-una-rutina)
-- [Asignar a Asesorados](#asignar-a-asesorados)
-- [Tipos de Rutinas](#tipos-de-rutinas)
-- [Mejores Prácticas](#mejores-prácticas)
+- [Constructor Visual de Rutinas (`/admin/routines/builder`)](#constructor-visual-de-rutinas-adminroutinesbuilder)
+- [Biseries y Superseries (Grupos A–E)](#biseries-y-superseries-grupos-ae)
+- [Asignar Rutinas a Asesorados](#asignar-rutinas-a-asesorados)
+- [Flexibilidad en Piso: Cambio de Ejercicio y Cambio de Día](#flexibilidad-en-piso-cambio-de-ejercicio-y-cambio-de-día)
+- [Estructuras Recomendadas](#estructuras-recomendadas)
 
-## Crear una Rutina
+---
 
-### Paso a Paso
+## Constructor Visual de Rutinas (`/admin/routines/builder`)
 
-1. **Entra al Admin Dashboard** → Sidebar → "Rutinas"
-2. Click en **"+ Crear Nueva Rutina"**
-3. Completa los campos principales:
+### Paso a Paso para Crear o Editar una Rutina
 
-```
-Nombre: "Hipertrofia 12 Semanas"
-Descripción: "Programa enfocado en ganancia de masa muscular"
-Duración: 12 semanas
-Días de entrenamiento por semana: 6
-```
+1. Entra a **Panel del Coach → Rutinas** (`/admin/routines`) y haz clic en **"+ Nueva rutina"** (o **"Editar"** dentro de una rutina existente).
+2. Define los metadatos principales del programa:
+   - **Nombre de la rutina**: ej. *"Hipertrofia 12 Semanas — Upper/Lower"*
+   - **Objetivo (`goal`)**: *Ganancia muscular*, *Pérdida de grasa*, *Fuerza / Tonificación*, *Resistencia* o *Mantenimiento*
+   - **Nivel (`level`)**: *Principiante*, *Intermedio* o *Avanzado*
+   - **Duración (`duration_weeks`)**: Número de semanas del bloque (ej. `8` o `12`)
+   - **Descripción**: Indicaciones generales del bloque para el asesorado
+3. **Configura cada Día de la Semana**:
+   - Puedes alternar cada día entre **Día de Entrenamiento** o **Día de Descanso Activo / Total** (`is_rest_day`).
+   - Asigna un nombre claro al día (ej. *"Día 1 — Push (Pecho, Hombro, Tríceps)"*).
+4. **Agrega y Ordena Ejercicios**:
+   - Abre el selector conectado al catálogo de **1,324 ejercicios en español** (filtrable por grupo muscular o equipo).
+   - Reordena los ejercicios arrastrándolos desde el ícono lateral (`@dnd-kit`, compatible en desktop y pantallas táctiles móviles).
+   - Para cada ejercicio configura:
+     - **Series (`sets`)**: ej. `4`
+     - **Repeticiones (`reps`)**: ej. `8-10` (o segundos si es un ejercicio isométrico/`timed`)
+     - **Peso base sugerido (`base_weight`)**: ej. `60` kg
+     - **Descanso (`rest_seconds`)**: ej. `90` segundos
+     - **Grupo de Biserie / Superserie (`superset_group`)**: `A`, `B`, `C`, `D`, `E` o sin agrupar
+     - **Notas técnicas (`notes`)**: Indicaciones de tempo, agarre o rango de movimiento
+5. Haz clic en **"Guardar Rutina"**. El servidor persiste los días y ejercicios en lote (`app/actions/routine-builder.ts`).
 
-4. **Estructura la rutina** - Para cada día:
-   - Click en **"Agregar Día"**
-   - Selecciona:
-     - **Número de día** (1-7)
-     - **Nombre** (ej: "Push Day")
-     - **Tipo**: "Entrenamiento" o "Descanso"
-   
-5. **Si es día de entrenamiento**, agrega ejercicios:
-   - Click en **"Agregar Ejercicio"**
-   - Selecciona de la biblioteca (o crea nuevo)
-   - Define:
-     - **Sets**: 3
-     - **Reps**: 8-12
-     - **Peso base**: 60kg
-     - **Descanso**: 90 segundos
-     - **Notas**: (opcional) "Mantén control, no rebotes"
+---
 
-6. Click en **"Guardar Rutina"**
+## Biseries y Superseries (Grupos A–E)
 
-### Estructura Recomendada PPL (Push/Pull/Legs)
+El constructor soporta agrupación visual y funcional de ejercicios mediante la columna `superset_group` (`A` a `E`):
+- Si asignas la misma letra (por ejemplo, **Grupo A**) a dos o más ejercicios del mismo día, tanto en `/client/routines` como durante la sesión activa en `/client/workout/start` aparecerán identificados con su insignia de color (**Biserie / Superserie A**).
+- Esto indica al asesorado que debe alternar las series entre ambos ejercicios antes de tomar el descanso largo.
 
-**Día 1 - PUSH (Pecho, Hombros, Triceps)**
-```
-- Press de Banca: 4 x 6-8
-- Press Inclinado: 3 x 8-10
-- Press Militar: 3 x 6-8
-- Aperturas: 3 x 10-12
-- Extension de Triceps: 3 x 10-12
-- Fondos: 3 x 8-10
-```
+---
 
-**Día 2 - PULL (Espalda, Biceps)**
-```
-- Peso Muerto: 4 x 3-5
-- Remo con Barra: 4 x 6-8
-- Jalon al Pecho: 3 x 8-10
-- Curl con Barra: 3 x 8-10
-- Curl Martillo: 3 x 10-12
-- Face Pull: 3 x 12-15
-```
+## Asignar Rutinas a Asesorados
 
-**Día 3 - LEGS (Piernas)**
-```
-- Sentadilla: 4 x 6-8
-- Prensa de Piernas: 3 x 8-10
-- Extension de Cuadriceps: 3 x 10-12
-- Curl Femoral: 3 x 10-12
-- Peso Muerto Rumano: 3 x 8-10
-- Elevacion Pantorrillas: 3 x 15-20
-```
+Puedes asignar una rutina desde:
+- **El directorio de rutinas (`/admin/routines`)** haciendo clic en **"Asignar"** sobre la tarjeta de la rutina.
+- **El perfil del asesorado (`/admin/clients/[clientId]`)** haciendo clic en **"Cambiar rutina"** (`/admin/clients/[clientId]/assign-routine`).
 
-**Día 4 - DESCANSO**
+Al asignar una rutina (`assignRoutineToClient` en [`app/actions/routine-assignment.ts`](file:///home/herwingx/Development/gym-coaching/app/actions/routine-assignment.ts)):
+1. Cualquier rutina activa previa del cliente en `client_routines` pasa automáticamente a estado `completed`.
+2. Se crea el nuevo registro activo en `client_routines` y se sincroniza `clients.assigned_routine_id`.
+3. Se envía automáticamente al asesorado:
+   - Un **correo transaccional** (`NewRoutineEmail.tsx`) vía Resend.
+   - Una **notificación Web Push** inmediata a su teléfono (`lib/push.ts`).
 
-**Día 5 - PUSH (Variaciones)**
-```
-- Mancuerna Press: 4 x 8-10
-- Press Inclinado Mancuerna: 3 x 8-10
-- Lateral Raise: 3 x 12-15
-- Cruce de Cables: 3 x 10-12
-- Tricep Pushdown: 3 x 10-12
-- Dips: 3 x 8-10
-```
+---
 
-**Día 6 - PULL (Variaciones)**
-```
-- Remo Sentado: 4 x 8-10
-- Dominadas: 4 x 6-8
-- Remo Horizontal: 3 x 8-10
-- Curl Banco Scott: 3 x 8-10
-- Curl Concentrado: 3 x 12-15
-- Pájaros: 3 x 12-15
-```
+## Flexibilidad en Piso: Cambio de Ejercicio y Cambio de Día
 
-**Día 7 - DESCANSO**
+Para que el asesorado nunca pierda su entrenamiento por imprevistos en el gimnasio, **RU Coach** incluye dos herramientas controladas con trazabilidad completa para el coach:
 
-## Editar una Rutina
+### 1. Intercambio de Ejercicio (`ExerciseSwapDrawer` / `client_exercise_overrides`)
+- Desde `/client/routines` o en pleno entrenamiento (`/client/workout/start`), el asesorado puede tocar el botón de **Intercambiar ejercicio**.
+- El sistema sugiere ejercicios equivalentes del mismo grupo muscular primario (`getSwapSuggestions`).
+- El asesorado elige el ejercicio sustituto y el motivo (*Equipo ocupado*, *Molestia/lesión*, *No disponible en mi gym* o *Preferencia*).
+- **Impacto**:
+  - Se guarda en `public.client_exercise_overrides` sin alterar la plantilla original de otros clientes.
+  - Las series y récords personales se registran bajo el `exercise_id` del ejercicio sustituto para no contaminar la estadística del ejercicio original.
+  - El coach recibe una **notificación Push** inmediata y visualiza todas las sustituciones activas en la pestaña **Rutina** de `/admin/clients/[clientId]`, con un botón **"Restaurar original"** (`revertExerciseOverride`) para volver al ejercicio base cuando lo considere oportuno.
 
-1. Ve a **"Rutinas"** en el sidebar
-2. Click en la rutina que quieres editar
-3. Click en **"Editar"** 
-4. Realiza los cambios:
-   - Cambiar duración
-   - Modificar descripción
-   - Agregar/remover ejercicios
-   - Ajustar sets, reps, peso
-5. Click en **"Guardar Cambios"**
+### 2. Cambio del Día a Entrenar Hoy (`ScheduleOverrideDialog` / `override_next_day_id`)
+- Si al asesorado le tocaba *"Día 1 — Pierna"* pero necesita hacer *"Día 2 — Torso"* hoy, puede cambiar el día activo desde `/client/routines`.
+- Esto actualiza `client_routines.override_next_day_id`.
+- Una vez que el asesorado completa la sesión en `/client/workout/start`, `completeWorkoutSession` limpia automáticamente `override_next_day_id = null` para que el ciclo normal de días continúe en la siguiente sesión.
 
-**Nota:** Si la rutina ya está asignada a clientes, los cambios se aplicarán solo a nuevas asignaciones. Los clientes que ya la tienen continuarán con la versión anterior.
+---
 
-## Asignar a Asesorados
+## Estructuras Recomendadas
 
-### Opción 1: Desde la Página de Rutina
+### Full Body (3 días / semana — Principiantes)
+- **Día 1**: Cuerpo Completo A (énfasis sentadilla y empuje horizontal)
+- **Día 2**: Descanso
+- **Día 3**: Cuerpo Completo B (énfasis bisagra de cadera y tracción vertical)
+- **Día 4**: Descanso
+- **Día 5**: Cuerpo Completo C (énfasis unilateral e hipertrofia accesoria)
 
-1. En la página de la rutina, click en **"Asignar Rutina"**
-2. Selecciona cliente de la lista
-3. Agrega notas (ej: "Aumentar peso cada semana")
-4. Click en **"Asignar"**
+### Upper / Lower (4 días / semana — Intermedios)
+- **Día 1**: Torso Fuerza (Press Banca, Remo con Barra, Press Militar, Dominadas)
+- **Día 2**: Pierna Fuerza (Sentadilla, Peso Muerto Rumano, Prensa, Pantorrilla)
+- **Día 3**: Descanso
+- **Día 4**: Torso Hipertrofia (Press Inclinado Mancuernas, Jalón, Elevaciones Laterales, Brazos en Biserie A)
+- **Día 5**: Pierna Hipertrofia (Hack Squat, Hip Thrust, Extensión de Cuádriceps + Curl Femoral en Biserie A)
 
-### Opción 2: Desde Perfil del Cliente
-
-1. Ve a **"Clientes"**
-2. Click en el cliente
-3. Click en **"Asignar Nueva Rutina"**
-4. Selecciona rutina y confirma
-
-## Tipos de Rutinas
-
-### Por Objetivo
-
-**HIPERTROFIA (Ganancia Muscular)**
-- Reps: 8-12
-- Sets: 3-4 por ejercicio
-- Descanso: 60-90 segundos
-- Duración: 8-12 semanas
-- Ejemplo: PPL, Bro Split, Upper/Lower
-
-**FUERZA (Máxima Fuerza)**
-- Reps: 1-6
-- Sets: 3-5 por ejercicio
-- Descanso: 2-3 minutos
-- Duración: 4-8 semanas
-- Ejemplo: 5x5, Stronglifts, Periodizado
-
-**RESISTENCIA (Endurance)**
-- Reps: 12-20
-- Sets: 2-3 por ejercicio
-- Descanso: 30-45 segundos
-- Duración: 6-8 semanas
-- Ejemplo: HIIT, Circuitos, Crossfit
-
-**PÉRDIDA DE PESO**
-- Reps: 10-15
-- Sets: 3 por ejercicio
-- Descanso: 45-60 segundos
-- Duración: 8-12 semanas
-- Ejemplo: Full Body, Hiit, Metabolico
-
-### Por Frecuencia
-
-**Full Body (3x semana)**
-- Día 1: Todas las partes
-- Día 2: Descanso
-- Día 3: Todas las partes
-- Ideal para principiantes
-
-**Upper/Lower (4x semana)**
-- Día 1: Upper (arriba)
-- Día 2: Lower (abajo)
-- Día 3: Descanso
-- Día 4: Upper
-- Día 5: Lower
-- Ideal para intermedios
-
-**PPL (6x semana)**
-- Día 1: Push
-- Día 2: Pull
-- Día 3: Legs
-- Día 4: Push
-- Día 5: Pull
-- Día 6: Legs
-- Ideal para avanzados
-
-## Mejores Prácticas
-
-### ✅ Hacer
-
-- ✅ Incluir 1-2 días de descanso por semana
-- ✅ Variar ejercicios cada 4-6 semanas
-- ✅ Aumentar peso gradualmente (5-10% cada vez)
-- ✅ Incluir ejercicios compuestos y de aislamiento
-- ✅ Revisar progreso cada 4 semanas
-- ✅ Personalizar según objetivos y experiencia
-
-### ❌ Evitar
-
-- ❌ Rutinas sin variación (aburren)
-- ❌ Demasiados ejercicios por día (> 6-7)
-- ❌ Sets/reps inconsistentes sin razón
-- ❌ Ignorar la progresión
-- ❌ Rutinas demasiado largas (> 90 minutos)
-
-### 📊 Monitoreo
-
-Revisa semanalmente:
-- ¿El cliente está ganando fuerza?
-- ¿Está terminando todos los entrenamientos?
-- ¿Está mejorando consistentemente?
-- ¿Necesita progresión o descanso?
-
-La app te sugiere automáticamente cuando es momento de progresar.
+### Push / Pull / Legs (6 días / semana — Avanzados)
+- **Día 1**: Push (Pecho, Hombros, Tríceps)
+- **Día 2**: Pull (Espalda, Trapecio, Bíceps)
+- **Día 3**: Legs (Cuádriceps, Isquiosurales, Glúteo, Pantorrilla)
+- **Día 4**: Descanso
+- **Día 5**: Push Variación
+- **Día 6**: Pull Variación
+- **Día 7**: Legs Variación
 
 ---
 

@@ -1,307 +1,109 @@
-# Progresión de Carga - GymCoach Premium
+# Sistema de Progresión, PRs y Seguridad Clínica — RU Coach
 
 ## Índice
-- [Cómo Funciona](#cómo-funciona)
-- [Sistema Automático](#sistema-automático)
-- [Registro Manual](#registro-manual)
-- [Detección de PRs](#detección-de-prs)
-- [Estrategias](#estrategias)
-- [Troubleshooting](#troubleshooting)
+- [El Ciclo de Progresión en RU Coach](#el-ciclo-de-progresión-en-ru-coach)
+- [Registro en Vivo durante el Entrenamiento (`/client/workout/start`)](#registro-en-vivo-durante-el-entrenamiento-clientworkoutstart)
+- [Sensación Post-Entreno (`feeling_score` 1–5) y Feedback al Coach](#sensación-post-entreno-feeling_score-15-y-feedback-al-coach)
+- [Detección Automática de Récords Personales (PRs)](#detección-automática-de-récords-personales-prs)
+- [Motor de Auto-Progresión (`lib/auto-progression.ts`)](#motor-de-auto-progresión-libauto-progressionts)
+- [Barrera de Seguridad Clínica por Reporte de Dolor](#barrera-de-seguridad-clínica-por-reporte-de-dolor)
 
-## Cómo Funciona
+---
 
-### El Ciclo de Progresión
+## El Ciclo de Progresión en RU Coach
 
-```
-1. ENTRENAR
-   ↓
-2. REGISTRAR (peso, reps, RPE)
-   ↓
-3. APP ANALIZA
-   ↓
-4. SUGERENCIAS (aumenta peso/reps)
-   ↓
-5. TÚ IMPLEMENTAS
-   ↓
-6. (Repetir)
-```
-
-### Variables Principales
-
-**PESO (Load)**
-- Aumentar: +2.5-5kg cada semana
-
-**REPS (Repeticiones)**
-- Aumentar: +1-2 reps cada sesión
-
-**SETS (Series)**
-- Mantener consistencia
-
-**RPE (Rate of Perceived Exertion)**
-- 1-3: Muy fácil
-- 4-5: Fácil
-- 6-7: Moderado
-- 8: Difícil
-- 9: Muy difícil
-- 10: Máximo esfuerzo
-
-## Sistema Automático
-
-### Cómo la App Detecta Progresión
-
-La app registra cada ejercicio:
-```
-Fecha    | Ejercicio        | Peso | Reps | RPE | Sets
-2026-01-15 | Press Banca     | 80kg |  8   |  8  |  3
-2026-01-20 | Press Banca     | 80kg |  9   |  7  |  3
-2026-01-25 | Press Banca     | 80kg | 10   |  6  |  3
-2026-02-01 | Press Banca     | 82kg |  8   |  8  |  3  ← APP SUGIRIÓ EL AUMENTO
-```
-
-### Análisis Automático
-
-Cada semana, la app calcula:
-
-1. **Promedio de Peso** - Peso promedio usado
-2. **RPE Promedio** - Esfuerzo promedio
-3. **Consistencia** - ¿Fue consistente?
-4. **Tendencia** - ¿Fue en aumento?
-
-### Sugerencias Generadas
-
-**Si RPE Bajo + Reps Altas:**
-```
-"Has completado 12 reps con RPE 6. 
-Intenta aumentar a 14 reps próxima sesión."
-```
-
-**Si Consistencia Alta:**
-```
-"4 sesiones sin cambios. 
-Sugiero aumentar a 77.5kg (ahora: 75kg)"
-```
-
-**Si Mucha Fatiga:**
-```
-"Tu RPE ha sido alto últimamente (9-10).
-Considera decargar este mes."
-```
-
-## Registro Manual
-
-### Durante el Entrenamiento
-
-1. Completa cada set
-2. La app te pide:
-   - **Peso utilizado**
-   - **Reps completadas**
-   - **RPE** (1-10)
-   - **Notas** (opcional)
-
-3. La app automáticamente:
-   - Detecta si es PR
-   - Guarda en base de datos
-   - Actualiza tu histórico
-
-### Histórico de Ejercicios
-
-Ve todos tus entrenamientos de un ejercicio:
-```
-Press de Banca - Histórico Completo
-
-2026-01-15: 80kg x 8 (RPE 8)
-2026-01-20: 80kg x 9 (RPE 7)
-2026-01-25: 80kg x 10 (RPE 6)
-2026-02-01: 82kg x 8 (RPE 8)  ← Nuevo Personal Record!
-2026-02-05: 82kg x 9 (RPE 7)
-2026-02-10: 82kg x 10 (RPE 6)
-```
-
-## Detección de PRs
-
-### Tipos de PRs
-
-**1. PR Absoluto** (Personal Record)
-```
-Mejor peso jamás levantado en ese ejercicio
-Ejemplo: Press Banca 100kg (anterior era 95kg)
-Recompensa: +100 XP + Badge "1RM Beast"
-```
-
-**Ejemplo: PR de Reps**
-```
-Mejor número de repeticiones con cierto peso
-Ejemplo: Pull-ups 15 reps @ peso corporal (anterior era 12)
-Recompensa: +50 XP
-```
-
-**3. PR de Volumen**
-```
-Mayor volumen total en un entrenamiento
-Ejemplo: 50 series en una sesión (anterior era 45)
-Recompensa: +75 XP
-```
-
-### Cómo la App Detecta PRs
-
-- Compara cada sesión con toda la historia
-- Si `peso > máximo anterior` = PR de peso
-- Si `reps > máximo anterior con ese peso` = PR de reps
-- Notificación inmediata: "🔥 NUEVO PR! 💪"
-
-## Estrategias
-
-### Estrategia 1: Progresión Lineal (Principiantes)
-
-```
-Semana 1: 60kg x 8 reps x 3 sets
-Semana 2: 62.5kg x 8 reps x 3 sets (aumenta peso)
-Semana 3: 65kg x 8 reps x 3 sets
-Semana 4: 67.5kg x 8 reps x 3 sets
-```
-
-**Ventaja:** Simple, funciona rápido
-**Desventaja:** Eventualmente se platearán
-
-### Estrategia 2: Progresión de Reps → Peso
-
-```
-Semana 1: 60kg x 8 reps (RPE 8)
-Semana 2: 60kg x 9 reps (RPE 7)
-Semana 3: 60kg x 10 reps (RPE 6)
-Semana 4: 62.5kg x 8 reps (RPE 8)  ← Reset reps, aumenta peso
-```
-
-**Ventaja:** Más sostenible, menos plateaus
-**Desventaja:** Progresión más lenta
-
-### Estrategia 3: Periodización
-
-```
-Mes 1 (Fuerza): 75kg x 3-5 reps
-Mes 2 (Hipertrofia): 65kg x 8-10 reps
-Mes 3 (Resistencia): 55kg x 12-15 reps
-Mes 4 (Deload): 50% x cualquier reps
-```
-
-**Ventaja:** Evita plateaus, recuperación
-**Desventaja:** Requiere planificación
-
-### Estrategia 4: DUP (Daily Undulating Periodization)
-
-```
-Lunes: 3x5 @ 80kg (Fuerza)
-Miércoles: 4x8 @ 70kg (Hipertrofia)
-Viernes: 3x12 @ 60kg (Resistencia)
-```
-
-**Ventaja:** Máxima progresión, menos aburrimiento
-**Desventaja:** Necesita experiencia
-
-## Troubleshooting
-
-### Problema: No Puedo Aumentar Peso
-
-**Causas:**
-- Fatiga acumulada
-- Mala técnica
-- Dormir poco
-- Nutrición deficiente
-
-**Solución:**
-```
-1. Haz un "Deload" (semana con 50% carga)
-2. Practica técnica con peso ligero
-3. Duerme 8+ horas
-4. Come más proteína (1.6-2.2g/kg)
-5. Reintenta después de 1-2 semanas
-```
-
-### Problema: Todas mis Cargas Bajan
-
-**Causas:**
-- Lesión o dolor
-- Entrenamiento demasiado frecuente
-- Demasiado volumen
-
-**Solución:**
-```
-1. PARA si hay dolor
-2. Ve a un fisio si persiste
-3. Reduce volumen a 50%
-4. Aumenta descanso entre entrenamientos
-5. Vuelve gradualmente
-```
-
-### Problema: Mi RPE es Siempre 10
-
-**Causas:**
-- Ego lift (peso muy pesado)
-- Mala calibración del RPE
-- Dormir poco
-
-**Solución:**
-```
-1. Reduce peso 10-15%
-2. Practica escalas de RPE (1-10)
-3. Come/duerme más
-```
-
-### Problema: Estoy en Plateau
-
-**Causas:**
-- Adaptación (cuerpo se acostumbra)
-- No hay variación
-- Fatiga acumulada
-
-**Solución:**
-```
-1. Cambia ejercicios (variaciones)
-2. Cambia sets/reps (si haces 3x8, intenta 4x6)
-3. Añade técnicas (drop sets, supersets)
-4. Toma semana de deload
-5. Varía velocidad (lento/rápido)
-```
-
-### Problema: No Veo el PR en la App
-
-**Posibles Razones:**
-- No registraste correctamente
-- Es PR pero no es absoluto
-- La app necesita más datos
-
-**Solución:**
-```
-1. Verifica el histórico del ejercicio
-2. Asegúrate registrar peso/reps exactos
-3. Si aún no ves, contacta soporte
+```text
+1. ENTRENAR EN VIVO (/client/workout/start)
+   ├─ Referencia inmediata de los sets de la última sesión en ese ejercicio
+   ├─ Registro táctil de Peso (kg), Repeticiones / Segundos y RPE (1-10)
+   └─ Temporizador de descanso automático con alerta sonora y vibración
+        │
+        ▼
+2. FINALIZAR CON SENSACIÓN POST-ENTRENO (1–5)
+   ├─ Calificación de esfuerzo percibido global (Ligero → Al límite)
+   └─ Nota opcional para el Coach
+        │
+        ▼
+3. PROCESAMIENTO EN SERVIDOR (completeWorkoutSession)
+   ├─ Cálculo de volumen total, XP ganado y racha en días calendario
+   ├─ Detección y persistencia en lote de Personal Records (personal_records + pr_events)
+   ├─ Evaluación de logros desbloqueados (achievements)
+   └─ Notificación Web Push inmediata al Coach
+        │
+        ▼
+4. AUTO-PROGRESIÓN INTELIGENTE (/client/workout/summary)
+   ├─ Evalúa si el atleta alcanzó el tope del rango prescrito con RPE controlado
+   ├─ Verifica que NO exista un reporte de dolor activo (severity >= 4) en esa región corporal
+   └─ Actualiza base_weight (+2.5 kg) para la próxima sesión si es seguro progresar
 ```
 
 ---
 
-## Metricas a Monitorear
+## Registro en Vivo durante el Entrenamiento (`/client/workout/start`)
 
-Semanalmente, el coach revisa:
+La pantalla de sesión activa ([`workout-active-session.tsx`](file:///home/herwingx/Development/gym-coaching/app/client/workout/start/workout-active-session.tsx)) está optimizada para uso con una sola mano en el gimnasio:
+- **Historial del Ejercicio en Pantalla**: Consulta los `exercise_logs` de la última sesión completada donde se realizó ese mismo ejercicio (incluso si fue hace varios días) para mostrar qué peso y repeticiones se usaron en cada serie.
+- **Adaptación según Tipo de Ejercicio**:
+  - **Con carga externa (`uses_external_load = true`)**: Muestra controles `+` / `-` para Peso (`kg`) y Repeticiones, además de selector rápido de RPE (`6`, `7`, `8`, `9`, `10`).
+  - **Peso corporal (`bodyweight`)**: Oculta el campo de peso externo innecesario y centra el registro en repeticiones y RPE.
+  - **Por tiempo (`timed`)**: Registra la duración en segundos (`duration_seconds`).
+- **Persistencia Resiliente (`localStorage`)**: Cada cambio de serie, peso o cronómetro se guarda localmente en el dispositivo (`workout_draft_{clientId}_{dayId}`). Si el navegador móvil se suspende al bloquear la pantalla, el estado se restaura intacto al volver.
+- **Edición Flexible**: Una serie marcada como completada puede desmarcarse con un toque para corregir peso o repeticiones antes de finalizar la sesión.
 
-```
-Cliente: Juan
-Semana: 2026-W12
+---
 
-📊 Progreso General:
-- Peso Promedio: ↑ +2.5kg
-- RPE Promedio: ↓ 8 → 7.2 (mejor)
-- Consistencia: ✅ 100% (6/6 días)
-- PRs: 2 nuevos esta semana
+## Sensación Post-Entreno (`feeling_score` 1–5) y Feedback al Coach
 
-🏋️ Por Ejercicio:
-- Press Banca: ↑ 80kg → 82.5kg
-- Sentadilla: → 95kg (sin cambio, RPE alto)
-- Curl: ↑ 15kg → 16kg (+1 rep)
+Al pulsar **"Finalizar entrenamiento"**, se abre un diálogo de confirmación que resume las series completadas, el volumen total acumulado y el tiempo transcurrido (advirtiendo si quedaron series sin marcar).
 
-💡 Recomendación:
-"Juan va bien pero tiene RPE alto en Sentadilla.
-Sugiero decargar un poco o tomar día extra de descanso."
-```
+El asesorado selecciona cómo sintió la sesión en una escala de **1 a 5**:
+1. **1 — Ligero**: Sesión muy cómoda o de recuperación.
+2. **2 — Bien**: Esfuerzo controlado, buena energía.
+3. **3 — Exigente**: Trabajo sólido dentro del rango esperado.
+4. **4 — Intenso**: Alta demanda física y muscular.
+5. **5 — Al límite**: Fatiga máxima al terminar.
+
+Tanto `feeling_score` como `feeling_note` se guardan en `public.workout_sessions` y se muestran con badges semafóricos en la pestaña **Historial** del Hub del Cliente (`/admin/clients/[clientId]`).
+
+---
+
+## Detección Automática de Récords Personales (PRs)
+
+Al finalizar la sesión (`completeWorkoutSession` en [`app/actions/workout.ts`](file:///home/herwingx/Development/gym-coaching/app/actions/workout.ts)):
+- Se filtran las series efectivas completadas (`completed = true`, `is_warmup = false`) en ejercicios que utilizan carga externa (`exerciseUsesExternalLoad`).
+- Se calcula el **1RM estimado** mediante la fórmula de Epley:
+  $$\text{1RM Estimado} = \text{Peso} \times \left(1 + \frac{\text{Reps}}{30}\right)$$
+- Si el peso máximo levantado en el ejercicio supera el `max_weight` histórico registrado en `public.personal_records`:
+  1. Se marca la serie con `is_pr = true`.
+  2. Se actualiza `public.personal_records` en lote (`upsert` por `client_id, exercise_id`) conservando `previous_max_weight`.
+  3. Se inserta el evento en `public.pr_events` para alimentar las gráficas históricas de `/client/progress` y `/admin/clients/[clientId]`.
+  4. Se otorgan **+100 XP adicionales** por cada récord personal batido.
+
+---
+
+## Motor de Auto-Progresión (`lib/auto-progression.ts`)
+
+Cuando el asesorado concluye su entrenamiento y llega a `/client/workout/summary`, se ejecuta `evaluateAndApplyAutoProgression(clientId, sessionId)` (solo para sesiones recién finalizadas en los últimos 30 minutos):
+
+1. **Lectura del Rango Prescrito**: Si el ejercicio indica `8-12` repeticiones, el tope del rango (`maxTargetReps`) es `12`.
+2. **Criterio de Progresión**:
+   - **Subir carga (`increase_weight`, `+2.5 kg`)**: Todas las series de trabajo alcanzaron o superaron `maxTargetReps` con un RPE promedio $\le 8.5$. El sistema actualiza automáticamente `routine_exercises.base_weight` para la siguiente sesión.
+   - **Mantener carga (`maintain`)**: Las repeticiones están dentro del rango objetivo con RPE $7–9$.
+   - **Sugerencia de descarga (`decrease_weight`)**: El RPE promedio fue $\ge 9.5$ o no se logró el mínimo de repeticiones prescritas.
+
+---
+
+## Barrera de Seguridad Clínica por Reporte de Dolor
+
+La salud articular y muscular del asesorado tiene prioridad sobre cualquier algoritmo de carga:
+
+1. **Reporte por el Asesorado (`/client/profile`)**:
+   - El cliente puede registrar en cualquier momento una molestia o dolor físico (`reportClientPain` en [`app/actions/routine-overrides.ts`](file:///home/herwingx/Development/gym-coaching/app/actions/routine-overrides.ts)) indicando la zona corporal (Hombro, Rodilla, Espalda baja, Codo, etc.), severidad del `1` al `10` y notas.
+2. **Bloqueo Automático de Incremento de Peso**:
+   - En [`lib/auto-progression.ts`](file:///home/herwingx/Development/gym-coaching/lib/auto-progression.ts), si el cliente tiene un reporte activo en `public.client_pain_reports` con `severity >= 4`, el motor bloquea cualquier incremento automático de peso en el tren afectado (tren superior o tren inferior) y muestra la explicación clínica en el resumen de la sesión.
+3. **Resolución por el Coach (`/admin/clients/[clientId]`)**:
+   - El coach recibe una notificación Push en el momento del reporte y ve un **Banner Clínico Rojo** en la cabecera del expediente del cliente.
+   - Una vez que el coach evalúa al cliente o ajusta su rutina, puede hacer clic en **"Resuelto"** (`resolveClientPainReport`), reactivando la progresión normal.
 
 ---
 
