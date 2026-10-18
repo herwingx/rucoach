@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 
 export type SessionExerciseLogRow = {
   workout_session_id: string
+  exercise_id?: string | null
   exercise_name: string
   set_number: number
   weight_kg: number | null
@@ -9,6 +10,14 @@ export type SessionExerciseLogRow = {
   is_warmup: boolean | null
   is_pr: boolean | null
   created_at?: string | null
+  exercises?: {
+    id?: string
+    name?: string | null
+    name_es?: string | null
+    primary_muscle?: string | null
+    secondary_muscles?: string[] | null
+    muscle_weights?: Record<string, number> | null
+  } | null
 }
 
 export async function getWorkoutSessions(clientId: string, limit = 10) {
@@ -125,7 +134,7 @@ export async function getExerciseLogsForSessions(
   const { data, error } = await supabase
     .from('exercise_logs')
     .select(
-      'workout_session_id, exercise_name, set_number, weight_kg, reps, is_warmup, is_pr, created_at',
+      'workout_session_id, exercise_id, exercise_name, set_number, weight_kg, reps, is_warmup, is_pr, created_at, exercises(id, name, name_es, primary_muscle, secondary_muscles, muscle_weights)',
     )
     .in('workout_session_id', sessionIds)
     .order('created_at', { ascending: true })

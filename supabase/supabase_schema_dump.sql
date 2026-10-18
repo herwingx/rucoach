@@ -575,6 +575,11 @@ CREATE TABLE public.exercises (
     target_muscles_es text[],
     secondary_muscles_es text[],
     instructions_es text[],
+    -- Enriquecimiento anatómico y biomecánico (openGym)
+    muscle_weights jsonb,
+    description text,
+    description_es text,
+    default_increment_kg numeric DEFAULT 2.5,
     CONSTRAINT exercises_pkey PRIMARY KEY (id)
 );
 
@@ -699,6 +704,11 @@ CREATE TABLE public.routine_exercises (
     rest_seconds integer NOT NULL,
     notes text,
     superset_group text,
+    warmup_sets text,
+    progression_policy text DEFAULT 'linear',
+    reps_min integer,
+    reps_max integer,
+    intensifier jsonb,
     created_at timestamp with time zone DEFAULT now(),
     CONSTRAINT routine_exercises_routine_day_id_fkey FOREIGN KEY (routine_day_id) REFERENCES public.routine_days(id) ON DELETE CASCADE,
     CONSTRAINT routine_exercises_exercise_id_fkey FOREIGN KEY (exercise_id) REFERENCES public.exercises(id) ON DELETE CASCADE

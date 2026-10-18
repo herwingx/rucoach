@@ -377,4 +377,324 @@ html {
   }
 }
 
+/* Faster SPA Sub-Tab state caching (Modern Web Guidance: faster-spa-view-transitions) */
+.spa-tab-pane.inactive {
+  content-visibility: hidden;
+  position: absolute;
+  pointer-events: none;
+}
+
+@supports not (content-visibility: hidden) {
+  .spa-tab-pane.inactive {
+    display: none !important;
+  }
+}
+
+/* Defer rendering heavy below-the-fold content (Modern Web Guidance: defer-rendering-heavy-content) */
+.content-visibility-auto-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto none auto 140px;
+}
+
+/* View transitions motion preferences (Modern Web Guidance: same-document-transitions) */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Open-Gym Anatomical BodyMap & Activity Heatmap (Adapted to RU Coach Theme)
+   -------------------------------------------------------------------------- */
+.bodymap {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  --bm-base: color-mix(in srgb, var(--foreground) 11%, var(--card));
+}
+
+.bm-v {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  max-height: min(46vh, 340px);
+}
+
+.bm-ph {
+  height: 220px;
+}
+
+/* Inert silhouette (head, hair, neck, hands, feet, knees, ankles) — never shaded as muscles */
+.bm-sil {
+  fill: color-mix(in srgb, var(--foreground) 18%, var(--card));
+}
+
+/* Untrained / Rested muscle base (l0) — neutral dark/light contrast, never green */
+.bm-m {
+  fill: var(--bm-base);
+  transition: fill 180ms cubic-bezier(0.2, 0.8, 0.2, 1), stroke 150ms ease, filter 180ms ease;
+}
+
+/* Volume & Balance scale (l1..l4) using RU Coach signature Gold/Amber (--primary) */
+.bm-m.l1 {
+  fill: color-mix(in srgb, var(--primary) 32%, var(--bm-base));
+}
+.bm-m.l2 {
+  fill: color-mix(in srgb, var(--primary) 56%, var(--bm-base));
+}
+.bm-m.l3 {
+  fill: color-mix(in srgb, var(--primary) 78%, var(--bm-base));
+}
+.bm-m.l4 {
+  fill: var(--primary);
+}
+
+/* Fatigue view (.hm-fatigue): rested muscles stay l0 (--bm-base), only recovering/fatigued light up */
+.hm-fatigue .bm-m.l1 {
+  fill: color-mix(in srgb, var(--primary) 32%, var(--bm-base));
+}
+.hm-fatigue .bm-m.l2 {
+  fill: var(--primary);
+}
+.hm-fatigue .bm-m.l3 {
+  fill: oklch(0.70 0.19 48);
+}
+.hm-fatigue .bm-m.l4 {
+  fill: var(--destructive);
+}
+
+/* Strength retention view (.hm-strength): top band pops in primary gold */
+.hm-strength .bm-m.l4 {
+  fill: var(--primary);
+  filter: drop-shadow(0 0 2px var(--primary));
+}
+
+/* Clinical pain view (.hm-clinical): injured zones highlighted */
+.hm-clinical .bm-m.l2,
+.hm-clinical .bm-sil.l2 {
+  fill: var(--primary);
+}
+.hm-clinical .bm-m.l3,
+.hm-clinical .bm-sil.l3 {
+  fill: oklch(0.70 0.19 48);
+}
+.hm-clinical .bm-m.l4,
+.hm-clinical .bm-sil.l4 {
+  fill: var(--destructive);
+}
+
+/* Surface-color hairline separating neighbouring muscles so the body never reads as one flat blob */
+.bm-v path {
+  stroke: var(--card);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.bodymap.tappable .bm-m {
+  cursor: pointer;
+}
+
+.bodymap.tappable .bm-m:hover {
+  stroke: var(--primary);
+  stroke-width: 5.5;
+}
+
+.bm-m.sel,
+.bm-sil.sel {
+  stroke: var(--foreground) !important;
+  stroke-width: 7 !important;
+}
+
+.bodymap.tappable .bm-m:focus-visible {
+  outline: none;
+  stroke: var(--foreground);
+  stroke-width: 7;
+  filter: drop-shadow(0 0 2px var(--card));
+}
+
+/* --- Activity Heatmap (GitHub-style 52-week activity chart from open-gym) --- */
+.hm-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+.hm-wrap::-webkit-scrollbar {
+  display: none;
+}
+.hm-months {
+  display: flex;
+  margin-inline-start: 28px;
+  margin-bottom: 6px;
+}
+.hm-months span {
+  flex: none;
+  width: 14px;
+  min-width: 14px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: visible;
+  display: inline-block;
+}
+.hm-body {
+  display: flex;
+  align-items: flex-start;
+}
+.hm-days {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: none;
+  width: 28px;
+}
+.hm-days span {
+  height: 11px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  line-height: 11px;
+  display: block;
+  flex: none;
+}
+.hm-grid {
+  display: flex;
+  gap: 3px;
+  flex: none;
+}
+.hm-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: none;
+}
+
+/* Heatmap cells & Legend (.hm-c, .hm-legend) — shares the exact l0..l4 ramp */
+.hm-c {
+  width: 11px;
+  height: 11px;
+  min-width: 11px;
+  min-height: 11px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--foreground) 10%, var(--card));
+  flex: none;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.hm-c:hover {
+  filter: brightness(1.25);
+  transform: scale(1.2);
+}
+.hm-c.l1 {
+  background: color-mix(in srgb, var(--primary) 30%, color-mix(in srgb, var(--foreground) 10%, var(--card)));
+}
+.hm-c.l2 {
+  background: color-mix(in srgb, var(--primary) 55%, color-mix(in srgb, var(--foreground) 10%, var(--card)));
+}
+.hm-c.l3 {
+  background: color-mix(in srgb, var(--primary) 78%, color-mix(in srgb, var(--foreground) 10%, var(--card)));
+}
+.hm-c.l4 {
+  background: var(--primary);
+}
+.hm-c.today {
+  box-shadow: 0 0 0 1.5px var(--primary);
+}
+.hm-c.future {
+  opacity: 0.25;
+}
+
+.hm-fatigue .hm-c.l4 {
+  background: var(--destructive);
+}
+.hm-fatigue .hm-c.l3 {
+  background: oklch(0.70 0.19 48);
+}
+.hm-fatigue .hm-c.l2 {
+  background: var(--primary);
+}
+
+.hm-strength .hm-c.l4 {
+  background: var(--primary);
+}
+
+.hm-legend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  justify-content: flex-end;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.hm-legend .hm-c {
+  width: 10px;
+  height: 10px;
+  min-width: 10px;
+  min-height: 10px;
+}
+
+/* Muscle Progress Rows (.mrow) & Chips (.mchips) */
+.mrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.mrow .nm {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mrow .bar {
+  width: 84px;
+  height: 6px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--foreground) 11%, var(--card));
+  flex: none;
+  overflow: hidden;
+}
+.mrow .bar i {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  border-radius: 99px;
+  transition: width 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.mrow .v {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+  min-width: 58px;
+  text-align: end;
+  flex: none;
+}
+
+.mchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.mchip {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  transition: all 150ms ease;
+}
+.mchip.miss {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+
 

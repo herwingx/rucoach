@@ -66,6 +66,7 @@ export interface Exercise {
   gif_url?: string
   target_muscles?: string[]
   body_parts?: string[]
+  body_part?: string | null
   equipments?: string[]
   secondary_muscles?: string[]
   instructions?: string[]
@@ -76,6 +77,11 @@ export interface Exercise {
   target_muscles_es?: string[]
   secondary_muscles_es?: string[]
   instructions_es?: string[]
+  // -- Columnas de enriquecimiento anatómico y biomecánico (openGym) --
+  muscle_weights?: Record<string, number> | null
+  description?: string | null
+  description_es?: string | null
+  default_increment_kg?: number | null
   created_at: string
   updated_at: string
 }
@@ -83,11 +89,11 @@ export interface Exercise {
 export interface Routine {
   id: string
   name: string
-  description?: string
-  goal?: string
-  level?: string
+  description?: string | null
+  goal?: string | null
+  level?: string | null
   days_per_week?: number
-  duration_weeks?: number
+  duration_weeks?: number | null
   created_at: string
   updated_at: string
   routine_days?: RoutineDay[]
@@ -115,8 +121,20 @@ export interface RoutineExercise {
   suggested_weight?: number
   duration_seconds?: number
   rest_seconds?: number
-  superset_group?: string
-  notes?: string
+  superset_group?: string | null
+  notes?: string | null
+  warmup_sets?: string | null
+  progression_policy?: 'off' | 'linear' | 'double' | 'triple' | 'greyskull' | 'time' | null
+  reps_min?: number | null
+  reps_max?: number | null
+  intensifier?: {
+    type: 'dropset' | 'restpause' | 'pyramid' | 'failure'
+    drops?: number
+    drop_pct?: number
+    clusters?: number
+    cluster_reps?: number
+    cluster_rest_seconds?: number
+  } | null
   created_at: string
   exercises?: Exercise
 }
