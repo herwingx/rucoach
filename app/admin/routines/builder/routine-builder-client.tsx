@@ -67,9 +67,12 @@ import { ExerciseSelectorDrawer } from "@/components/admin/exercises/exercise-se
 import { SortableExercise } from "@/components/admin/exercises/sortable-exercise";
 import { ExerciseDetailDrawer } from "@/components/client/exercise-detail-drawer";
 import { Exercise } from "@/lib/types";
+import { getCachedExercises, setCachedExercises } from "@/lib/local-cache";
 import { normalizeRoutineLevel } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { Target } from "lucide-react";
+import { Target, Infinity as InfinityIcon, Activity } from "lucide-react";
+import { WeeklyMuscleCoverage } from "@/components/anatomy/weekly-muscle-coverage";
+import { computeRoutineMuscleVolume } from "@/lib/anatomy/muscles";
 
 interface DayExercise {
   id: string;
@@ -79,6 +82,7 @@ interface DayExercise {
   restSeconds: number;
   supersetGroup: string | null;
   notes?: string;
+  warmupSets?: string;
 }
 
 interface Day {
@@ -93,7 +97,8 @@ interface Day {
 interface RoutineDraft {
   name: string;
   description: string;
-  durationWeeks: number;
+  durationWeeks: number | null;
+  isContinuous?: boolean;
   goal: string;
   level: string;
   days: Day[];
@@ -135,7 +140,7 @@ export interface RoutineBuilderClientProps {
   initialData?: {
     name: string;
     description: string;
-    durationWeeks: number;
+    durationWeeks?: number | null;
     goal?: string | null;
     level?: string | null;
     days: Day[];
@@ -161,8 +166,13 @@ export function RoutineBuilderClient({
   const [description, setDescription] = useState(
     initialData?.description ?? "",
   );
+  const [isContinuous, setIsContinuous] = useState(
+    initialData?.durationWeeks === null,
+  );
   const [durationWeeks, setDurationWeeks] = useState(
-    initialData?.durationWeeks ?? 4,
+    initialData?.durationWeeks && initialData.durationWeeks > 0
+      ? initialData.durationWeeks
+      : 4,
   );
   const [goal, setGoal] = useState(initialData?.goal ?? "");
   const [level, setLevel] = useState<string>(
@@ -244,7 +254,8 @@ export function RoutineBuilderClient({
       const payload: RoutineDraft = {
         name,
         description,
-        durationWeeks,
+        durationWeeks: isContinuous ? null : durationWeeks,
+        isContinuous,
         goal,
         level,
         days,
@@ -261,6 +272,7 @@ export function RoutineBuilderClient({
     name,
     description,
     durationWeeks,
+    isContinuous,
     goal,
     level,
     days,
@@ -270,7 +282,14 @@ export function RoutineBuilderClient({
     if (!pendingDraft) return;
     setName(pendingDraft.name ?? "");
     setDescription(pendingDraft.description ?? "");
-    setDurationWeeks(pendingDraft.durationWeeks ?? 4);
+    const draftContinuous =
+      pendingDraft.isContinuous ?? pendingDraft.durationWeeks === null;
+    setIsContinuous(draftContinuous);
+    setDurationWeeks(
+      pendingDraft.durationWeeks && pendingDraft.durationWeeks > 0
+        ? pendingDraft.durationWeeks
+        : 4,
+    );
     setGoal(pendingDraft.goal ?? "");
     setLevel(
       normalizeRoutineLevel(pendingDraft.level) || pendingDraft.level || "",
@@ -311,20 +330,49 @@ export function RoutineBuilderClient({
     }
   }, [routineId, initialData?.goal, initialData?.level]);
 
-  // Fetch exercises on client if not provided
+  // Fetch exercises on client with IndexedDB cache fallback for zero-latency loading
   useEffect(() => {
-    if (initialExercises.length === 0) {
-      getExercisesForSelector()
-        .then((data) => {
+    let isMounted = true;
+    async function loadExercises() {
+      if (initialExercises.length > 0) return;
+
+      // 1. Intento de carga instantánea desde IndexedDB (<15ms)
+      try {
+        const cached = await getCachedExercises();
+        if (cached && cached.length > 0 && isMounted) {
+          setExercises(cached as Exercise[]);
+          setLoadingExercises(false);
+        }
+      } catch {
+        // Ignorar error de lectura de caché local
+      }
+
+      // 2. Sincronización en segundo plano con el servidor
+      try {
+        const data = await getExercisesForSelector();
+        if (isMounted) {
           setExercises(data as Exercise[]);
           setLoadingExercises(false);
-        })
-        .catch((err) => {
-          console.error("Error loading exercises", err);
-          toast.error("No pudimos cargar el catálogo de ejercicios.");
+          await setCachedExercises(data as Exercise[]);
+        }
+      } catch (err) {
+        console.error("Error loading exercises", err);
+        if (isMounted) {
+          setExercises((prev) => {
+            if (prev.length === 0) {
+              toast.error("No pudimos cargar el catálogo de ejercicios.");
+            }
+            return prev;
+          });
           setLoadingExercises(false);
-        });
+        }
+      }
     }
+
+    loadExercises();
+    return () => {
+      isMounted = false;
+    };
   }, [initialExercises]);
 
   const sensors = useSensors(
@@ -380,6 +428,7 @@ export function RoutineBuilderClient({
                   restSeconds: 60,
                   supersetGroup: null,
                   notes: "",
+                  warmupSets: "",
                 })),
               ],
             }
@@ -611,7 +660,7 @@ export function RoutineBuilderClient({
       const payload = {
         name: name.trim(),
         description: description.trim() || null,
-        duration_weeks: durationWeeks,
+        duration_weeks: isContinuous ? null : durationWeeks,
         goal: goal || null,
         level: normalizeRoutineLevel(level) || level || null,
         days: days.map((d) => ({
@@ -627,6 +676,7 @@ export function RoutineBuilderClient({
             rest_seconds: ex.restSeconds,
             superset_group: ex.supersetGroup ?? null,
             notes: ex.notes?.trim() || null,
+            warmup_sets: ex.warmupSets?.trim() || null,
           })),
         })),
       };
@@ -819,7 +869,7 @@ export function RoutineBuilderClient({
         </CardHeader>
         <CardContent className="flex flex-col px-6 pb-6 pt-4">
           <FieldGroup className="grid grid-cols-1 gap-6 md:grid-cols-12 md:gap-x-8 md:gap-y-6">
-            <Field className="md:col-span-8 gap-1.5">
+            <Field className="md:col-span-7 gap-1.5">
               <FieldLabel htmlFor="routine-name" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                 Nombre de la rutina
               </FieldLabel>
@@ -831,19 +881,45 @@ export function RoutineBuilderClient({
                 className="h-11 rounded-xl bg-muted/30 focus-visible:bg-background shadow-xs border-border/60 transition-colors"
               />
             </Field>
-            <Field className="md:col-span-4 gap-1.5">
-              <FieldLabel htmlFor="routine-duration" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                Semanas (Duración)
-              </FieldLabel>
-              <Input
-                id="routine-duration"
-                type="number"
-                inputMode="numeric"
-                value={durationWeeks}
-                onChange={(e) => setDurationWeeks(Number(e.target.value) || 4)}
-                min={1}
-                className="h-11 rounded-xl text-center tabular-nums bg-muted/30 focus-visible:bg-background shadow-xs border-border/60 transition-colors"
-              />
+            <Field className="md:col-span-5 gap-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <FieldLabel htmlFor="routine-duration" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Vigencia / Duración
+                </FieldLabel>
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-primary select-none">
+                  <Switch
+                    id="routine-continuous-toggle"
+                    checked={isContinuous}
+                    onCheckedChange={(checked) => setIsContinuous(checked)}
+                    className="scale-75 data-[state=checked]:bg-primary"
+                  />
+                  <span>Continua (según membresía)</span>
+                </label>
+              </div>
+              {isContinuous ? (
+                <div className="flex h-11 items-center gap-2 rounded-xl border border-primary/25 bg-primary/5 px-3.5 text-xs font-medium text-foreground">
+                  <InfinityIcon className="size-4 shrink-0 text-primary" />
+                  <span className="truncate">Vigencia ligada al pago activo del cliente</span>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Input
+                    id="routine-duration"
+                    type="number"
+                    inputMode="numeric"
+                    value={durationWeeks}
+                    onChange={(e) =>
+                      setDurationWeeks(Math.max(1, Number(e.target.value) || 1))
+                    }
+                    min={1}
+                    placeholder="Semanas fijas"
+                    className="h-11 rounded-xl pr-20 text-left tabular-nums bg-muted/30 focus-visible:bg-background shadow-xs border-border/60 transition-colors"
+                  />
+                  <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                    semanas
+                  </span>
+                </div>
+              )}
             </Field>
             <Field className="md:col-span-6 gap-1.5">
               <FieldLabel htmlFor="routine-goal" className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -1197,6 +1273,7 @@ export function RoutineBuilderClient({
                                   restSeconds={ex.restSeconds}
                                   supersetGroup={ex.supersetGroup}
                                   notes={ex.notes}
+                                  warmupSets={ex.warmupSets}
                                   exerciseInfo={exerciseInfo}
                                   canMoveUp={idx > 0}
                                   canMoveDown={idx < day.exercises.length - 1}
@@ -1263,6 +1340,43 @@ export function RoutineBuilderClient({
             );
           })}
         </div>
+
+        {/* Live Muscle Coverage Card (open-gym RoutineEdit live muscle map) */}
+        <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/10 rounded-2xl bg-card/80">
+          <CardHeader className="pb-4 border-b border-border/40 bg-muted/10">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Activity className="size-4.5" aria-hidden />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-bold tracking-tight">
+                    Cobertura Muscular en Vivo
+                  </CardTitle>
+                  <CardDescription className="text-xs font-medium">
+                    Series efectivas ponderadas (100% músculo primario · 40% secundario)
+                  </CardDescription>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <WeeklyMuscleCoverage
+              load={computeRoutineMuscleVolume(
+                days.flatMap((d) =>
+                  d.isRestDay
+                    ? []
+                    : d.exercises.map((item) => ({
+                        exercise:
+                          exercises.find((ex) => ex.id === item.exerciseId) ||
+                          {},
+                        sets: Number(item.sets) || 3,
+                      })),
+                ),
+              )}
+            />
+          </CardContent>
+        </Card>
       </div>
 
       <div

@@ -72,12 +72,32 @@ export async function proxy(request: NextRequest) {
     return response
   }
 
-  // 3. Obtener usuario (esto dispara setAll si el token expiró)
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // 3. Permitir el Router Cache en memoria de Next.js en navegaciones/prefetches RSC
+  const isRscRequest =
+    request.headers.get('rsc') === '1' ||
+    request.headers.get('next-router-prefetch') === '1'
 
-  // 4. Si no hay usuario y es ruta protegida -> Redirigir
+  // 4. Obtener usuario (usando verificación JWT local rápida en RSC/prefetch si hay cookie)
+  let user: { id: string } | null = null
+  if (isRscRequest && hasAuthCookie) {
+    try {
+      const { data: claimsData } = await supabase.auth.getClaims()
+      if (claimsData?.claims?.sub) {
+        user = { id: claimsData.claims.sub }
+      }
+    } catch {
+      // Fallback si la verificación de claims falla
+    }
+  }
+
+  if (!user) {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser()
+    user = authUser
+  }
+
+  // 5. Si no hay usuario y es ruta protegida -> Redirigir
   if (!user && !isPublicPath && url !== '/') {
     const redirectUrl = request.nextUrl.clone()
     redirectUrl.pathname = '/auth/login'
@@ -89,11 +109,6 @@ export async function proxy(request: NextRequest) {
     })
     return redirectResponse
   }
-
-  // 5. Permitir el Router Cache en memoria de Next.js en navegaciones/prefetches RSC
-  const isRscRequest =
-    request.headers.get('rsc') === '1' ||
-    request.headers.get('next-router-prefetch') === '1'
 
   if (!isPublicPath && !isRscRequest) {
     response.headers.set('Cache-Control', 'private, no-cache, must-revalidate')

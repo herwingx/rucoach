@@ -27,7 +27,10 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
+  Activity,
 } from "lucide-react";
+import { WeeklyMuscleCoverage } from "@/components/anatomy/weekly-muscle-coverage";
+import { computeRoutineMuscleVolume } from "@/lib/anatomy/muscles";
 
 const AUTO_APPLY_PREF_KEY = "gym-coaching:auto-apply-progression";
 
@@ -64,8 +67,20 @@ export interface SummaryExerciseLog {
   is_warmup?: boolean | null;
   is_pr?: boolean | null;
   exercises?:
-    | { name?: string | null; name_es?: string | null }
-    | { name?: string | null; name_es?: string | null }[]
+    | {
+        name?: string | null;
+        name_es?: string | null;
+        primary_muscle?: string | null;
+        secondary_muscles?: string[] | null;
+        muscle_weights?: Record<string, number> | null;
+      }
+    | {
+        name?: string | null;
+        name_es?: string | null;
+        primary_muscle?: string | null;
+        secondary_muscles?: string[] | null;
+        muscle_weights?: Record<string, number> | null;
+      }[]
     | null;
 }
 
@@ -543,6 +558,48 @@ export function WorkoutSummaryClient({
         </section>
 
         <aside className="flex flex-col gap-6 lg:sticky lg:top-[calc(112px+1.5rem)] lg:col-span-5 lg:self-start">
+          {/* What you just trained (open-gym FinishSummary BodyMap) */}
+          {groupedLogs.length > 0 && (
+            <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/50 transition-all hover:bg-card">
+              <CardHeader className="pb-4 pt-6 px-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                    <Activity className="size-5 text-primary" aria-hidden />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-bold tracking-tight">
+                      Músculos trabajados hoy
+                    </CardTitle>
+                    <CardDescription className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/80">
+                      Estímulo anatómico de la sesión
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="px-6 pb-6">
+                <WeeklyMuscleCoverage
+                  load={computeRoutineMuscleVolume(
+                    groupedLogs.map((g) => {
+                      const firstLog = g.sets[0];
+                      const exRel = Array.isArray(firstLog?.exercises)
+                        ? firstLog?.exercises[0]
+                        : firstLog?.exercises;
+                      const workingSetsCount = g.sets.filter(
+                        (s) => !s.is_warmup,
+                      ).length;
+                      return {
+                        exercise: exRel || {},
+                        sets: Math.max(1, workingSetsCount),
+                      };
+                    }),
+                  )}
+                  showMissed={false}
+                  collapsedRows={5}
+                />
+              </CardContent>
+            </Card>
+          )}
+
           {/* Performance Card */}
           <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/50 transition-all hover:bg-card">
             <CardHeader className="pb-4 pt-6 px-6">

@@ -1433,6 +1433,20 @@ export function WorkoutActiveSession({
                     </div>
                   </div>
                 ) : null}
+
+                {currentExercise.warmup_sets ? (
+                  <div className="mt-1 flex items-start gap-2 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-3.5 py-2.5 text-xs text-foreground/90">
+                    <Flame className="mt-0.5 size-4 shrink-0 text-amber-500" aria-hidden />
+                    <div className="min-w-0">
+                      <span className="font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 text-[10px] block">
+                        Series de aproximación sugeridas
+                      </span>
+                      <p className="leading-relaxed font-semibold text-amber-950 dark:text-amber-200">
+                        {currentExercise.warmup_sets}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               <div className="flex flex-col gap-3 sm:gap-4">

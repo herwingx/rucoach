@@ -275,3 +275,204 @@ export function generateProgressionPlan(
     message: 'Buen ritmo, mantén la consistencia'
   }
 }
+
+export type ProgressionPolicy =
+  | 'off'
+  | 'linear'
+  | 'double'
+  | 'triple'
+  | 'greyskull'
+  | 'time'
+
+export interface PolicyEvaluationArgs {
+  policy: ProgressionPolicy
+  currentWeight: number
+  targetReps: number
+  repsMin?: number
+  repsMax?: number
+  targetSets: number
+  performedSets: { weight: number; reps: number; completed: boolean }[]
+  consecutiveMisses?: number
+  incrementKg?: number
+}
+
+export interface PolicyEvaluationResult {
+  nextWeight: number
+  nextReps: number | string
+  nextSets: number
+  action: 'increase_weight' | 'increase_reps' | 'increase_sets' | 'maintain' | 'deload'
+  reasoning: string
+}
+
+/**
+ * Pure progression engine evaluating next load/reps based on selected policy
+ */
+export function applyProgressionPolicy(
+  args: PolicyEvaluationArgs,
+): PolicyEvaluationResult {
+  const {
+    policy,
+    currentWeight,
+    targetReps,
+    repsMin = 8,
+    repsMax = 12,
+    targetSets,
+    performedSets,
+    consecutiveMisses = 0,
+    incrementKg = 2.5,
+  } = args
+
+  if (policy === 'off') {
+    return {
+      nextWeight: currentWeight,
+      nextReps: targetReps,
+      nextSets: targetSets,
+      action: 'maintain',
+      reasoning: 'Progresión automática desactivada. Cargas fijas.',
+    }
+  }
+
+  const completedSets = performedSets.filter((s) => s.completed)
+  const allSetsCompleted = completedSets.length >= targetSets
+
+  // 1. LINEAR PROGRESSION
+  if (policy === 'linear') {
+    const allRepsHit =
+      allSetsCompleted && completedSets.every((s) => s.reps >= targetReps)
+
+    if (allRepsHit) {
+      return {
+        nextWeight: currentWeight + incrementKg,
+        nextReps: targetReps,
+        nextSets: targetSets,
+        action: 'increase_weight',
+        reasoning: `Completaste todas las series (${targetSets}x${targetReps}). Subes +${incrementKg} kg.`,
+      }
+    }
+
+    if (consecutiveMisses >= 2) {
+      const deloadWeight = Math.max(0, Math.round((currentWeight * 0.9) / 2.5) * 2.5)
+      return {
+        nextWeight: deloadWeight,
+        nextReps: targetReps,
+        nextSets: targetSets,
+        action: 'deload',
+        reasoning: `3 sesiones sin alcanzar reps objetivo. Descarga del 10% (-${(currentWeight - deloadWeight).toFixed(1)} kg) para recuperar y rebotar.`,
+      }
+    }
+
+    return {
+      nextWeight: currentWeight,
+      nextReps: targetReps,
+      nextSets: targetSets,
+      action: 'maintain',
+      reasoning: 'Mantén el peso hasta completar todas las repeticiones prescritas.',
+    }
+  }
+
+  // 2. DOUBLE PROGRESSION (Rango de repeticiones e.g. 8-12 reps)
+  if (policy === 'double') {
+    const hitCeiling =
+      allSetsCompleted && completedSets.every((s) => s.reps >= repsMax)
+
+    if (hitCeiling) {
+      return {
+        nextWeight: currentWeight + incrementKg,
+        nextReps: `${repsMin}-${repsMax}`,
+        nextSets: targetSets,
+        action: 'increase_weight',
+        reasoning: `Alcanzaste el tope del rango (${repsMax} reps en todas las series). Subes +${incrementKg} kg y reinicias a ${repsMin} reps.`,
+      }
+    }
+
+    return {
+      nextWeight: currentWeight,
+      nextReps: `${repsMin}-${repsMax}`,
+      nextSets: targetSets,
+      action: 'increase_reps',
+      reasoning: `Sigue acumulando repeticiones hacia ${repsMax} con el mismo peso (${currentWeight} kg).`,
+    }
+  }
+
+  // 3. GREYSKULL LP (Última serie AMRAP / al fallo)
+  if (policy === 'greyskull') {
+    const lastSet = completedSets[completedSets.length - 1]
+    const baseSetsHit =
+      completedSets.length >= targetSets &&
+      completedSets.slice(0, -1).every((s) => s.reps >= targetReps)
+
+    if (baseSetsHit && lastSet) {
+      if (lastSet.reps >= targetReps + 5) {
+        // Double increment if crushed AMRAP by 5+ reps
+        return {
+          nextWeight: currentWeight + incrementKg * 2,
+          nextReps: targetReps,
+          nextSets: targetSets,
+          action: 'increase_weight',
+          reasoning: `¡AMRAP dominante (${lastSet.reps} reps vs ${targetReps})! Doble incremento (+${incrementKg * 2} kg).`,
+        }
+      }
+      if (lastSet.reps >= targetReps) {
+        return {
+          nextWeight: currentWeight + incrementKg,
+          nextReps: targetReps,
+          nextSets: targetSets,
+          action: 'increase_weight',
+          reasoning: `Superaste el objetivo en la serie final (${lastSet.reps} reps). Subes +${incrementKg} kg.`,
+        }
+      }
+    }
+
+    // Missed target in Greyskull resets 10%
+    const deloadWeight = Math.max(0, Math.round((currentWeight * 0.9) / 2.5) * 2.5)
+    return {
+      nextWeight: deloadWeight,
+      nextReps: targetReps,
+      nextSets: targetSets,
+      action: 'deload',
+      reasoning: `No se alcanzaron las reps objetivo. Reset Greyskull del 10% (-${(currentWeight - deloadWeight).toFixed(1)} kg) para generar nueva racha de récords.`,
+    }
+  }
+
+  // 4. TRIPLE PROGRESSION (Reps -> Sets -> Weight)
+  if (policy === 'triple') {
+    const hitCeiling =
+      allSetsCompleted && completedSets.every((s) => s.reps >= repsMax)
+
+    if (hitCeiling) {
+      if (targetSets < 5) {
+        return {
+          nextWeight: currentWeight,
+          nextReps: repsMin,
+          nextSets: targetSets + 1,
+          action: 'increase_sets',
+          reasoning: `Completaste ${targetSets} series de ${repsMax} reps. Añadimos una serie extra (${targetSets + 1} series).`,
+        }
+      }
+      return {
+        nextWeight: currentWeight + incrementKg,
+        nextReps: repsMin,
+        nextSets: 3,
+        action: 'increase_weight',
+        reasoning: `Completaste volumen máximo (${targetSets}x${repsMax}). Subes +${incrementKg} kg y reinicias a 3 series de ${repsMin} reps.`,
+      }
+    }
+
+    return {
+      nextWeight: currentWeight,
+      nextReps: `${repsMin}-${repsMax}`,
+      nextSets: targetSets,
+      action: 'increase_reps',
+      reasoning: `Construye repeticiones hacia ${repsMax} con ${currentWeight} kg.`,
+    }
+  }
+
+  // Fallback
+  return {
+    nextWeight: currentWeight,
+    nextReps: targetReps,
+    nextSets: targetSets,
+    action: 'maintain',
+    reasoning: 'Mantén los parámetros actuales.',
+  }
+}

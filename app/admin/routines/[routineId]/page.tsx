@@ -19,6 +19,8 @@ import {
 import { getGoalLabel, getLevelLabel } from "@/lib/constants";
 import type { AssignableClientItem } from "@/components/admin/routines/assign-routine-modal";
 import { RoutineDetailActions } from "./routine-detail-actions";
+import { WeeklyMuscleCoverage } from "@/components/anatomy/weekly-muscle-coverage";
+import { calculateMuscleLoad } from "@/lib/anatomy/muscles";
 
 type RoutineExerciseStat = {
   id: string | number;
@@ -174,6 +176,16 @@ export default async function RoutineDetailsPage({ params }: Props) {
     0,
   );
 
+  const allRoutineExerciseItems = (routine.routine_days ?? []).flatMap((day: any) =>
+    day.is_rest_day
+      ? []
+      : (day.routine_exercises ?? []).map((re: any) => ({
+          exercise: re.exercises || {},
+          sets: re.sets ?? 3,
+        }))
+  );
+  const routineMuscleLoad = calculateMuscleLoad(allRoutineExerciseItems);
+
   const activeAssignedClients = (
     (routine.client_routines ?? []) as unknown as AssignedClientRelation[]
   )
@@ -265,7 +277,7 @@ export default async function RoutineDetailsPage({ params }: Props) {
                   <p className="font-semibold text-[15px] text-foreground">
                     {routine.duration_weeks
                       ? `${routine.duration_weeks} semanas`
-                      : "-"}
+                      : "Continua (según membresía)"}
                   </p>
                 </div>
                 <div className="rounded-xl border border-border/40 bg-background/50 p-4 flex flex-col justify-center">
@@ -309,6 +321,20 @@ export default async function RoutineDetailsPage({ params }: Props) {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-[1.5rem] border-border/50 bg-card/60 shadow-sm backdrop-blur-xl overflow-hidden">
+            <CardHeader className="bg-muted/10 pb-4 border-b border-border/30">
+              <CardTitle className="flex items-center gap-2.5 text-lg font-bold tracking-tight">
+                <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Sparkles className="size-4.5" />
+                </div>
+                Distribución anatómica y volumen semanal
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-5">
+              <WeeklyMuscleCoverage load={routineMuscleLoad} />
             </CardContent>
           </Card>
 

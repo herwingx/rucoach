@@ -17,12 +17,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Library, Search as SearchIcon, Eye, Pencil, ListOrdered, SlidersHorizontal, ChevronLeft, ChevronRight, Loader2, X, Dumbbell, Trash2 } from 'lucide-react'
+import { Library, Search as SearchIcon, Eye, Pencil, ListOrdered, SlidersHorizontal, ChevronLeft, ChevronRight, Loader2, X, Dumbbell, Trash2, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { exName, exEquipment, exTargetMuscles, exInstructions } from '@/lib/exercise-i18n'
 import { ExerciseDetailDrawer } from '@/components/client/exercise-detail-drawer'
 import { deleteAdminExercise } from '@/app/actions/exercises'
 import { toast } from 'sonner'
+import { BodyMap } from '@/components/anatomy/body-map'
+import { MUSCLES, MUSCLE_LABELS, type MuscleSlug } from '@/lib/anatomy/muscles'
 
 const EQUIPMENT_FILTERS = [
   { value: 'barra', label: 'Barra' },
@@ -101,6 +103,7 @@ interface AdminExerciseCatalogProps {
     search: string
     bodyPart: string | null
     equipment?: string | null
+    muscle?: MuscleSlug | null
   }
 }
 
@@ -117,6 +120,7 @@ export function AdminExerciseCatalog({
   
   const [search, setSearch] = useState(initialFilters.search)
   const [isPending, setIsPending] = useState(false)
+  const [showMuscleMap, setShowMuscleMap] = useState(Boolean(initialFilters.muscle))
   const [detailExercise, setDetailExercise] = useState<Exercise | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null)
@@ -146,8 +150,6 @@ export function AdminExerciseCatalog({
 
   const handleSearch = (value: string) => {
     setSearch(value)
-    // We don't update URL immediately on every keystroke to avoid too many fetches
-    // Use a timeout or a button. Let's use a simple timeout for better UX
   }
 
   // Debounced search update
@@ -165,6 +167,11 @@ export function AdminExerciseCatalog({
   const handleBodyPartChange = (bp: string | null) => {
     setIsPending(true)
     router.push(`?${createQueryString({ bodyPart: bp, page: '1' })}`)
+  }
+
+  const handleMuscleChange = (m: MuscleSlug | null) => {
+    setIsPending(true)
+    router.push(`?${createQueryString({ muscle: m, page: '1' })}`)
   }
 
   const handleEquipmentChange = (eq: string | null) => {
@@ -231,7 +238,12 @@ export function AdminExerciseCatalog({
 
   const activeBodyPart = searchParams.get('bodyPart')
   const activeEquipment = searchParams.get('equipment')
-  const hasActiveFilters = Boolean(search.trim() || activeBodyPart || activeEquipment)
+  const rawMuscleParam = searchParams.get('muscle')
+  const activeMuscle =
+    rawMuscleParam && MUSCLES.includes(rawMuscleParam as MuscleSlug)
+      ? (rawMuscleParam as MuscleSlug)
+      : null
+  const hasActiveFilters = Boolean(search.trim() || activeBodyPart || activeEquipment || activeMuscle)
 
   const getEditHref = (exerciseId: string) => {
     const qs = searchParams.toString()
@@ -249,18 +261,69 @@ export function AdminExerciseCatalog({
               aria-hidden
             />
             <div className="relative flex flex-col gap-6 p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-inner border border-primary/10">
-                  <Library className="size-5" aria-hidden />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-bold tracking-tight text-foreground">Biblioteca</p>
-                    {isPending && <Loader2 className="size-3.5 animate-spin text-primary" />}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-inner border border-primary/10">
+                    <Library className="size-5" aria-hidden />
                   </div>
-                  <p className="text-xs font-medium text-muted-foreground mt-0.5">Filtra sin perder contexto</p>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold tracking-tight text-foreground">Biblioteca</p>
+                      {isPending && <Loader2 className="size-3.5 animate-spin text-primary" />}
+                    </div>
+                    <p className="text-xs font-medium text-muted-foreground mt-0.5">Filtra sin perder contexto</p>
+                  </div>
                 </div>
+                <Button
+                  type="button"
+                  variant={showMuscleMap || activeMuscle ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-8 shrink-0 gap-1.5 rounded-xl px-2.5 text-xs font-bold"
+                  onClick={() => setShowMuscleMap((v) => !v)}
+                >
+                  <Activity className="size-3.5" />
+                  <span>Mapa</span>
+                </Button>
               </div>
+
+              {(showMuscleMap || activeMuscle) && (
+                <div className="rounded-2xl border border-border/60 bg-background/60 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Explorador Anatómico
+                    </span>
+                    {activeMuscle && (
+                      <button
+                        type="button"
+                        onClick={() => handleMuscleChange(null)}
+                        className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary"
+                      >
+                        {MUSCLE_LABELS[activeMuscle]}
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </div>
+                  <BodyMap
+                    bare
+                    mode="volume"
+                    load={activeMuscle ? { [activeMuscle]: 1 } : {}}
+                    selected={activeMuscle}
+                    onSelect={(m) => handleMuscleChange(m === activeMuscle ? null : m)}
+                  />
+                  <div className="mchips mt-2.5">
+                    {MUSCLES.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => handleMuscleChange(m === activeMuscle ? null : m)}
+                        className={`mchip ${activeMuscle === m ? 'sel' : ''}`}
+                      >
+                        {MUSCLE_LABELS[m]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="relative group">
                 <SearchIcon

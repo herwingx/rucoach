@@ -559,7 +559,7 @@ export async function getWorkoutSessionSummary(sessionId: string) {
   const { data: logs, error: logsError } = await supabase
     .from("exercise_logs")
     .select(
-      "exercise_id, exercise_name, set_number, weight_kg, reps, rpe, is_warmup, is_pr, exercises(name, name_es)",
+      "exercise_id, exercise_name, set_number, weight_kg, reps, rpe, is_warmup, is_pr, exercises(name, name_es, primary_muscle, secondary_muscles, muscle_weights)",
     )
     .eq("workout_session_id", sessionId)
     .order("exercise_id", { ascending: true })

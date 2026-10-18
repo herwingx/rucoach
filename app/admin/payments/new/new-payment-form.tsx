@@ -361,7 +361,7 @@ export function NewPaymentForm({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field>
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-1.5">
                   <FieldLabel htmlFor="planId">Plan de Membresía</FieldLabel>
                   <Link
                     href="/admin/settings?tab=plans"
@@ -371,7 +371,7 @@ export function NewPaymentForm({
                   </Link>
                 </div>
                 <Select value={selectedPlanId} onValueChange={handlePlanChange}>
-                  <SelectTrigger id="planId" className="w-full">
+                  <SelectTrigger id="planId" className="w-full min-w-0 max-w-full">
                     <SelectValue placeholder="Sin plan específico" />
                   </SelectTrigger>
                   <SelectContent>
@@ -387,9 +387,35 @@ export function NewPaymentForm({
                     </SelectGroup>
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  El plan define los días de vigencia (ej. 30 días) y sugiere el precio base.
-                </p>
+                {selectedPlanId === "none" ? (
+                  <div className="mt-2 flex flex-col gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Vigencia sugerida para cobro libre:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[7, 15, 30, 60, 90].map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => {
+                            const start = periodStart || new Date();
+                            setPeriodEnd(addDays(start, d));
+                            if (!referenceTouched) {
+                              setReference(`Cobro libre (${d} días)`);
+                            }
+                          }}
+                          className="rounded-lg border border-border/70 bg-muted/30 px-2 py-1 text-xs font-semibold text-foreground hover:bg-primary/10 hover:border-primary/40 transition-colors active:scale-95"
+                        >
+                          +{d} días
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    El plan define los días de vigencia (ej. 30 días) y sugiere el precio base.
+                  </p>
+                )}
               </Field>
 
               <Field>

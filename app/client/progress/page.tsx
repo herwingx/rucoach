@@ -10,7 +10,13 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { createClient } from "@/lib/supabase/server";
-import { Award, Dumbbell, Sparkles, TrendingUp, Trophy } from "lucide-react";
+import { Award, Dumbbell, Sparkles, TrendingUp, Trophy, Activity, CalendarDays } from "lucide-react";
+import {
+  MuscleBalanceCard,
+  type RichWorkoutSession,
+} from "@/components/anatomy/muscle-balance-card";
+import { ActivityHeatmap } from "@/components/anatomy/activity-heatmap";
+import { computeRoutineMuscleVolume } from "@/lib/anatomy/muscles";
 import {
   VolumeChartLazy,
   ExerciseProgressChartLazy,
@@ -60,14 +66,15 @@ export default async function ClientProgressPage() {
     { data: completedSessionsDesc },
     { data: prRowsDesc },
     { data: exerciseLogRows },
+    { data: activeRoutineRows },
   ] = await Promise.all([
     supabase
       .from("workout_sessions")
-      .select("started_at,total_volume_kg,status")
+      .select("started_at,total_volume_kg,duration_seconds,status")
       .eq("client_id", clientId)
       .eq("status", "completed")
       .order("started_at", { ascending: false })
-      .limit(60),
+      .limit(200),
     supabase
       .from("pr_events")
       .select(
@@ -80,17 +87,54 @@ export default async function ClientProgressPage() {
       .from("exercise_logs")
       .select(
         `exercise_id, exercise_name, weight_kg, reps, is_warmup, workout_session_id,
-           exercises(name, name_es, exercise_type, uses_external_load, equipment),
+           exercises(name, name_es, exercise_type, uses_external_load, equipment, primary_muscle, secondary_muscles, muscle_weights),
            workout_sessions!inner(started_at, client_id, status)`,
       )
       .eq("workout_sessions.client_id", clientId)
       .eq("workout_sessions.status", "completed")
       .order("workout_session_id", { ascending: false })
-      .limit(1000),
+      .limit(1200),
+    supabase
+      .from("routines")
+      .select(
+        `id, is_active,
+         routine_days (
+           id,
+           routine_exercises (
+             sets,
+             exercises (
+               id, name, name_es, primary_muscle, secondary_muscles, muscle_weights
+             )
+           )
+         )`,
+      )
+      .eq("client_id", clientId)
+      .eq("is_active", true)
+      .limit(1),
   ]);
 
   const completedSessions = [...(completedSessionsDesc ?? [])].reverse();
   const prRows = [...(prRowsDesc ?? [])].reverse();
+
+  // Compute plannedWeeklyLoad from active routine if present
+  const activeRoutine = activeRoutineRows?.[0] as any;
+  const plannedExercisesList: Array<{ exercise: any; sets: number }> = [];
+  if (activeRoutine?.routine_days) {
+    for (const d of activeRoutine.routine_days) {
+      for (const re of d.routine_exercises || []) {
+        const exObj = Array.isArray(re.exercises)
+          ? re.exercises[0]
+          : re.exercises;
+        if (exObj) {
+          plannedExercisesList.push({
+            exercise: exObj,
+            sets: Number(re.sets) || 3,
+          });
+        }
+      }
+    }
+  }
+  const plannedWeeklyLoad = computeRoutineMuscleVolume(plannedExercisesList);
 
   const loadAwarePrRows = prRows.filter((r) => {
     const ex =
@@ -110,7 +154,7 @@ export default async function ClientProgressPage() {
     );
   });
 
-  const loadAwareExerciseLogRows = (exerciseLogRows ?? []).filter((r) => {
+  const loadAwareExerciseLogRows = ((exerciseLogRows as any[]) ?? []).filter((r: any) => {
     const ex =
       r.exercises && !Array.isArray(r.exercises)
         ? (r.exercises as {
@@ -136,6 +180,87 @@ export default async function ClientProgressPage() {
     loadAwarePrRows,
   );
   const exercises = exerciseOptionsFromPoints(pointsByExerciseId, nameById);
+
+  // Build RichWorkoutSession[] for MuscleBalanceCard (Balance, Fatigue, and Retained Strength)
+  const sessionsMap = new Map<
+    string,
+    {
+      timestamp: number;
+      items: Map<
+        string,
+        {
+          exercise: any;
+          sets: number;
+          bestWeightKg: number;
+          bestReps: number;
+          est1rm: number;
+        }
+      >;
+    }
+  >();
+
+  for (const row of (exerciseLogRows as any[]) ?? []) {
+    if (!row.workout_session_id) continue;
+    if (row.is_warmup) continue;
+    const sessionDate = (row.workout_sessions as any)?.started_at;
+    const timestamp = sessionDate
+      ? new Date(sessionDate).getTime()
+      : Date.now();
+
+    if (!sessionsMap.has(row.workout_session_id)) {
+      sessionsMap.set(row.workout_session_id, {
+        timestamp,
+        items: new Map(),
+      });
+    }
+
+    const sessionData = sessionsMap.get(row.workout_session_id)!;
+    const exData = (
+      Array.isArray(row.exercises) ? row.exercises[0] : row.exercises
+    ) as any;
+    if (!exData) continue;
+
+    const wKg = Number(row.weight_kg) || 0;
+    const reps = Number(row.reps) || 0;
+    const e1rm =
+      wKg > 0
+        ? reps <= 1
+          ? wKg
+          : Math.round(wKg * (1 + Math.min(reps, 30) / 30) * 10) / 10
+        : 0;
+
+    const exKey = row.exercise_id || row.exercise_name;
+    const currentItem = sessionData.items.get(exKey);
+    if (currentItem) {
+      currentItem.sets += 1;
+      if (e1rm > currentItem.est1rm) {
+        currentItem.est1rm = e1rm;
+        currentItem.bestWeightKg = wKg;
+        currentItem.bestReps = reps;
+      }
+    } else {
+      sessionData.items.set(exKey, {
+        exercise: {
+          id: row.exercise_id,
+          name: row.exercise_name || exData.name_es || exData.name,
+          primary_muscle: exData.primary_muscle,
+          secondary_muscles: exData.secondary_muscles,
+          muscle_weights: exData.muscle_weights,
+        },
+        sets: 1,
+        bestWeightKg: wKg,
+        bestReps: reps,
+        est1rm: e1rm,
+      });
+    }
+  }
+
+  const richWorkoutHistory: RichWorkoutSession[] = Array.from(
+    sessionsMap.values(),
+  ).map((s) => ({
+    timestamp: s.timestamp,
+    items: Array.from(s.items.values()),
+  }));
 
   const currentExercisePrs = exercises
     .map((ex) => {
@@ -365,6 +490,58 @@ export default async function ClientProgressPage() {
 
         <section className="order-1 flex min-w-0 flex-col gap-6 lg:order-2 lg:col-span-8">
           <div className="grid gap-6">
+            <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
+              <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                    <Activity className="size-5 text-primary" aria-hidden />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-bold tracking-tight">
+                      Mapa Anatómico: Balance, Fatiga y Fuerza Retenida
+                    </CardTitle>
+                    <CardDescription className="text-xs font-medium">
+                      Volumen ponderado por músculo (100% primario / 40% secundario), recuperación biomecánica y retención de 1RM
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6">
+                <MuscleBalanceCard
+                  workoutHistory={richWorkoutHistory}
+                  plannedWeeklyLoad={plannedWeeklyLoad}
+                  gender={clientRecord.gender === "female" ? "female" : "male"}
+                />
+              </CardContent>
+            </Card>
+
+            <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
+              <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                    <CalendarDays className="size-5 text-primary" aria-hidden />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg font-bold tracking-tight">
+                      Consistencia Anual
+                    </CardTitle>
+                    <CardDescription className="text-xs font-medium">
+                      Mapa de actividad de las últimas 52 semanas por volumen o sesiones
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 sm:p-6">
+                <ActivityHeatmap
+                  sessions={(completedSessions || []).map((s: any) => ({
+                    started_at: s.started_at as string,
+                    total_volume_kg: Number(s.total_volume_kg) || 0,
+                    duration_seconds: Number(s.duration_seconds) || null,
+                  }))}
+                />
+              </CardContent>
+            </Card>
+
             <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
               <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
                 <div className="flex items-center gap-3">

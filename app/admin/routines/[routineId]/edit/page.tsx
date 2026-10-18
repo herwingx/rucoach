@@ -17,6 +17,7 @@ type RoutineExerciseRow = {
   rest_seconds: number | null;
   superset_group: string | null;
   notes: string | null;
+  warmup_sets?: string | null;
 };
 
 type RoutineDayRow = {
@@ -61,7 +62,8 @@ export default async function EditRoutinePage({ params }: Props) {
           reps,
           rest_seconds,
           superset_group,
-          notes
+          notes,
+          warmup_sets
         )
       )
     `,
@@ -93,7 +95,7 @@ export default async function EditRoutinePage({ params }: Props) {
   const builderInitialData = {
     name: routine.name,
     description: routine.description || "",
-    durationWeeks: routine.duration_weeks || 4,
+    durationWeeks: routine.duration_weeks ?? null,
     goal: routine.goal ?? "",
     level: normalizeRoutineLevel(routine.level) || routine.level || "",
     days: dayNames.map((name, i) => {
@@ -116,6 +118,7 @@ export default async function EditRoutinePage({ params }: Props) {
               restSeconds: re.rest_seconds ?? 60,
               supersetGroup: re.superset_group ?? null,
               notes: re.notes ?? "",
+              warmupSets: re.warmup_sets ?? "",
             })),
         };
       }

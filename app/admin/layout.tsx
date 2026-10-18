@@ -14,16 +14,13 @@ export default async function AdminLayout({
     redirect("/auth/login");
   }
 
-  const headersList = await headers();
-  const pathname = headersList.get("x-pathname") || "";
-  const isOnboardingRoute = pathname.startsWith("/admin/onboarding");
-
-  // Redirigir a onboarding si no está completado (evitando bucle infinito en /admin/onboarding)
-  if (profile && !profile.onboarding_completed && !isOnboardingRoute) {
-    redirect("/admin/onboarding");
-  }
-
-  if (isOnboardingRoute) {
+  // Redirigir a onboarding SOLO si no está completado (evitando invocar headers() en cada navegación normal)
+  if (profile && !profile.onboarding_completed) {
+    const headersList = await headers();
+    const pathname = headersList.get("x-pathname") || "";
+    if (!pathname.startsWith("/admin/onboarding")) {
+      redirect("/admin/onboarding");
+    }
     return <>{children}</>;
   }
 

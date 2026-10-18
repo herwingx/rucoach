@@ -55,11 +55,21 @@ import {
   Diff,
   Trophy,
   ShieldAlert,
+  Activity,
   RefreshCw,
   RotateCcw,
   CheckCircle2,
   MessageSquareQuote,
 } from "lucide-react";
+import { BodyMap } from "@/components/anatomy/body-map";
+import {
+  MuscleBalanceCard,
+  type RichWorkoutSession,
+} from "@/components/anatomy/muscle-balance-card";
+import { ActivityHeatmap } from "@/components/anatomy/activity-heatmap";
+import { WeeklyMuscleCoverage } from "@/components/anatomy/weekly-muscle-coverage";
+import { computeRoutineMuscleVolume } from "@/lib/anatomy/muscles";
+import type { PainEntry, PainZone, PainSeverity } from "@/lib/anatomy/pain-map";
 import { getGoalLabel } from "@/lib/constants";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -126,6 +136,7 @@ export type ClientHubClient = {
   experience_level?: string | null;
   plan_name?: string | null;
   days_until_expiry?: number | null;
+  gender?: string | null;
 };
 
 type ClientHubProfile = {
@@ -263,6 +274,25 @@ const PAIN_REGION_LABELS_ES: Record<string, string> = {
   otro: "Otra zona",
 };
 
+function mapReportToPainZone(region: string): PainZone {
+  const norm = region.toLowerCase().trim();
+  if (norm === "hombro" || norm === "shoulder" || norm === "deltoids") return "deltoids";
+  if (norm === "codo" || norm === "elbow" || norm === "elbows") return "elbows";
+  if (norm === "muñeca" || norm === "wrist" || norm === "wrists") return "wrists";
+  if (norm === "espalda_baja" || norm === "lumbar" || norm === "lower-back") return "lower-back";
+  if (norm === "rodilla" || norm === "knee" || norm === "knees") return "knees";
+  if (norm === "cadera" || norm === "hip" || norm === "hip-flexors") return "hip-flexors";
+  if (norm === "tobillo" || norm === "ankle" || norm === "ankles") return "ankles";
+  if (norm === "cuello" || norm === "neck") return "neck";
+  if (norm === "pecho" || norm === "chest") return "chest";
+  if (norm === "biceps") return "biceps";
+  if (norm === "triceps") return "triceps";
+  if (norm === "cuadriceps" || norm === "quadriceps") return "quadriceps";
+  if (norm === "isquios" || norm === "hamstring") return "hamstring";
+  if (norm === "gluteo" || norm === "gluteal") return "gluteal";
+  return "knees";
+}
+
 const FEELING_LABELS_ES: Record<number, string> = {
   1: "1/5 · Muy ligero",
   2: "2/5 · Bien",
@@ -306,6 +336,15 @@ export function ClientProfileHub({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [painReportsState, setPainReportsState] = useState<HubPainReport[]>(painReports);
+  const [showPainMap, setShowPainMap] = useState(false);
+
+  const clinicalPainEntries: PainEntry[] = useMemo(() => {
+    return (painReportsState || []).map((r) => ({
+      zone: mapReportToPainZone(r.body_region),
+      severity: (r.severity >= 7 ? "severe" : r.severity >= 4 ? "moderate" : "mild") as PainSeverity,
+      notes: r.notes || undefined,
+    }));
+  }, [painReportsState]);
   const [resolvingPainId, setResolvingPainId] = useState<string | null>(null);
   const [overridesState, setOverridesState] = useState<HubExerciseOverride[]>(exerciseOverrides);
   const [revertingOverrideId, setRevertingOverrideId] = useState<string | null>(null);
@@ -356,6 +395,104 @@ export function ClientProfileHub({
     }
     return m;
   }, [sessionExerciseLogs]);
+
+  const plannedWeeklyLoad = useMemo(() => {
+    const items: Array<{ exercise: any; sets: number }> = [];
+    for (const day of routine?.routine_days || []) {
+      for (const re of day.routine_exercises || []) {
+        const ex = re.exercises || (re as any).exercise;
+        if (ex) {
+          items.push({ exercise: ex, sets: Number(re.sets) || 3 });
+        }
+      }
+    }
+    return computeRoutineMuscleVolume(items);
+  }, [routine]);
+
+  const richWorkoutHistory = useMemo<RichWorkoutSession[]>(() => {
+    // Also index routine exercises by name as fallback if an older exercise_log lacks exercises join
+    const routineExByName = new Map<string, any>();
+    for (const day of routine?.routine_days || []) {
+      for (const re of day.routine_exercises || []) {
+        const ex = re.exercises || (re as any).exercise;
+        if (ex) {
+          if (ex.name) routineExByName.set(ex.name.toLowerCase(), ex);
+          if (ex.name_es) routineExByName.set(ex.name_es.toLowerCase(), ex);
+        }
+      }
+    }
+
+    const list: RichWorkoutSession[] = [];
+    for (const s of workoutSessions || []) {
+      if (s.status && s.status !== "completed") continue;
+      const ts = new Date(s.started_at ?? s.created_at ?? Date.now()).getTime();
+      const logs = logsBySessionId.get(s.id) || [];
+      const itemMap = new Map<
+        string,
+        {
+          exercise: any;
+          sets: number;
+          bestWeightKg: number;
+          bestReps: number;
+          est1rm: number;
+        }
+      >();
+
+      for (const l of logs) {
+        if (l.is_warmup) continue;
+        const exJoined = Array.isArray(l.exercises)
+          ? l.exercises[0]
+          : l.exercises;
+        const fallbackEx = routineExByName.get(
+          (l.exercise_name || "").toLowerCase(),
+        );
+        const exMeta = exJoined || fallbackEx;
+        if (!exMeta) continue;
+
+        const wKg = Number(l.weight_kg) || 0;
+        const reps = Number(l.reps) || 0;
+        const e1rm =
+          wKg > 0
+            ? reps <= 1
+              ? wKg
+              : Math.round(wKg * (1 + Math.min(reps, 30) / 30) * 10) / 10
+            : 0;
+        const key = l.exercise_id || l.exercise_name;
+        const cur = itemMap.get(key);
+        if (cur) {
+          cur.sets += 1;
+          if (e1rm > cur.est1rm) {
+            cur.est1rm = e1rm;
+            cur.bestWeightKg = wKg;
+            cur.bestReps = reps;
+          }
+        } else {
+          itemMap.set(key, {
+            exercise: {
+              id: l.exercise_id || exMeta.id,
+              name: l.exercise_name || exMeta.name_es || exMeta.name,
+              primary_muscle: exMeta.primary_muscle,
+              secondary_muscles: exMeta.secondary_muscles,
+              muscle_weights: exMeta.muscle_weights,
+            },
+            sets: 1,
+            bestWeightKg: wKg,
+            bestReps: reps,
+            est1rm: e1rm,
+          });
+        }
+      }
+
+      if (itemMap.size > 0) {
+        list.push({
+          id: s.id,
+          timestamp: ts,
+          items: Array.from(itemMap.values()),
+        });
+      }
+    }
+    return list;
+  }, [workoutSessions, logsBySessionId, routine]);
 
   const progressRows = useMemo(() => {
     const list = [...(workoutSessions || [])].slice(0, PROGRESS_VIEWPORT);
@@ -423,7 +560,7 @@ export function ClientProfileHub({
           aria-label="Reportes activos de dolor o lesión"
           className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 sm:p-5 shadow-sm"
         >
-          <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-2.5">
               <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
                 <ShieldAlert className="size-4" />
@@ -437,7 +574,27 @@ export function ClientProfileHub({
                 </p>
               </div>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPainMap((v) => !v)}
+              className="gap-1.5 rounded-xl border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 text-xs font-bold shrink-0 hover:bg-amber-500/20"
+            >
+              <Activity className="size-3.5" />
+              {showPainMap ? "Ocultar Mapa" : "Ver Mapa Anatómico"}
+            </Button>
           </div>
+
+          {showPainMap && (
+            <div className="mb-4 rounded-2xl border border-amber-500/30 bg-background/95 p-4 shadow-sm">
+              <BodyMap
+                mode="clinical"
+                gender={client.gender === "female" ? "female" : "male"}
+                painEntries={clinicalPainEntries}
+              />
+            </div>
+          )}
           <div className="grid gap-2.5 sm:grid-cols-2">
             {painReportsState.map((report) => {
               const regionLabel =
@@ -899,6 +1056,20 @@ export function ClientProfileHub({
                     compact
                     emptyMessage="Esta rutina aún no tiene días cargados."
                   />
+                  {Object.keys(plannedWeeklyLoad).length > 0 && (
+                    <div className="rounded-2xl border border-border/50 bg-background/60 p-4 sm:p-5">
+                      <div className="mb-3 flex items-center gap-2">
+                        <Activity className="size-4 text-primary" />
+                        <h4 className="text-sm font-bold tracking-tight text-foreground">
+                          Cobertura Muscular Semanal Planificada
+                        </h4>
+                      </div>
+                      <WeeklyMuscleCoverage
+                        load={plannedWeeklyLoad}
+                        sex={client.gender === "female" ? "female" : "male"}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
@@ -1058,6 +1229,52 @@ export function ClientProfileHub({
         </TabsContent>
 
         <TabsContent value="progress" className="flex flex-col gap-4 pt-2">
+          <div className="grid gap-4 lg:grid-cols-12">
+            <Card className="border-border/50 bg-card/60 backdrop-blur-xl rounded-[1.5rem] shadow-sm overflow-hidden lg:col-span-7">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Activity className="size-4 text-primary" />
+                  Balance Muscular, Fatiga y Fuerza Retenida
+                </CardTitle>
+                <CardDescription>
+                  Comparativa de series efectivas (completadas vs planificadas), decaimiento biomecánico de fatiga y retención de 1RM del atleta.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <MuscleBalanceCard
+                  workoutHistory={richWorkoutHistory}
+                  plannedWeeklyLoad={plannedWeeklyLoad}
+                  gender={client.gender === "female" ? "female" : "male"}
+                />
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/50 bg-card/60 backdrop-blur-xl rounded-[1.5rem] shadow-sm overflow-hidden lg:col-span-5">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <History className="size-4 text-primary" />
+                  Consistencia Anual (52 semanas)
+                </CardTitle>
+                <CardDescription>
+                  Frecuencia de entrenamiento y densidad de volumen diario del asesorado.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ActivityHeatmap
+                  sessions={(workoutSessions || [])
+                    .filter((s) => !s.status || s.status === "completed")
+                    .map((s) => ({
+                      started_at: (s.started_at ?? s.created_at ?? "") as string,
+                      total_volume_kg: Number(s.total_volume_kg) || 0,
+                      duration_seconds: s.duration_minutes
+                        ? Number(s.duration_minutes) * 60
+                        : null,
+                    }))}
+                />
+              </CardContent>
+            </Card>
+          </div>
+
           <Card className="border-border/50 bg-card/60 backdrop-blur-xl rounded-[1.5rem] shadow-sm overflow-hidden">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">

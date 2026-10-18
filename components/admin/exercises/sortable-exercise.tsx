@@ -18,6 +18,7 @@ import {
   ArrowUp,
   ArrowDown,
   Copy,
+  Flame,
 } from 'lucide-react'
 import { Exercise } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -35,6 +36,12 @@ const SUPERSET_COLORS: Record<string, { bg: string; text: string; ring: string }
 const QUICK_SETS = [2, 3, 4, 5]
 const QUICK_REPS = ['6-8', '8-10', '10-12', '12-15', '15', 'Al fallo']
 const QUICK_REST = [30, 45, 60, 90, 120, 180]
+const QUICK_WARMUP_PRESETS = [
+  '1x12 (50%) + 1x8 (70%)',
+  '2x10-12 progresivas',
+  '1x15 ligera + 1x8 media',
+  '1x10 (60%)',
+]
 
 function getSupersetColor(group: string | null | undefined) {
   if (!group) return null
@@ -50,6 +57,7 @@ interface SortableExerciseProps {
   restSeconds: number
   supersetGroup?: string | null
   notes?: string | null
+  warmupSets?: string | null
   exerciseInfo?: Exercise
   canMoveUp?: boolean
   canMoveDown?: boolean
@@ -70,6 +78,7 @@ export function SortableExercise({
   restSeconds,
   supersetGroup,
   notes,
+  warmupSets,
   exerciseInfo,
   canMoveUp = false,
   canMoveDown = false,
@@ -84,6 +93,7 @@ export function SortableExercise({
 }: SortableExerciseProps) {
   const [imgFailed, setImgFailed] = useState(false)
   const [showNotesInput, setShowNotesInput] = useState(Boolean(notes?.trim()))
+  const [showWarmupInput, setShowWarmupInput] = useState(Boolean(warmupSets?.trim()))
   const [setsInput, setSetsInput] = useState(() => String(sets))
   const [restInput, setRestInput] = useState(() => String(restSeconds))
   const [activePresetField, setActivePresetField] = useState<'sets' | 'reps' | 'rest' | null>(null)
@@ -112,6 +122,7 @@ export function SortableExercise({
 
   const color = getSupersetColor(supersetGroup)
   const hasNotes = Boolean(notes?.trim())
+  const hasWarmup = Boolean(warmupSets?.trim())
 
   const handleSetsChange = (raw: string) => {
     setSetsInput(raw)
@@ -187,7 +198,7 @@ export function SortableExercise({
       )}
 
       <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-1 items-start gap-2.5 sm:items-center sm:gap-3">
           {/* Controles de orden: Subir + Arrastrar + Bajar */}
           <div className="flex shrink-0 flex-col items-center justify-center rounded-xl border border-border/40 bg-muted/20 p-0.5">
             {onMoveUp && (
@@ -267,18 +278,31 @@ export function SortableExercise({
           </button>
 
           <div className="min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={() => exerciseInfo && onInspectExercise?.(exerciseInfo)}
-              disabled={!exerciseInfo || !onInspectExercise}
-              className={cn(
-                'line-clamp-1 text-left text-sm font-bold tracking-tight text-foreground group-hover/ex:text-primary transition-colors',
-                exerciseInfo && onInspectExercise && 'hover:underline',
-              )}
-            >
-              {exName(exerciseInfo)}
-            </button>
-            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <div className="flex items-start justify-between gap-1.5">
+              <button
+                type="button"
+                onClick={() => exerciseInfo && onInspectExercise?.(exerciseInfo)}
+                disabled={!exerciseInfo || !onInspectExercise}
+                className={cn(
+                  'line-clamp-2 text-left text-sm font-bold tracking-tight text-foreground group-hover/ex:text-primary transition-colors',
+                  exerciseInfo && onInspectExercise && 'hover:underline',
+                )}
+              >
+                {exName(exerciseInfo)}
+              </button>
+              {/* Botón eliminar directo en la esquina superior en móvil */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7 shrink-0 rounded-lg text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive transition-colors sm:hidden"
+                onClick={onRemove}
+                aria-label="Quitar ejercicio"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
               {(exerciseInfo?.target_muscles_es?.[0] || exerciseInfo?.primary_muscle) && (
                 <Badge
                   variant="secondary"
@@ -294,95 +318,81 @@ export function SortableExercise({
               )}
             </div>
           </div>
+        </div>
 
-          {/* Acciones en móvil (esquina superior derecha) */}
-          <div className="flex items-center gap-0.5 shrink-0 sm:hidden">
-            {exerciseInfo && onInspectExercise && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8 shrink-0 rounded-xl text-muted-foreground/60 hover:bg-primary/10 hover:text-primary transition-colors"
-                onClick={() => onInspectExercise(exerciseInfo)}
-                aria-label="Ver ficha técnica"
-                title="Ver ficha técnica"
-              >
-                <Eye className="size-4" />
-              </Button>
-            )}
-
-            <Button
+        {/* Barra de acciones rápidas en móvil: Ficha, Aprox, Nota, Duplicar, Biserie */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1 sm:hidden">
+          {exerciseInfo && onInspectExercise && (
+            <button
               type="button"
-              variant="ghost"
-              size="icon"
-              className={cn(
-                'size-8 shrink-0 rounded-xl transition-colors',
-                hasNotes || showNotesInput
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground/60 hover:bg-primary/10 hover:text-primary',
-              )}
-              onClick={() => setShowNotesInput((prev) => !prev)}
-              aria-label="Indicación para el ejercicio"
-              title="Añadir o editar indicación para el cliente"
+              onClick={() => onInspectExercise(exerciseInfo)}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-muted/20 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
             >
-              {hasNotes ? (
-                <MessageSquareText className="size-4" />
-              ) : (
-                <MessageSquarePlus className="size-4" />
-              )}
-            </Button>
+              <Eye className="size-3" />
+              <span>Ficha</span>
+            </button>
+          )}
 
-            {onDuplicate && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8 shrink-0 rounded-xl text-muted-foreground/60 hover:bg-primary/10 hover:text-primary transition-colors"
-                onClick={onDuplicate}
-                aria-label="Duplicar ejercicio"
-                title="Duplicar ejercicio"
-              >
-                <Copy className="size-4" />
-              </Button>
+          <button
+            type="button"
+            onClick={() => setShowWarmupInput((prev) => !prev)}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors',
+              hasWarmup || showWarmupInput
+                ? 'border-amber-500/40 bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold'
+                : 'border-border/60 bg-muted/20 text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600',
             )}
+          >
+            <Flame className="size-3" />
+            <span>Aprox</span>
+            {hasWarmup && <span className="size-1.5 rounded-full bg-amber-500" />}
+          </button>
 
-            {supersetGroup ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8 shrink-0 rounded-xl text-muted-foreground/60 hover:bg-amber-500/10 hover:text-amber-500 transition-colors"
-                onClick={onRemoveSuperset}
-                aria-label="Quitar de biserie"
-                title="Quitar de biserie"
-              >
-                <Unlink className="size-4" />
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-8 shrink-0 rounded-xl text-muted-foreground/60 hover:bg-violet-500/10 hover:text-violet-500 transition-colors"
-                onClick={onToggleSuperset}
-                aria-label="Añadir a biserie"
-                title="Añadir a biserie (unir con ejercicio anterior)"
-              >
-                <Link2 className="size-4" />
-              </Button>
+          <button
+            type="button"
+            onClick={() => setShowNotesInput((prev) => !prev)}
+            className={cn(
+              'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors',
+              hasNotes || showNotesInput
+                ? 'border-primary/40 bg-primary/15 text-primary font-bold'
+                : 'border-border/60 bg-muted/20 text-muted-foreground hover:bg-primary/10 hover:text-primary',
             )}
+          >
+            <MessageSquareText className="size-3" />
+            <span>Nota</span>
+            {hasNotes && <span className="size-1.5 rounded-full bg-primary" />}
+          </button>
 
-            <Button
+          {onDuplicate && (
+            <button
               type="button"
-              variant="ghost"
-              size="icon"
-              className="size-8 shrink-0 rounded-xl text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive transition-colors"
-              onClick={onRemove}
-              aria-label="Quitar ejercicio"
+              onClick={onDuplicate}
+              className="inline-flex items-center gap-1 rounded-lg border border-border/60 bg-muted/20 px-2 py-1 text-[11px] font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
             >
-              <X className="size-4" />
-            </Button>
-          </div>
+              <Copy className="size-3" />
+              <span>Duplicar</span>
+            </button>
+          )}
+
+          {supersetGroup ? (
+            <button
+              type="button"
+              onClick={onRemoveSuperset}
+              className="inline-flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
+            >
+              <Unlink className="size-3" />
+              <span>Quitar biserie</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onToggleSuperset}
+              className="inline-flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-[11px] font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 transition-colors"
+            >
+              <Link2 className="size-3" />
+              <span>Biserie</span>
+            </button>
+          )}
         </div>
 
         <div className="flex w-full flex-col gap-2 border-t border-border/40 pt-3 sm:w-auto sm:border-0 sm:pt-0">
@@ -455,6 +465,23 @@ export function SortableExercise({
                   <Eye className="size-4" />
                 </Button>
               )}
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'size-9 shrink-0 rounded-xl transition-colors',
+                  hasWarmup || showWarmupInput
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                    : 'text-muted-foreground/50 hover:bg-amber-500/10 hover:text-amber-600',
+                )}
+                onClick={() => setShowWarmupInput((prev) => !prev)}
+                aria-label="Series de aproximación"
+                title="Añadir o editar series de aproximación"
+              >
+                <Flame className="size-4" />
+              </Button>
 
               <Button
                 type="button"
@@ -627,6 +654,52 @@ export function SortableExercise({
               <X className="size-3.5" />
             </button>
           )}
+        </div>
+      )}
+
+      {/* Campo de series de aproximación (warmupSets) */}
+      {(showWarmupInput || hasWarmup) && (
+        <div className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400">
+              <Flame className="size-4" aria-hidden />
+              <span>Series de aproximación (Warm-up / Feeder sets)</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onUpdate('warmupSets', '')
+                setShowWarmupInput(false)
+              }}
+              className="text-muted-foreground/60 hover:text-destructive p-1 rounded-md transition-colors"
+              aria-label="Borrar aproximación"
+              title="Borrar series de aproximación"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              Presets:
+            </span>
+            {QUICK_WARMUP_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => onUpdate('warmupSets', preset)}
+                className="rounded-md border border-amber-500/30 bg-background/80 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-500/15 transition-colors active:scale-95"
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+          <Input
+            value={warmupSets ?? ''}
+            onChange={(e) => onUpdate('warmupSets', e.target.value)}
+            placeholder="Ej. 1x12 al 50% RM, 1x8 al 70% RM..."
+            aria-label="Series de aproximación"
+            className="h-8 border-amber-500/30 bg-background/80 px-2.5 text-xs shadow-none focus-visible:ring-amber-500/30"
+          />
         </div>
       )}
     </div>

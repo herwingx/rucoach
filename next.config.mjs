@@ -15,9 +15,10 @@ const nextConfig = {
 
   experimental: {
     staleTimes: {
-      dynamic: 60,
+      dynamic: 180,
       static: 300,
     },
+    viewTransition: true,
     optimizePackageImports: [
       'lucide-react',
       'date-fns',

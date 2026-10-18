@@ -21,7 +21,7 @@ export async function getRoutineMeta(routineId: string): Promise<{
 export interface BuilderRoutinePayload {
   name: string;
   description: string | null;
-  duration_weeks: number;
+  duration_weeks: number | null;
   goal?: string | null;
   level?: string | null;
   days: {
@@ -37,6 +37,7 @@ export interface BuilderRoutinePayload {
       rest_seconds: number;
       superset_group: string | null;
       notes?: string | null;
+      warmup_sets?: string | null;
     }[];
   }[];
 }
@@ -102,6 +103,7 @@ export async function saveRoutineFromBuilder(
         rest_seconds: ex.rest_seconds,
         superset_group: ex.superset_group ?? null,
         notes: ex.notes?.trim() || null,
+        warmup_sets: ex.warmup_sets?.trim() || null,
       }));
       const { error: reError } = await supabase
         .from("routine_exercises")
@@ -268,6 +270,7 @@ export async function updateRoutineFromBuilder(
         rest_seconds: ex.rest_seconds,
         superset_group: ex.superset_group ?? null,
         notes: ex.notes?.trim() || null,
+        warmup_sets: ex.warmup_sets?.trim() || null,
       }));
       const { data: insertedExercises, error: reError } = await supabase
         .from("routine_exercises")
@@ -347,7 +350,8 @@ export async function cloneRoutine(routineId: string): Promise<{
           reps,
           rest_seconds,
           superset_group,
-          notes
+          notes,
+          warmup_sets
         )
       )
     `,
@@ -424,6 +428,7 @@ export async function cloneRoutine(routineId: string): Promise<{
         rest_seconds: ex.rest_seconds ?? 60,
         superset_group: ex.superset_group ?? null,
         notes: ex.notes ?? null,
+        warmup_sets: (ex as { warmup_sets?: string | null }).warmup_sets ?? null,
       }));
       const { error: exErr } = await supabase
         .from("routine_exercises")

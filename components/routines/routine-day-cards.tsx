@@ -29,6 +29,7 @@ type RoutineExerciseLike = {
   rest_seconds?: number | null
   superset_group?: string | null
   notes?: string | null
+  warmup_sets?: string | null
   exercises?: (Partial<Exercise> & {
     id?: string
     name?: string | null
@@ -293,14 +294,21 @@ export function RoutineDayCards({
                                   )}
                                 </div>
                                 <div className="min-w-0 flex-1 flex flex-col justify-center">
-                                  <p className="truncate text-[14px] font-bold leading-none tracking-tight text-foreground transition-colors group-hover:text-primary">
+                                  <p className="line-clamp-2 text-[14px] font-bold leading-snug tracking-tight text-foreground transition-colors group-hover:text-primary">
                                     {index + 1}. {ex.exercises?.name_es || ex.exercises?.name || 'Ejercicio'}
                                   </p>
                                   {(ex.exercises?.target_muscles_es?.[0] || ex.exercises?.primary_muscle) && (
-                                    <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mt-1.5 opacity-80">
+                                    <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mt-1 opacity-80">
                                       {ex.exercises?.target_muscles_es?.[0] || ex.exercises?.primary_muscle}
                                     </p>
                                   )}
+                                  {ex.warmup_sets ? (
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                        🔥 Aprox: {ex.warmup_sets}
+                                      </span>
+                                    </div>
+                                  ) : null}
                                 </div>
                               </div>
                               <div className="flex shrink-0 flex-col items-end gap-1.5 text-xs text-muted-foreground">

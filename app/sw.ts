@@ -1,7 +1,12 @@
 /// <reference lib="webworker" />
 import { defaultCache } from "@serwist/next/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist } from "serwist";
+import {
+  Serwist,
+  CacheFirst,
+  ExpirationPlugin,
+  CacheableResponsePlugin,
+} from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -10,12 +15,30 @@ declare global {
 }
 declare const self: ServiceWorkerGlobalScope;
 
+const r2ExerciseMediaCache = {
+  matcher({ url }: { url: URL }) {
+    return url.hostname.endsWith(".r2.dev");
+  },
+  handler: new CacheFirst({
+    cacheName: "r2-exercise-media",
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 500,
+        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 días
+      }),
+      new CacheableResponsePlugin({
+        statuses: [0, 200],
+      }),
+    ],
+  }),
+};
+
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
   skipWaiting: true,
   clientsClaim: true,
-  navigationPreload: false,
-  runtimeCaching: defaultCache,
+  navigationPreload: true,
+  runtimeCaching: [r2ExerciseMediaCache, ...defaultCache],
   fallbacks: {
     entries: [
       {

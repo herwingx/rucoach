@@ -11,6 +11,11 @@ import { AdminExerciseCatalog } from "@/components/admin/exercises/admin-exercis
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import type { Exercise } from "@/lib/types";
+import {
+  canonicalMuscleDbTerms,
+  MUSCLES,
+  type MuscleSlug,
+} from "@/lib/anatomy/muscles";
 
 interface AdminExercisesPageProps {
   searchParams: Promise<{
@@ -18,13 +23,20 @@ interface AdminExercisesPageProps {
     search?: string;
     bodyPart?: string;
     equipment?: string;
+    muscle?: string;
   }>;
 }
 
 export default async function AdminExercisesPage({
   searchParams,
 }: AdminExercisesPageProps) {
-  const { page: pageStr, search, bodyPart, equipment } = await searchParams;
+  const {
+    page: pageStr,
+    search,
+    bodyPart,
+    equipment,
+    muscle,
+  } = await searchParams;
   const { user, role } = await getAuthData();
   if (!user || role !== "admin") redirect("/auth/login");
 
@@ -49,6 +61,20 @@ export default async function AdminExercisesPage({
     query = query.or(
       `equipment_es.ilike.%${equipment}%,equipment.ilike.%${equipment}%`,
     );
+  }
+
+  const validMuscle =
+    muscle && MUSCLES.includes(muscle as MuscleSlug)
+      ? (muscle as MuscleSlug)
+      : null;
+
+  if (validMuscle) {
+    const terms = canonicalMuscleDbTerms(validMuscle);
+    const orClauses = terms.flatMap((t) => [
+      `primary_muscle.ilike.${t}`,
+      `secondary_muscles.cs.{"${t}"}`,
+    ]);
+    query = query.or(orClauses.join(","));
   }
 
   const {
@@ -84,7 +110,7 @@ export default async function AdminExercisesPage({
       <AdminPageHeader
         sticky
         title="Catálogo de ejercicios"
-        description="Consulta la biblioteca, edita pasos de ejecución por puntos o agrega nuevos movimientos."
+        description="Consulta la biblioteca, explora por grupo muscular en el mapa anatómico o agrega nuevos movimientos."
         actions={
           <Button asChild className="w-full sm:w-auto">
             <Link href="/admin/exercises/new">
@@ -107,6 +133,7 @@ export default async function AdminExercisesPage({
               search: search || "",
               bodyPart: bodyPart || null,
               equipment: equipment || null,
+              muscle: validMuscle,
             }}
           />
         </Suspense>

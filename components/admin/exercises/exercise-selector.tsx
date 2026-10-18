@@ -5,10 +5,13 @@ import { Exercise } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { SearchIcon, X, Check, SlidersHorizontal, Loader2, Library, Dumbbell, Eye } from 'lucide-react'
+import { SearchIcon, X, Check, SlidersHorizontal, Loader2, Library, Dumbbell, Eye, Activity } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { exName, exEquipment, exBodyParts, exTargetMuscles } from '@/lib/exercise-i18n'
+import { searchExercises } from '@/lib/exercise-search'
 import { ExerciseDetailDrawer } from '@/components/client/exercise-detail-drawer'
+import { MuscleExplorerPanel } from '@/components/anatomy/muscle-explorer-panel'
+import { exerciseMuscleWeights, MUSCLE_LABELS, type MuscleSlug } from '@/lib/anatomy/muscles'
 
 interface ExerciseSelectorProps {
   exercises: Exercise[]
@@ -49,6 +52,8 @@ export function ExerciseSelector({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [activeBodyPart, setActiveBodyPart] = useState<string | null>(null)
   const [activeEquipment, setActiveEquipment] = useState<string | null>(null)
+  const [selectedMuscle, setSelectedMuscle] = useState<MuscleSlug | null>(null)
+  const [showMuscleMap, setShowMuscleMap] = useState(false)
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
@@ -61,7 +66,7 @@ export function ExerciseSelector({
   // Reset pagination when filters change
   useEffect(() => {
     setVisibleCount(ITEMS_PER_PAGE)
-  }, [search, activeBodyPart, activeEquipment])
+  }, [search, activeBodyPart, activeEquipment, selectedMuscle])
 
   const bodyParts = useMemo(() => {
     const set = new Set<string>()
@@ -72,47 +77,36 @@ export function ExerciseSelector({
   }, [exercises])
 
   const filteredExercises = useMemo(() => {
-    const normalizedQuery = normalizeSearchText(search)
-    const queryTokens = normalizedQuery ? normalizedQuery.split(/\s+/).filter(Boolean) : []
     const eqFilter = activeEquipment
       ? EQUIPMENT_QUICK_FILTERS.find((f) => f.id === activeEquipment)
       : null
 
-    return exercises.filter((ex) => {
-      const eqText = normalizeSearchText(
-        [exEquipment(ex) ?? '', ex.equipment ?? '', ...(ex.equipments ?? [])].join(' '),
-      )
-      const eqWithSynonyms =
-        eqText.includes('cable') ? `${eqText} polea` : eqText
-
-      const matchSearch =
-        queryTokens.length > 0
-          ? (() => {
-              const searchable = normalizeSearchText(
-                [
-                  exName(ex),
-                  ex.name ?? '',
-                  eqWithSynonyms,
-                  ...exBodyParts(ex),
-                  ...exTargetMuscles(ex),
-                  ex.primary_muscle ?? '',
-                ].join(' '),
-              )
-              return queryTokens.every((token) => searchable.includes(token))
-            })()
-          : true
+    const prefiltered = exercises.filter((ex) => {
+      if (selectedMuscle) {
+        const weights = exerciseMuscleWeights(ex)
+        if (!weights[selectedMuscle]) return false
+      }
 
       const matchBodyPart = activeBodyPart
         ? exBodyParts(ex).includes(activeBodyPart)
         : true
 
-      const matchEquipment = eqFilter
-        ? eqFilter.keywords.some((kw) => eqWithSynonyms.includes(kw))
-        : true
+      if (!matchBodyPart) return false
 
-      return matchSearch && matchBodyPart && matchEquipment
+      if (eqFilter) {
+        const eqText = normalizeSearchText(
+          [exEquipment(ex) ?? '', ex.equipment ?? '', ...(ex.equipments ?? [])].join(' '),
+        )
+        const eqWithSynonyms = eqText.includes('cable') ? `${eqText} polea` : eqText
+        return eqFilter.keywords.some((kw) => eqWithSynonyms.includes(kw))
+      }
+
+      return true
     })
-  }, [exercises, search, activeBodyPart, activeEquipment])
+
+    if (!search.trim()) return prefiltered
+    return searchExercises(prefiltered, search)
+  }, [exercises, search, activeBodyPart, activeEquipment, selectedMuscle])
 
   const visibleExercises = useMemo(() => {
     return filteredExercises.slice(0, visibleCount)
@@ -157,6 +151,7 @@ export function ExerciseSelector({
     setSearch('')
     setActiveBodyPart(null)
     setActiveEquipment(null)
+    setSelectedMuscle(null)
   }
 
   return (
@@ -172,24 +167,39 @@ export function ExerciseSelector({
               <h3 className="text-lg font-bold tracking-tight text-foreground">Añadir ejercicios</h3>
               <p className="text-xs text-muted-foreground">
                 <span className="font-semibold text-foreground">{filteredExercises.length}</span> disponibles
+                {selectedMuscle && (
+                  <> · <span className="font-semibold text-primary">{MUSCLE_LABELS[selectedMuscle]}</span></>
+                )}
                 {selectedIds.size > 0 && (
                   <> · <span className="font-semibold text-primary">{selectedIds.size}</span> seleccionados</>
                 )}
               </p>
             </div>
           </div>
-          {showCloseButton && onClose && (
+          <div className="flex items-center gap-1.5">
             <Button
               type="button"
-              variant="ghost"
-              size="icon"
-              className="size-9 rounded-full"
-              onClick={onClose}
-              aria-label="Cerrar"
+              variant={showMuscleMap || selectedMuscle ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 gap-1.5 rounded-xl px-2.5 text-xs font-bold"
+              onClick={() => setShowMuscleMap((v) => !v)}
             >
-              <X className="size-4" />
+              <Activity className="size-3.5" />
+              <span>Mapa Muscular</span>
             </Button>
-          )}
+            {showCloseButton && onClose && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-9 rounded-full"
+                onClick={onClose}
+                aria-label="Cerrar"
+              >
+                <X className="size-4" />
+              </Button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -321,6 +331,16 @@ export function ExerciseSelector({
 
       {/* Results */}
       <div className="min-h-0 flex-1 overflow-y-auto bg-muted/5 px-4 py-4 sm:px-6">
+        {showMuscleMap && (
+          <div className="mb-4">
+            <MuscleExplorerPanel
+              exercises={exercises}
+              selectedMuscle={selectedMuscle}
+              onSelectMuscle={setSelectedMuscle}
+              compact
+            />
+          </div>
+        )}
         {loading ? (
           <div className="flex flex-col gap-3">
             {Array.from({ length: 12 }).map((_, i) => (
@@ -362,6 +382,9 @@ export function ExerciseSelector({
             {visibleExercises.map((ex) => {
               const isSelected = selectedIds.has(ex.id)
               const isAlreadyInDay = existingIdsSet.has(ex.id)
+              const muscleRoleWeight = selectedMuscle
+                ? exerciseMuscleWeights(ex)[selectedMuscle]
+                : undefined
               return (
                 <div
                   key={ex.id}
@@ -412,6 +435,19 @@ export function ExerciseSelector({
                           className="h-5 rounded-md border-emerald-500/30 bg-emerald-500/10 px-1.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400"
                         >
                           Ya en este día
+                        </Badge>
+                      )}
+                      {selectedMuscle && muscleRoleWeight && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'h-5 rounded-md px-1.5 text-[10px] font-bold',
+                            muscleRoleWeight >= 1
+                              ? 'border-primary/40 bg-primary/15 text-primary'
+                              : 'border-border bg-muted/50 text-muted-foreground'
+                          )}
+                        >
+                          {muscleRoleWeight >= 1 ? 'Objetivo principal' : 'También entrena'}
                         </Badge>
                       )}
                       {exTargetMuscles(ex).length > 0 && (

@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { LayoutDashboard, Dumbbell, Activity, MessageCircle, Menu, Users, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSidebar } from '@/components/ui/sidebar'
@@ -33,11 +34,20 @@ function activeMenuHref(path: string | null, items: {href: string}[]): string | 
 }
 
 export function MobileBottomNav({ type }: { type: 'client' | 'admin' }) {
+  const router = useRouter()
   const path = useLayoutBasePath(`/${type}`)
   const items = type === 'client' ? clientItems : adminItems
   const activeHref = useMemo(() => activeMenuHref(path, items), [path, items])
   
   const { setOpenMobile } = useSidebar()
+
+  const handleWarmupRoute = useCallback((href: string) => {
+    try {
+      router.prefetch(href)
+    } catch {
+      // Ignore prefetch errors
+    }
+  }, [router])
 
   return (
     <nav
@@ -53,6 +63,8 @@ export function MobileBottomNav({ type }: { type: 'client' | 'admin' }) {
               <Link
                 href={item.href}
                 prefetch={true}
+                onTouchStart={() => handleWarmupRoute(item.href)}
+                onPointerEnter={() => handleWarmupRoute(item.href)}
                 className={cn(
                   "flex flex-col items-center justify-center w-full h-full gap-0.5 min-w-[44px] transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 rounded-xl",
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"

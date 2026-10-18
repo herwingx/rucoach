@@ -22,6 +22,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { createClient } from "@/lib/supabase/client";
 import type { Exercise } from "@/lib/types";
 import { exName } from "@/lib/exercise-i18n";
+import { searchExercises, findSimilarExercises } from "@/lib/exercise-search";
 import { cn } from "@/lib/utils";
 
 interface ExerciseSwapDrawerProps {
@@ -67,7 +68,9 @@ export function ExerciseSwapDrawer({
           .neq("id", originalExercise.id)
           .order("name_es", { ascending: true })
           .limit(60);
-        setAlternatives((data ?? []) as Exercise[]);
+        const rawList = (data ?? []) as Exercise[];
+        const sorted = findSimilarExercises(originalExercise, rawList, 60);
+        setAlternatives(sorted.length > 0 ? sorted : rawList);
       } catch {
         // silent
       } finally {
@@ -76,16 +79,9 @@ export function ExerciseSwapDrawer({
     })();
   }, [open, originalExercise?.id, originalExercise?.primary_muscle]);
 
-  const filtered = alternatives.filter((ex) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return (
-      ex.name?.toLowerCase().includes(q) ||
-      ex.name_es?.toLowerCase().includes(q) ||
-      ex.equipment?.toLowerCase().includes(q) ||
-      ex.equipment_es?.toLowerCase().includes(q)
-    );
-  });
+  const filtered = search.trim()
+    ? searchExercises(alternatives, search)
+    : alternatives;
 
   const handleConfirm = () => {
     if (!selected) return;

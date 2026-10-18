@@ -41,11 +41,13 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
+import { WeeklyMuscleCoverage } from "@/components/anatomy/weekly-muscle-coverage";
+import { computeRoutineMuscleVolume } from "@/lib/anatomy/muscles";
 
 interface RoutineSummary {
   id: string;
   name: string;
-  duration_weeks: number;
+  duration_weeks: number | null;
   days_per_week: number;
   /** Días con trabajo (excluye `is_rest_day`), para no confundir con slots totales del microciclo */
   training_days_per_week: number;
@@ -293,7 +295,18 @@ export default function ClientRoutinesPage() {
       >
         <section className="order-1 flex min-w-0 flex-col gap-8 lg:order-2 lg:col-span-8">
           {routines.map((routine) => {
-            const progress = (routine.current_week / routine.routines.duration_weeks) * 100;
+            const isContinuous =
+              !routine.routines.duration_weeks ||
+              routine.routines.duration_weeks <= 0;
+            const progress = isContinuous
+              ? 100
+              : Math.min(
+                  100,
+                  Math.round(
+                    (routine.current_week / routine.routines.duration_weeks!) *
+                      100,
+                  ),
+                );
             const nw = nextWorkout as {
               isComplete?: boolean;
               message?: string;
@@ -343,18 +356,45 @@ export default function ClientRoutinesPage() {
                 <CardContent className="flex flex-col gap-8 p-6 sm:p-8">
                   {/* Progress Section */}
                   <div className="flex flex-col gap-4 bg-muted/10 rounded-2xl p-5 border border-border/40">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-black uppercase tracking-widest text-muted-foreground/80">Progreso Actual</span>
-                        <span className="text-xl font-black tracking-tighter tabular-nums">
-                          Semana {routine.current_week} <span className="text-muted-foreground/40 font-bold mx-1">/</span> {routine.routines.duration_weeks}
-                        </span>
+                    {isContinuous ? (
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+                            Plan Continuo Activo
+                          </span>
+                          <span className="text-lg font-black tracking-tight text-foreground">
+                            Semana actual:{" "}
+                            <span className="tabular-nums text-primary">
+                              {routine.current_week}
+                            </span>
+                          </span>
+                          <p className="text-xs text-muted-foreground">
+                            Vigencia vinculada directamente al pago de tu membresía.
+                          </p>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="border-primary/30 bg-primary/10 text-primary font-bold text-xs px-3 py-1 rounded-full w-fit shrink-0"
+                        >
+                          Vigencia continua
+                        </Badge>
                       </div>
-                      <div className="flex size-14 items-center justify-center rounded-full bg-primary/10 border-4 border-primary/5 ring-4 ring-primary/5">
-                        <span className="text-sm font-black text-primary tabular-nums">{Math.round(progress)}%</span>
-                      </div>
-                    </div>
-                    <Progress value={progress} className="h-2.5 bg-muted rounded-full" />
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-black uppercase tracking-widest text-muted-foreground/80">Progreso Actual</span>
+                            <span className="text-xl font-black tracking-tighter tabular-nums">
+                              Semana {routine.current_week} <span className="text-muted-foreground/40 font-bold mx-1">/</span> {routine.routines.duration_weeks}
+                            </span>
+                          </div>
+                          <div className="flex size-14 items-center justify-center rounded-full bg-primary/10 border-4 border-primary/5 ring-4 ring-primary/5">
+                            <span className="text-sm font-black text-primary tabular-nums">{progress}%</span>
+                          </div>
+                        </div>
+                        <Progress value={progress} className="h-2.5 bg-muted rounded-full" />
+                      </>
+                    )}
                   </div>
 
                   {/* High Density Stats Row */}
@@ -507,6 +547,28 @@ export default function ClientRoutinesPage() {
                                     </div>
                                   );
                                 })}
+                              </div>
+
+                              {/* Cobertura Muscular de la Sesión (open-gym RoutineEdit / Session preview) */}
+                              <div className="mt-2 rounded-2xl border border-border/60 bg-background/60 p-4">
+                                <p className="mb-3 text-xs font-black uppercase tracking-wider text-muted-foreground">
+                                  Qué trabaja esta sesión
+                                </p>
+                                <WeeklyMuscleCoverage
+                                  load={computeRoutineMuscleVolume(
+                                    nw.exercises.map((item) => {
+                                      const exObj = Array.isArray(item.exercises)
+                                        ? item.exercises[0]
+                                        : item.exercises;
+                                      return {
+                                        exercise: exObj || {},
+                                        sets: Number(item.sets) || 3,
+                                      };
+                                    }),
+                                  )}
+                                  showMissed={false}
+                                  collapsedRows={5}
+                                />
                               </div>
                             </div>
                           )}
