@@ -186,7 +186,7 @@ export function ClientWorkoutChart({ data }: { data: ChartDataPoint[] }) {
           </ToggleGroup>
           <Select value={timeRange} onValueChange={setTimeRange}>
             <SelectTrigger
-              className="flex w-36 sm:w-40 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate @[767px]/card:hidden"
+              className="flex w-auto min-w-[136px] sm:min-w-[146px] **:data-[slot=select-value]:block @[767px]/card:hidden"
               size="sm"
               aria-label="Seleccionar período"
             >

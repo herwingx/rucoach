@@ -148,7 +148,7 @@ export function AdminOnboardingFlow({
                   <Select value={timezone} onValueChange={setTimezone}>
                     <SelectTrigger
                       id="timezone"
-                      className="h-12 md:h-12 data-[size=default]:h-12 md:data-[size=default]:h-12 w-full rounded-xl text-base sm:text-sm"
+                      className="h-12 w-full rounded-xl"
                     >
                       <SelectValue placeholder="Seleccionar zona horaria" />
                     </SelectTrigger>
@@ -179,7 +179,7 @@ export function AdminOnboardingFlow({
                   <Select value={currency} onValueChange={setCurrency}>
                     <SelectTrigger
                       id="currency"
-                      className="h-12 md:h-12 data-[size=default]:h-12 md:data-[size=default]:h-12 w-full rounded-xl text-base sm:text-sm"
+                      className="h-12 w-full rounded-xl"
                     >
                       <SelectValue placeholder="Seleccionar moneda" />
                     </SelectTrigger>

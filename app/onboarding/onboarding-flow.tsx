@@ -726,7 +726,7 @@ export function OnboardingFlow({
                     <Select value={gender} onValueChange={setGender}>
                       <SelectTrigger
                         id="gender"
-                        className="h-12 md:h-12 data-[size=default]:h-12 md:data-[size=default]:h-12 w-full rounded-xl bg-background border-border text-base"
+                        className="h-12 w-full rounded-xl bg-background border-border"
                       >
                         <SelectValue placeholder="Selecciona..." />
                       </SelectTrigger>
@@ -1074,7 +1074,7 @@ export function OnboardingFlow({
                       >
                         <SelectTrigger
                           id="injuryRegion"
-                          className="h-12 md:h-12 data-[size=default]:h-12 md:data-[size=default]:h-12 w-full rounded-xl bg-background text-base sm:text-sm"
+                          className="h-12 w-full rounded-xl bg-background"
                         >
                           <SelectValue />
                         </SelectTrigger>
