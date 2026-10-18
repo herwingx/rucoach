@@ -47,12 +47,16 @@ La pantalla de sesión activa ([`workout-active-session.tsx`](../app/client/work
   - **Con carga externa (`uses_external_load = true`)**: Muestra controles `+` / `-` para Peso (`kg`) y Repeticiones, además de selector rápido de RPE (`6`, `7`, `8`, `9`, `10`).
   - **Peso corporal (`bodyweight`)**: Oculta el campo de peso externo innecesario y centra el registro en repeticiones y RPE.
   - **Por tiempo (`timed`)**: Registra la duración en segundos (`duration_seconds`).
+- **Soporte para Series de Calentamiento y Aproximación (`is_warmup`)**:
+  - En la tarjeta del ejercicio se despliega el bloque de aproximaciones prescrito por el coach.
+  - Cada serie cuenta con un botón/indicador de calentamiento (`W` o `is_warmup: true`).
+  - **Exclusión Analítica**: Las series de aproximación no se computan dentro del volumen total de trabajo (`total_volume_kg`), no alteran las curvas de fatiga ni computan para Récords Personales (PRs).
 - **Persistencia Resiliente (`localStorage`)**: Cada cambio de serie, peso o cronómetro se guarda localmente en el dispositivo (`workout_draft_{clientId}_{dayId}`). Si el navegador móvil se suspende al bloquear la pantalla, el estado se restaura intacto al volver.
 - **Edición Flexible**: Una serie marcada como completada puede desmarcarse con un toque para corregir peso o repeticiones antes de finalizar la sesión.
 
 ---
 
-## Sensación Post-Entreno (`feeling_score` 1–5) y Feedback al Coach
+## Sensación Post-Entreno (`feeling_score` 1–5), Resumen y Músculos Trabajados
 
 Al pulsar **"Finalizar entrenamiento"**, se abre un diálogo de confirmación que resume las series completadas, el volumen total acumulado y el tiempo transcurrido (advirtiendo si quedaron series sin marcar).
 
@@ -64,6 +68,12 @@ El asesorado selecciona cómo sintió la sesión en una escala de **1 a 5**:
 5. **5 — Al límite**: Fatiga máxima al terminar.
 
 Tanto `feeling_score` como `feeling_note` se guardan en `public.workout_sessions` y se muestran con badges semafóricos en la pestaña **Historial** del Hub del Cliente (`/admin/clients/[clientId]`).
+
+### Pantalla de Resumen Post-Entrenamiento (`/client/workout/summary`)
+Al confirmar el cierre de sesión:
+1. **Músculos Trabajados Hoy (`WeeklyMuscleCoverage`)**: Proyección inmediata del mapa anatómico SVG con las series efectivas completadas por grupo muscular (100% primario / 40% secundario).
+2. **Desglose de Series y Récords**: Tarjetas de rendimiento por ejercicio con insignias de PR batido.
+3. **Optimización Automática de Cargas**: Cálculo de nuevas sugerencias de peso para el siguiente microciclo.
 
 ---
 

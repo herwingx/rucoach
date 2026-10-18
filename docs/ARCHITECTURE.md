@@ -13,6 +13,7 @@ FRONTEND & UI
 ├── Next.js 16.2.1 (App Router, Server Components, Server Actions, proxy.ts)
 ├── React 19.2.4 + TypeScript 5.9 (target ES2022)
 ├── Tailwind CSS v4.2 (@tailwindcss/postcss) + variables OKLCH semánticas (Dark / Light)
+├── Motor Anatómico Reactivo (SVG BodyMap, Balance Muscular, Fatiga Neuromuscular, Retención 1RM)
 ├── shadcn/ui + Radix UI Primitives + Lucide React Icons
 ├── @dnd-kit (Drag & Drop en el Constructor de Rutinas)
 ├── Recharts + @tanstack/charts (Analítica de Fuerza, Volumen y Medidas)
@@ -24,7 +25,7 @@ BACKEND & DATOS
 ├── Supabase Realtime (Canal en vivo para `public.messages` con INSERT y UPDATE de lectura)
 ├── Cloudflare R2 (@aws-sdk/client-s3 + URLs pre-firmadas con control de acceso por rol/propietario)
 ├── Resend + @react-email/components (Correos transaccionales de invitación, bienvenida, rutina y pago)
-└── Web Push (VAPID con `web-push` en `lib/push.ts` + Service Worker en `app/sw.ts`)
+└── Web Push & PWA (VAPID con `web-push` en `lib/push.ts` + `@serwist/next` en `app/sw.ts`)
 ```
 
 ---
@@ -37,7 +38,50 @@ gym-coaching/
 ├── next.config.mjs                     # Configuración Next.js 16 + Serwist PWA + Security Headers
 ├── app/
 │   ├── layout.tsx                      # Root Layout (Geist Sans/Mono, ThemeProvider, Toaster, PWAInstallCTA)
-│   ├── globals.css                     # Tokens de diseño OKLCH, contraste accesible en modo claro y utilidades safe-area
+│   ├── globals.css                     # Tokens de diseño OKLCH, motor CSS del mapa anatómico (.bodymap, .bm-*) y safe-areas
+│   ├── sw.ts                           # Service Worker (caché offline Serwist + eventos push y notificationclick)
+│   ├── manifest.ts                     # Web App Manifest para instalación PWA en iOS/Android/Desktop
+│   ├── robots.ts / sitemap.ts          # SEO técnico dinámico
+│   ├── error.tsx / not-found.tsx       # Páginas globales de error y 404
+│   ├── offline/page.tsx                # Fallback sin conexión
+│   ├── suspended/page.tsx              # Pantalla de cuenta pausada/vencida con contacto directo al Coach
+│   ├── auth/                           # Flujos de autenticación (Login, Sign-up, OTP, PKCE, Recovery, Admin Setup)
+│   ├── onboarding/                     # Flujo guiado de 4 pasos para nuevos asesorados
+│   ├── admin/                          # Portal del Coach / Administrador
+│   │   ├── dashboard/                  # Vista ejecutiva de asesorados, alertas, KPIs y gráfica semanal
+│   │   ├── clients/                    # Directorio, creación, asignaciones y Hub 360° con analítica biomecánica
+│   │   ├── routines/                   # Catálogo de rutinas, clonación, asignación rápida y Constructor Visual con cobertura muscular
+│   │   ├── exercises/                  # Catálogo bilingüe de 1,324+ ejercicios con filtro interactivo por mapa corporal
+│   │   ├── payments/                   # Gestión de cobros, vigencia efectiva, cobro libre y renovación en 1 clic
+│   │   ├── invitations/                # Generación y administración de códigos de invitación
+│   │   ├── messages/                   # Inbox de chat en tiempo real con todos los asesorados
+│   │   └── settings/                   # Configuración de marca, Planes y Tarifas, perfil del coach y Web Push
+│   ├── client/                         # Portal del Asesorado
+│   │   ├── dashboard/                  # Nivel/XP, racha, próximo entrenamiento, estado de membresía, gráfica e hitos
+│   │   ├── routines/                   # Rutina activa, "Qué trabaja esta sesión" con mapa corporal bare, técnica y swap
+│   │   ├── workout/start/              # Sesión en vivo con series de aproximación separadas, cronómetro y sensación post-entreno
+│   │   ├── workout/summary/            # Resumen de sesión con mapa de activación muscular, PRs, series, logros y auto-progresión
+│   │   ├── workouts/                   # Historial filtrable por rango de fechas
+│   │   ├── progress/                   # Balance muscular 3-en-1, fatiga, retención de 1RM, heatmap anual y gráficas
+│   │   ├── measurements/               # Registro y gráficas de 7 medidas corporales
+│   │   ├── photos/                     # Galería en R2 y comparador interactivo Antes / Después
+│   │   ├── calendar/                   # Calendario mensual de entrenamientos
+│   │   ├── achievements/               # Vitrina de logros, medallas y rachas
+│   │   ├── messages/                   # Chat directo en tiempo real con el Coach (VisualViewport mobile-safe)
+│   │   └── profile/                    # Perfil físico/médico, membresía, reporte de dolor y Web Push
+│   └── receptionist/                   # Portal de Recepción (dashboard, check-in, clientes, pagos)
+├── components/
+│   ├── anatomy/                        # Componentes del motor anatómico (BodyMap, MuscleBalanceCard, ActivityHeatmap, WeeklyMuscleCoverage)
+│   ├── admin/                          # Componentes del portal coach (exercises, clients, routines)
+│   ├── client/                         # Componentes del portal cliente (workout, routines, photos)
+│   └── ui/                             # Primitivas Radix UI / shadcn/ui con soporte mobile-safe
+├── lib/
+│   ├── anatomy/                        # Lógica biomecánica: músculos canónicos (muscles.ts), fatiga y retención 1RM (recovery.ts)
+│   ├── local-cache.ts                  # Caché en memoria + localStorage con TTL para respuesta inmediata
+│   ├── auto-progression.ts             # Motor de sobrecarga progresiva con barrera clínica de dolor
+│   ├── progression.ts                  # Fórmulas de 1RM (Epley/Brzycki) y evaluación de PRs en series efectivas
+│   ├── push.ts                         # Envío seguro de notificaciones Web Push VAPID
+│   └── r2.ts                           # Clientes S3 y generación de URLs firmadas para Cloudflare R2
 │   ├── sw.ts                           # Service Worker (caché offline Serwist + eventos push y notificationclick)
 │   ├── manifest.ts                     # Web App Manifest para instalación PWA en iOS/Android/Desktop
 │   ├── robots.ts / sitemap.ts          # SEO técnico dinámico
@@ -153,3 +197,16 @@ Definido íntegramente en [`supabase/supabase_schema_dump.sql`](../supabase/supa
 ### 3. Notificaciones Web Push (`lib/push.ts` + `app/sw.ts`)
 - [`lib/push.ts`](../lib/push.ts) está protegido con `import "server-only"` y expone `notifyUser(userId, payload)` para ser invocado exclusivamente desde Server Actions autenticadas.
 - Si un endpoint devuelve HTTP `404` o `410` (suscripción expirada o revocada en el navegador), se elimina automáticamente de `public.push_subscriptions`.
+
+### 4. Motor Biomecánico y Modelos Fisiológicos (`lib/anatomy/*`)
+- **Taxonomía Canónica (18 Músculos)**: Basada en la arquitectura de `open-gym`, traduce las nomenclaturas heterogéneas de la base de datos a un conjunto ortogonal de 18 grupos musculares primarios y secundarios.
+- **Ponderación de Volumen**: Cada serie efectiva asigna 1.0 al músculo objetivo primario y 0.4 a los secundarios, o utiliza pesos fraccionarios normalizados (`muscle_weights`). Las series de calentamiento/aproximación (`is_warmup`) se excluyen estrictamente del volumen de fatiga acumulada.
+- **Modelo de Fatiga Neuromuscular (Half-Life Decay)**: Decaimiento exponencial $R(t) = e^{-\lambda \cdot t}$, donde $\lambda = \frac{\ln(2)}{t_{1/2}}$ con semividas fisiológicas diferenciadas por grupo (pecho/espalda/cuádriceps 48h, brazos 36h, core/pantorrillas 24h).
+- **Modelo de Retención de 1RM (Fitness-Fatigue Decay)**: Meseta de mantenimiento de 14 días sin pérdidas, seguida de decaimiento con semivida de 28 días acotado por un suelo fisiológico del 50% ($0.5$).
+- **Renderizado SVG Reactivo**: El componente [`BodyMap`](../components/anatomy/body-map.tsx) aísla silueta inerte (`.bm-sil`) de músculos activos (`.bm-m.l0..l4`), utilizando la paleta dorada/ámbar de RU Coach con trazado de juntas nítidas (`stroke: var(--card)`).
+- Documentación completa en [`docs/ANATOMIA_Y_FUSION_OPEN_GYM.md`](./ANATOMIA_Y_FUSION_OPEN_GYM.md).
+
+### 5. Arquitectura SPA de Cero Latencia y Rendimiento Nativo Móvil
+- **Caché Progresivo con Serwist (`app/sw.ts`)**: Estrategia Stale-While-Revalidate para catálogos y llamadas estáticas, Cache-First para fuentes y recursos visuales (GIFs y avatares), y Network-First con fallback offline para rutas de navegación.
+- **Caché en Memoria y LocalStorage (`lib/local-cache.ts`)**: Búsqueda instantánea de ejercicios y rutinas sin esperar latencia de red, con invalidación por TTL.
+- **Transiciones Nativas y Micro-interacciones**: Soporte de CSS View Transitions en Next.js 16, respuesta háptica y táctil inmediata (`active:scale-95`), campos de selección adaptados a dedos (`py-3 text-base`) y respeto estricto de `env(safe-area-inset-bottom)` en la barra de navegación inferior móvil.

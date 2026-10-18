@@ -13,7 +13,7 @@
   [![Cloudflare R2](https://img.shields.io/badge/Cloudflare-R2_&_DNS-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://www.cloudflare.com/)
   [![PWA Installable](https://img.shields.io/badge/PWA-iOS_%7C_Android_%7C_Desktop-F59E0B?style=for-the-badge)](https://rucoach.app)
 
-  [**Sitio en Producción (`rucoach.app`)**](https://rucoach.app) · [**Documentación Técnica (`docs/`)**](./docs/INDEX.md) · [**Guía de Base de Datos**](./docs/DATABASE_GUIDE.md) · [**Guía de Migración y Dominio**](./docs/MIGRACION_PRODUCCION_RUCOACH_APP.md)
+  [**Sitio en Producción (`rucoach.app`)**](https://rucoach.app) · [**Documentación Técnica (`docs/`)**](./docs/INDEX.md) · [**Motor Anatómico**](./docs/ANATOMIA_Y_FUSION_OPEN_GYM.md) · [**Guía de Base de Datos**](./docs/DATABASE_GUIDE.md) · [**Guía de Migración y Dominio**](./docs/MIGRACION_PRODUCCION_RUCOACH_APP.md)
 </div>
 
 ---
@@ -80,18 +80,24 @@ flowchart LR
 - **Hub Clínico y Deportivo 360° del Asesorado (`/admin/clients/[clientId]`)**:
   - **Alerta Clínica de Molestias**: Banner prioritario con reportes de dolor activos (`client_pain_reports`) y resolución clínica con un clic (`resolveClientPainReport`).
   - **Pestaña Resumen**: Rachas activas, nivel/XP, datos antropométricos, tamizaje de lesiones y bloc de notas privadas del coach.
-  - **Pestaña Rutina**: Desglose diario del programa activo con trazabilidad de **sustituciones de ejercicios** (`client_exercise_overrides`) y botón para restaurar el ejercicio original (`revertExerciseOverride`).
+  - **Pestaña Rutina**: Desglose diario del programa activo con **Cobertura Muscular Semanal (`WeeklyMuscleCoverage`)** en vivo, trazabilidad de **sustituciones de ejercicios** (`client_exercise_overrides`) y botón para restaurar el ejercicio original (`revertExerciseOverride`).
   - **Pestaña Historial**: Sesiones finalizadas con duración, tonelaje movido, series efectivas, **esfuerzo percibido post-entreno (`feeling_score` 1–5)** y comentarios del atleta (`feeling_note`).
-  - **Pestaña Progreso y Físico**: Curvas de evolución de fuerza por ejercicio (`@tanstack/charts`), historial de **7 perímetros y medidas corporales** (Peso, % Grasa, Cintura, Cadera, Pecho, Brazo, Muslo) y galería privada de fotos de progreso con URLs firmadas desde Cloudflare R2.
+  - **Pestaña Progreso, Biomecánica y Físico**:
+    - **Analítica Biomecánica 3-en-1 (`MuscleBalanceCard`)**: Mapa corporal SVG interactivo (18 músculos canónicos), balance de volumen semanal (efectivo vs. planeado), cálculo de fatiga neuromuscular con horas estimadas a recuperación y retención de 1RM con decaimiento fisiológico.
+    - **Heatmap Anual de Actividad (`ActivityHeatmap`)**: 52 semanas de consistencia con alternador de Volumen y Sesiones en paleta ámbar/oro de la marca.
+    - Curvas de evolución de fuerza por ejercicio (`@tanstack/charts`), historial de **7 perímetros y medidas corporales** (Peso, % Grasa, Cintura, Cadera, Pecho, Brazo, Muslo) y galería privada de fotos de progreso con URLs firmadas desde Cloudflare R2.
 - **Constructor Visual de Rutinas (`/admin/routines/builder` y `/admin/routines`)**:
-  - Diseño de programas por objetivo (`goal`), nivel (`level`), duración en semanas y distribución de días de entrenamiento/descanso con **Enfoque del día (`focus`)** y contadores de volumen en vivo (`X ej. · Y series`).
+  - Diseño de programas continuos (sin semanas forzadas) o con duración fija (`duration_weeks = null | number`), distribución de días de entrenamiento/descanso con **Enfoque del día (`focus`)** y contadores de volumen en vivo (`X ej. · Y series`).
+  - **Series de Aproximación / Calentamiento (`warmup_sets`)**: Configuración discreta por ejercicio en acordeón colapsable para feeder/warmup sets sin saturar la vista.
+  - **Cobertura Muscular en Vivo (`WeeklyMuscleCoverage`)**: Cálculo en tiempo real de volumen y estimulación muscular con mapa frontal/dorsal reactivo.
   - Reordenamiento *Drag & Drop* (`@dnd-kit`), agrupación visual de **Biseries y Superseries (Grupos A–E)**, vista previa técnica integrada (`ExerciseDetailDrawer`), prescripción de series, repeticiones, descanso y **notas por ejercicio (`notes`)**.
   - **Edición No Destructiva (`updateRoutineFromBuilder`)** que preserva el ciclo de días y las sustituciones de ejercicios del atleta, **clonación en 1 clic (`cloneRoutine`)** y **asignación rápida (`AssignRoutineModal`)** con notificación vía **Resend** y **Web Push**.
 - **Catálogo Bilingüe y Editor Paso a Paso de Ejercicios (`/admin/exercises`)**:
   - **1,324+ ejercicios** con esquema bilingüe (`_es` prioritario), GIFs demostrativos servidos desde Cloudflare R2, clasificación por modalidad (`strength`, `bodyweight`, `timed`, `cardio`, `mobility`) y bandera `uses_external_load`.
+  - **Filtro Anatómico Interactivo (`BodyMap` + `MuscleExplorerPanel`)**: Selección visual directa en mapa corporal SVG o chips musculares, sincronizado con la URL (`?muscle=...`).
   - **Creación y Edición por Puntos (`ExerciseFormModal`)**: Permite editar o crear ejercicios con una lista interactiva de pasos numerados (insertar, reordenar, pegar bloques de texto) y subida directa de GIF/imagen a Cloudflare R2.
 - **Pagos Inteligentes, Descuentos y Vigencias (`/admin/payments` y `/admin/settings`)**:
-  - Evaluación de vigencia efectiva (`period_end` vencido, por vencer en $\le 5$ días o vigente), renovación rápida en 1 clic, píldoras de descuento (`-10%`, `-15%`, `-20%`, `-50%`) o precio personalizado, reactivación inmediata de acceso y gestor CRUD de **Planes y Tarifas (`membership_plans`)**.
+  - Evaluación de vigencia efectiva (`period_end` vencido, por vencer en $\le 5$ días o vigente), cobro libre/personalizado sin plan fijo, renovación rápida en 1 clic, píldoras de descuento (`-10%`, `-15%`, `-20%`, `-50%`) o precio personalizado, reactivación inmediata de acceso y gestor CRUD de **Planes y Tarifas (`membership_plans`)**.
 - **Invitaciones y Mensajería Realtime Multi-Canal (`/admin/invitations`, `/admin/messages`)**:
   - Códigos de invitación exclusivos para nuevos atletas o coaches y bandeja de chat en vivo con `postgres_changes` + canal Broadcast `chat_room` + puente Service Worker (`CHAT_NEW_MESSAGE`), soporte de teclado virtual móvil (`VisualViewport`) e indicadores de lectura (`Check` / `CheckCheck`).
 
@@ -101,14 +107,17 @@ flowchart LR
   - Sincronización inteligente de datos pre-cargados por el coach, creación automática de la **medición base Día 1** en `body_measurements`, selección de objetivos y disponibilidad semanal (`2` a `6+` días/semana), **tamizaje articular/lesiones** que genera alertas clínicas automáticas y activación de notificaciones Push compatible con iOS/Android/Desktop.
 - **Dashboard del Atleta (`/client/dashboard`)**: Nivel actual, barra de XP, racha de días calendario, tarjeta del entrenamiento del día, gráfica de actividad (`7d` / `30d` / `90d`) e hitos recientes.
 - **Mi Rutina (`/client/routines`)**:
-  - Exploración de días del programa, ficha técnica con GIF e instrucciones paso a paso, **intercambio inteligente de ejercicio** (`ExerciseSwapDrawer`) y **cambio temporal del día a entrenar hoy** (`ScheduleOverrideDialog`).
+  - Exploración de días del programa, desglose visual **"Qué trabaja esta sesión"** con mapa anatómico bare frontal/dorsal, ficha técnica con GIF e instrucciones paso a paso, **intercambio inteligente de ejercicio** (`ExerciseSwapDrawer`) con selector anatómico y **cambio temporal del día a entrenar hoy** (`ScheduleOverrideDialog`).
 - **Sesión de Entrenamiento Activa (`/client/workout/start`)**:
+  - Soporte de **Series de Aproximación (W)** vs. Series Efectivas de trabajo con un clic.
   - Registro serie por serie con historial previo del ejercicio, controles táctiles de `44x44px`, soporte para biseries/superseries, temporizador flotante con alerta Web Audio API + vibración háptica y autoguardado en `localStorage`.
-  - **Cierre con Sensación Post-Entreno (`1–5`)** y nota directa para el coach.
+  - **Cierre con Sensación Post-Entreno (`1–5`)** y nota directa para el coach (excluyendo automáticamente las series de aproximación del tonelaje total).
 - **Resumen Post-Entrenamiento y Auto-Progresión (`/client/workout/summary`)**:
-  - Desglose de series, XP obtenido, **Nuevos Récords Personales (PRs)** y modales de desbloqueo de medallas con opción de compartir (`navigator.share`).
+  - **Resumen Anatómico de la Sesión**: Mapa corporal SVG reactivo que muestra los músculos estimulados hoy.
+  - Desglose de series, XP obtenido, **Nuevos Récords Personales (PRs)** (calculados solo sobre series efectivas) y modales de desbloqueo de medallas con opción de compartir (`navigator.share`).
   - **Motor de Auto-Progresión (`lib/auto-progression.ts`)**: Incrementa de forma inteligente las cargas sugeridas cuando el atleta cumple el tope de repeticiones con RPE controlado, incorporando una **barrera de seguridad clínica** que congela incrementos en tren superior o inferior si existe un reporte de dolor activo (`severity >= 4`).
-- **Progreso, Medidas, Fotos, Calendario y Logros**:
+- **Progreso, Biomecánica, Medidas, Fotos, Calendario y Logros**:
+  - **Analítica Biomecánica (`/client/progress`)**: Balance de grupos musculares, índice de fatiga y recuperación estimada, y gráfica de retención de 1RM junto al heatmap de 52 semanas.
   - Gráficas de fuerza/volumen (`/client/progress`), radar antropométrico de 7 métricas (`/client/measurements`), comparador interactivo **Antes / Después** (`/client/photos`), calendario mensual (`/client/calendar`) y vitrina de 16 medallas (`/client/achievements`).
 
 ### 3. Portal de Recepción (`/receptionist/*`)
@@ -221,6 +230,7 @@ pnpm dev
 Toda la documentación técnica se encuentra actualizada en el directorio [`docs/`](./docs/INDEX.md):
 
 - [**Índice Maestro de Documentación (`docs/INDEX.md`)**](./docs/INDEX.md)
+- [**Motor Anatómico y Fusión Biomecánica (`docs/ANATOMIA_Y_FUSION_OPEN_GYM.md`)**](./docs/ANATOMIA_Y_FUSION_OPEN_GYM.md)
 - [**Guía Paso a Paso de Migración a Producción y Dominio `rucoach.app` (`docs/MIGRACION_PRODUCCION_RUCOACH_APP.md`)**](./docs/MIGRACION_PRODUCCION_RUCOACH_APP.md)
 - [**Resumen General del Sistema (`docs/README.md`)**](./docs/README.md)
 - [**Arquitectura e Ingeniería (`docs/ARCHITECTURE.md`)**](./docs/ARCHITECTURE.md)

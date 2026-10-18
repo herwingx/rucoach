@@ -25,13 +25,21 @@
 - **[`R2_MIGRATION_GUIDE.md`](./R2_MIGRATION_GUIDE.md)**
   - Configuración de Cloudflare R2, tokens S3, reglas CORS y subida masiva de GIFs con Rclone
 
-### Manuales del Sistema de Entrenamiento
+### Manuales del Sistema de Entrenamiento y Biomecánica
+- **[`ANATOMIA_Y_FUSION_OPEN_GYM.md`](./ANATOMIA_Y_FUSION_OPEN_GYM.md)**
+  - Motor biomecánico y anatómico (`lib/anatomy/`) derivado de la fusión con Open-Gym
+  - Arquitectura visual SVG y paleta de diseño integrada con la marca de RU Coach
+  - Catálogo de componentes: `BodyMap`, `MuscleBalanceCard` (3 en 1), `ActivityHeatmap`, `MuscleExplorerPanel` y `WeeklyMuscleCoverage`
+  - Requerimientos Mobile-First: rutinas continuas, series de aproximación y prevención de desbordes
+  - Arquitectura de rendimiento Zero-Latency SPA
 - **[`ROUTINES.md`](./ROUTINES.md)**
   - Creación y edición en el Constructor de Rutinas (`/admin/routines/builder`)
-  - Uso de Biseries y Superseries (`superset_group` A–E)
+  - Rutinas continuas sin duración forzada y series de aproximación (`warmup_sets`)
+  - Cobertura muscular en vivo y uso de Biseries/Superseries (`superset_group` A–E)
   - Asignación de rutinas, intercambio de ejercicios (`client_exercise_overrides`) y cambio de día (`override_next_day_id`)
 - **[`PROGRESSION.md`](./PROGRESSION.md)**
-  - Cómo funciona la sesión activa (`/client/workout/start`) y el registro serie por serie
+  - Cómo funciona la sesión activa (`/client/workout/start`) y el registro serie por serie (con separación de calentamiento)
+  - Resumen post-entrenamiento (`/client/workout/summary`) con músculos trabajados en vivo
   - Sensación post-entrenamiento (`feeling_score` 1–5) y notas al coach
   - Detección automática de Récords Personales (`personal_records` y `pr_events`)
   - Algoritmo de auto-progresión (`lib/auto-progression.ts`) y bloqueo de seguridad ante reportes de dolor (`client_pain_reports`)

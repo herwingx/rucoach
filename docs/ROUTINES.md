@@ -18,23 +18,26 @@
    - **Nombre de la rutina**: ej. *"Hipertrofia 12 Semanas — Upper/Lower"*
    - **Objetivo (`goal`)**: *Ganancia muscular*, *Pérdida de grasa*, *Fuerza / Tonificación*, *Resistencia* o *Mantenimiento*
    - **Nivel (`level`)**: *Principiante*, *Intermedio* o *Avanzado* (normalizado automáticamente entre claves en inglés y etiquetas en español mediante `lib/constants.ts`)
-   - **Duración (`duration_weeks`)**: Número de semanas del bloque (ej. `8` o `12`)
+   - **Duración (`duration_weeks`)**: Número de semanas del bloque (ej. `8` o `12`), o bien **"Rutina continua (sin semanas fijas)"** (`duration_weeks = null`). En planes continuos, la vigencia depende directamente de la membresía activa del atleta, evitando desorientación por conteos de semanas artificiales.
    - **Descripción**: Indicaciones generales del bloque para el asesorado
 3. **Configura cada Día de la Semana**:
    - Puedes alternar cada día entre **Día de Entrenamiento** o **Día de Descanso Activo / Total** (`is_rest_day`). El sistema calcula automáticamente `days_per_week` contando únicamente los días efectivos de entrenamiento.
    - Asigna un **Nombre del día** (ej. *"Día 1 — Torso A"*) y un **Enfoque del día (`focus`)** (ej. *"Empuje: Pecho, Hombros y Tríceps"*).
    - Visualiza en tiempo real el contador de volumen por día (`X ej. · Y series`) y el volumen semanal total (`Z series / sem`) en la cabecera del plan.
 4. **Agrega, Inspecciona y Ordena Ejercicios**:
-   - Abre el selector conectado al catálogo de **1,324+ ejercicios en español** (filtrable por grupo muscular o equipo).
+   - Abre el selector conectado al catálogo de **1,324+ ejercicios en español** con soporte de **"Mapa Muscular"** interactivo para filtrar visualmente tocando el grupo anatómico deseado.
    - **Vista previa técnica (`ExerciseDetailDrawer`)**: Haz clic en el ícono de ojo (`Eye`) o en la miniatura de cualquier ejercicio (tanto en el selector como dentro del día) para abrir su ficha técnica con GIF demostrativo, músculos trabajados e instrucciones paso a paso sin salir del Builder.
-   - Reordena los ejercicios arrastrándolos desde el ícono lateral (`@dnd-kit`, compatible en desktop y pantallas táctiles móviles).
+   - Reordena los ejercicios arrastrándolos desde el ícono lateral (`@dnd-kit`, compatible en desktop y pantallas táctiles móviles con layout responsivo de dos filas que evita truncar textos largos).
    - Para cada ejercicio configura:
-     - **Series (`sets`)**: ej. `3` o `4`
+     - **Series (`sets`)**: ej. `3` o `4` (series efectivas de trabajo)
+     - **Series de aproximación (`warmup_sets`)**: Campo opcional y discreto (ej. `1x12 al 50%, 1x8 al 70%`) para prescribir calentamiento o series de aproximación (*feeder sets*) sin distorsionar el volumen efectivo ni los récords del atleta.
      - **Repeticiones (`reps`)**: por defecto `10-12` (admite rangos como `8-10`, `12-15` o `Fallo`)
      - **Descanso (`rest_seconds`)**: ej. `90` segundos
      - **Grupo de Biserie / Superserie (`superset_group`)**: `A`, `B`, `C`, `D`, `E` o sin agrupar
      - **Notas / Indicaciones del ejercicio (`notes`)**: Botón desplegable por ejercicio para agregar indicaciones específicas de ejecución (ej. *"Pausa de 2s en máximo estiramiento, RIR 1"*), visibles para el asesorado en su rutina.
-5. Haz clic en **"Guardar Rutina"**:
+5. **Cobertura Muscular en Vivo (`WeeklyMuscleCoverage`)**:
+   - En la parte inferior del constructor se proyecta en tiempo real el mapa corporal anatómico de Open-Gym y el ranking de series efectivas ponderadas (100% primario / 40% secundario), alertando sobre músculos descuidados antes de guardar el programa.
+6. **Guardar Rutina**:
    - **Edición No Destructiva (`updateRoutineFromBuilder`)**: Al editar una rutina existente, el servidor reutiliza los `routine_days.id` existentes por `day_number` y migra los reemplazos activos (`client_exercise_overrides`) a los nuevos IDs de `routine_exercises`. Esto garantiza que los asesorados que ya entrenan con esa rutina **no pierdan la secuencia de su próximo día (`workout_sessions.routine_day_id`) ni sus adaptaciones de ejercicios**.
 
 ---
