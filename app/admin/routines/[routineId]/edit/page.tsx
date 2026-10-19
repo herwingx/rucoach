@@ -55,15 +55,7 @@ export default async function EditRoutinePage({ params }: Props) {
         focus,
         is_rest_day,
         routine_exercises (
-          id,
-          exercise_id,
-          order_index,
-          sets,
-          reps,
-          rest_seconds,
-          superset_group,
-          notes,
-          warmup_sets
+          *
         )
       )
     `,

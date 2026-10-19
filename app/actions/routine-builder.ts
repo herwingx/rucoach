@@ -105,9 +105,26 @@ export async function saveRoutineFromBuilder(
         notes: ex.notes?.trim() || null,
         warmup_sets: ex.warmup_sets?.trim() || null,
       }));
-      const { error: reError } = await supabase
+      let { error: reError } = await supabase
         .from("routine_exercises")
         .insert(exercisesPayload);
+
+      if (
+        reError &&
+        (reError.message?.includes("warmup_sets") ||
+          reError.code === "PGRST204" ||
+          reError.code === "42703")
+      ) {
+        const fallbackPayload = exercisesPayload.map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ({ warmup_sets: _w, ...rest }) => rest,
+        );
+        const retry = await supabase
+          .from("routine_exercises")
+          .insert(fallbackPayload);
+        reError = retry.error;
+      }
+
       if (reError) throw new Error(reError.message);
     }
   }
@@ -272,10 +289,29 @@ export async function updateRoutineFromBuilder(
         notes: ex.notes?.trim() || null,
         warmup_sets: ex.warmup_sets?.trim() || null,
       }));
-      const { data: insertedExercises, error: reError } = await supabase
+      let { data: insertedExercises, error: reError } = await supabase
         .from("routine_exercises")
         .insert(exercisesPayload)
         .select("id, exercise_id");
+
+      if (
+        reError &&
+        (reError.message?.includes("warmup_sets") ||
+          reError.code === "PGRST204" ||
+          reError.code === "42703")
+      ) {
+        const fallbackPayload = exercisesPayload.map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ({ warmup_sets: _w, ...rest }) => rest,
+        );
+        const retry = await supabase
+          .from("routine_exercises")
+          .insert(fallbackPayload)
+          .select("id, exercise_id");
+        insertedExercises = retry.data;
+        reError = retry.error;
+      }
+
       if (reError) throw new Error(reError.message);
 
       if (savedOverrides.length > 0 && insertedExercises?.length) {
@@ -344,14 +380,7 @@ export async function cloneRoutine(routineId: string): Promise<{
         notes,
         is_rest_day,
         routine_exercises (
-          exercise_id,
-          order_index,
-          sets,
-          reps,
-          rest_seconds,
-          superset_group,
-          notes,
-          warmup_sets
+          *
         )
       )
     `,
@@ -430,9 +459,26 @@ export async function cloneRoutine(routineId: string): Promise<{
         notes: ex.notes ?? null,
         warmup_sets: (ex as { warmup_sets?: string | null }).warmup_sets ?? null,
       }));
-      const { error: exErr } = await supabase
+      let { error: exErr } = await supabase
         .from("routine_exercises")
         .insert(payload);
+
+      if (
+        exErr &&
+        (exErr.message?.includes("warmup_sets") ||
+          exErr.code === "PGRST204" ||
+          exErr.code === "42703")
+      ) {
+        const fallbackPayload = payload.map(
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          ({ warmup_sets: _w, ...rest }) => rest,
+        );
+        const retry = await supabase
+          .from("routine_exercises")
+          .insert(fallbackPayload);
+        exErr = retry.error;
+      }
+
       if (exErr) {
         return { success: false, error: exErr.message };
       }
