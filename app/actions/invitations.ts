@@ -15,15 +15,39 @@ function generateCode(): string {
   return code;
 }
 
+export type CreateInvitationResponse = {
+  success: boolean;
+  code?: string;
+  emailSent?: boolean;
+  error?: string;
+  invitation?: {
+    id: string;
+    code: string;
+    email: string | null;
+    for_role: string;
+    expires_at: string | null;
+    times_used: number;
+    max_uses: number;
+    is_active: boolean;
+    created_at: string | null;
+    created_by: string | null;
+    linked_client_id: string | null;
+    linked_name: string | null;
+    linked_phone: string | null;
+  };
+};
+
 // Create a new invitation code (admin only)
-export async function createInvitationCode(formData: FormData) {
+export async function createInvitationCode(
+  formData: FormData,
+): Promise<CreateInvitationResponse> {
   const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return { error: "No autorizado" };
+    return { success: false, error: "No autorizado" };
   }
 
   // Verify user is admin
@@ -31,10 +55,10 @@ export async function createInvitationCode(formData: FormData) {
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   if (profile?.role !== "admin") {
-    return { error: "Solo administradores pueden crear códigos" };
+    return { success: false, error: "Solo administradores pueden crear códigos" };
   }
 
   const email = formData.get("email") as string | null;
@@ -48,17 +72,17 @@ export async function createInvitationCode(formData: FormData) {
   const adminClient = createAdminClient();
 
   if (email?.trim()) {
-    const trimmedEmail = email.trim();
+    const trimmedEmail = email.trim().toLowerCase();
 
     // 1. Verificar si el correo ya tiene una cuenta
     const { data: existingProfile } = await adminClient
       .from("profiles")
       .select("id")
       .eq("email", trimmedEmail)
-      .single();
+      .maybeSingle();
 
     if (existingProfile) {
-      return { error: "Este correo ya tiene una cuenta registrada." };
+      return { success: false, error: "Este correo ya tiene una cuenta registrada." };
     }
 
     // 2. Verificar si ya tiene un código de invitación pendiente
@@ -73,7 +97,7 @@ export async function createInvitationCode(formData: FormData) {
       .maybeSingle();
 
     if (existingCode) {
-      return { error: "Ya existe una invitación pendiente enviada a este correo." };
+      return { success: false, error: "Ya existe una invitación pendiente enviada a este correo." };
     }
   }
 
@@ -81,19 +105,25 @@ export async function createInvitationCode(formData: FormData) {
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
-  const { error } = await supabase.from("invitation_codes").insert({
-    code,
-    created_by: user.id,
-    email: email?.trim() || null,
-    expires_at: expiresAt.toISOString(),
-    max_uses: maxUses,
-    times_used: 0,
-    is_active: true,
-    for_role: roleToCreate,
-  });
+  const { data: inserted, error } = await adminClient
+    .from("invitation_codes")
+    .insert({
+      code,
+      created_by: user.id,
+      email: email?.trim() || null,
+      expires_at: expiresAt.toISOString(),
+      max_uses: maxUses,
+      times_used: 0,
+      is_active: true,
+      for_role: roleToCreate,
+    })
+    .select(
+      "id, code, email, for_role, expires_at, times_used, max_uses, is_active, created_at, created_by, client_id, used_by_user_id",
+    )
+    .single();
 
-  if (error) {
-    return { error: error.message };
+  if (error || !inserted) {
+    return { success: false, error: error?.message || "Error al generar el código" };
   }
 
   let emailSent = false;
@@ -110,7 +140,26 @@ export async function createInvitationCode(formData: FormData) {
   }
 
   revalidatePath("/admin/invitations");
-  return { success: true, code, emailSent };
+  return {
+    success: true,
+    code,
+    emailSent,
+    invitation: {
+      id: inserted.id,
+      code: inserted.code,
+      email: inserted.email,
+      for_role: inserted.for_role ?? roleToCreate,
+      expires_at: inserted.expires_at,
+      times_used: inserted.times_used ?? 0,
+      max_uses: inserted.max_uses ?? 1,
+      is_active: inserted.is_active ?? true,
+      created_at: inserted.created_at ?? null,
+      created_by: inserted.created_by ?? user.id,
+      linked_client_id: null,
+      linked_name: null,
+      linked_phone: null,
+    },
+  };
 }
 
 // Validate an invitation code (for signup)

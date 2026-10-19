@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -18,6 +19,10 @@ import {
   RotateCcw,
   Send,
   User,
+  ShieldCheck,
+  Search,
+  X,
+  Filter,
 } from "lucide-react";
 import {
   deactivateInvitationCode,
@@ -46,6 +51,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export type InvitationCodeItem = {
   id: string;
@@ -57,6 +63,8 @@ export type InvitationCodeItem = {
   max_uses: number;
   is_active: boolean;
   used_at?: string | null;
+  created_at?: string | null;
+  created_by?: string | null;
   linked_client_id?: string | null;
   linked_name?: string | null;
   linked_phone?: string | null;
@@ -64,24 +72,36 @@ export type InvitationCodeItem = {
 
 interface InvitationCardsClientProps {
   codes: InvitationCodeItem[];
+  onCodesChange?: (codes: InvitationCodeItem[]) => void;
 }
 
 export function InvitationCardsClient({
   codes: initialCodes,
+  onCodesChange,
 }: InvitationCardsClientProps) {
+  const router = useRouter();
   const [codes, setCodes] = useState(initialCodes);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
 
+  // Filtros de búsqueda y rol
+  const [roleFilter, setRoleFilter] = useState<"all" | "client" | "admin">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
   useEffect(() => {
     setCodes(initialCodes);
   }, [initialCodes]);
 
+  const updateCodes = (newCodes: InvitationCodeItem[]) => {
+    setCodes(newCodes);
+    onCodesChange?.(newCodes);
+  };
+
   const getSignUpUrl = (code: string) =>
     typeof window !== "undefined"
       ? `${window.location.origin}/auth/sign-up?code=${code}`
-      : "";
+      : `/auth/sign-up?code=${code}`;
 
   const handleCopyLink = (code: string) => {
     const url = getSignUpUrl(code);
@@ -128,9 +148,11 @@ export function InvitationCardsClient({
   const handleDeactivate = async (codeId: string) => {
     const result = await deactivateInvitationCode(codeId);
     if (result && "success" in result && result.success) {
-      setCodes((prev) =>
-        prev.map((c) => (c.id === codeId ? { ...c, is_active: false } : c)),
+      const updated = codes.map((c) =>
+        c.id === codeId ? { ...c, is_active: false } : c,
       );
+      updateCodes(updated);
+      router.refresh();
       toast.success("Código desactivado");
     } else {
       toast.error(
@@ -142,17 +164,17 @@ export function InvitationCardsClient({
   const handleReactivate = async (codeId: string) => {
     const result = await reactivateInvitationCode(codeId);
     if (result && "success" in result && result.success) {
-      setCodes((prev) =>
-        prev.map((c) =>
-          c.id === codeId
-            ? {
-                ...c,
-                is_active: true,
-                expires_at: result.expires_at ?? c.expires_at,
-              }
-            : c,
-        ),
+      const updated = codes.map((c) =>
+        c.id === codeId
+          ? {
+              ...c,
+              is_active: true,
+              expires_at: result.expires_at ?? c.expires_at,
+            }
+          : c,
       );
+      updateCodes(updated);
+      router.refresh();
       toast.success("Código reactivado correctamente");
     } else {
       toast.error(
@@ -185,7 +207,9 @@ export function InvitationCardsClient({
 
     const result = await deleteInvitationCode(deleteId);
     if (result && "success" in result && result.success) {
-      setCodes((prev) => prev.filter((c) => c.id !== deleteId));
+      const updated = codes.filter((c) => c.id !== deleteId);
+      updateCodes(updated);
+      router.refresh();
       toast.success("Código eliminado permanentemente");
       setDeleteId(null);
     } else {
@@ -196,17 +220,48 @@ export function InvitationCardsClient({
     setIsDeleting(false);
   };
 
-  const activeCodes = codes.filter((c) => {
-    const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
-    const isUsed = c.times_used >= c.max_uses;
-    return c.is_active && !isExpired && !isUsed;
-  });
+  // Conteos globales para badges
+  const clientCount = useMemo(
+    () => codes.filter((c) => c.for_role !== "admin").length,
+    [codes],
+  );
+  const adminCount = useMemo(
+    () => codes.filter((c) => c.for_role === "admin").length,
+    [codes],
+  );
 
-  const inactiveCodes = codes.filter((c) => {
-    const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
-    const isUsed = c.times_used >= c.max_uses;
-    return !c.is_active || isExpired || isUsed;
-  });
+  // Filtrado por rol y búsqueda
+  const filteredCodes = useMemo(() => {
+    return codes.filter((c) => {
+      if (roleFilter === "client" && c.for_role === "admin") return false;
+      if (roleFilter === "admin" && c.for_role !== "admin") return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const codeMatch = c.code.toLowerCase().includes(q);
+        const emailMatch = c.email?.toLowerCase().includes(q);
+        const nameMatch = c.linked_name?.toLowerCase().includes(q);
+        if (!codeMatch && !emailMatch && !nameMatch) return false;
+      }
+      return true;
+    });
+  }, [codes, roleFilter, searchQuery]);
+
+  const activeCodes = useMemo(() => {
+    return filteredCodes.filter((c) => {
+      const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
+      const isUsed = c.times_used >= c.max_uses;
+      return c.is_active && !isExpired && !isUsed;
+    });
+  }, [filteredCodes]);
+
+  const inactiveCodes = useMemo(() => {
+    return filteredCodes.filter((c) => {
+      const isExpired = c.expires_at && new Date(c.expires_at) < new Date();
+      const isUsed = c.times_used >= c.max_uses;
+      return !c.is_active || isExpired || isUsed;
+    });
+  }, [filteredCodes]);
 
   const renderCodeList = (list: InvitationCodeItem[]) => {
     if (list.length === 0) return null;
@@ -227,13 +282,13 @@ export function InvitationCardsClient({
               key={code.id}
               className={`group flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 rounded-2xl border transition-all hover:bg-muted/30 ${
                 isInactive || isExpired || isUsed
-                  ? "opacity-80 bg-muted/10"
-                  : "bg-card shadow-sm border-border/50 hover:shadow-md hover:border-primary/20"
+                  ? "opacity-80 bg-muted/10 border-border/40"
+                  : "bg-card shadow-sm border-border/60 hover:shadow-md hover:border-primary/30"
               }`}
             >
               {/* Left Details */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center flex-1 overflow-hidden">
-                <div className="flex flex-col gap-1 min-w-[165px]">
+                <div className="flex flex-col gap-1 min-w-[170px]">
                   <div className="flex items-center gap-2">
                     <Key className="size-4 text-primary shrink-0" />
                     <button
@@ -249,28 +304,28 @@ export function InvitationCardsClient({
                     {isUsed ? (
                       <Badge
                         variant="outline"
-                        className="bg-success/10 text-success border-success/20 text-[10px] uppercase"
+                        className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-bold uppercase"
                       >
-                        Completado
+                        Reclamado
                       </Badge>
                     ) : isExpired ? (
                       <Badge
                         variant="outline"
-                        className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] uppercase"
+                        className="bg-destructive/10 text-destructive border-destructive/20 text-[10px] font-bold uppercase"
                       >
                         Expirado
                       </Badge>
                     ) : isInactive ? (
                       <Badge
                         variant="outline"
-                        className="bg-muted-foreground/10 text-muted-foreground border-muted-foreground/20 text-[10px] uppercase"
+                        className="bg-muted-foreground/10 text-muted-foreground border-muted-foreground/20 text-[10px] font-bold uppercase"
                       >
                         Inactivo
                       </Badge>
                     ) : (
                       <Badge
                         variant="outline"
-                        className="bg-primary/10 text-primary border-primary/20 text-[10px] uppercase"
+                        className="bg-primary/10 text-primary border-primary/30 text-[10px] font-bold uppercase"
                       >
                         Activo
                       </Badge>
@@ -279,16 +334,16 @@ export function InvitationCardsClient({
                     {code.for_role === "admin" ? (
                       <Badge
                         variant="outline"
-                        className="text-amber-600 dark:text-amber-400 border-amber-500/30 bg-amber-500/5 text-[10px] uppercase"
+                        className="text-amber-700 dark:text-amber-300 border-amber-500/40 bg-amber-500/10 text-[10px] font-bold uppercase flex items-center gap-1"
                       >
-                        Coach
+                        <ShieldCheck className="size-3" /> Coach
                       </Badge>
                     ) : (
                       <Badge
                         variant="secondary"
-                        className="font-normal text-[10px] uppercase bg-secondary/50"
+                        className="text-[10px] font-bold uppercase bg-secondary/70 flex items-center gap-1"
                       >
-                        Cliente
+                        <User className="size-3" /> Cliente
                       </Badge>
                     )}
 
@@ -337,12 +392,14 @@ export function InvitationCardsClient({
                         ? `Expira: ${format(new Date(code.expires_at), "d MMM yyyy", { locale: es })}`
                         : "Sin fecha de expiración"}
                     </span>
-                    {code.used_at && (
-                      <span className="text-success font-medium">
-                        · Reclamado el{" "}
-                        {format(new Date(code.used_at), "d MMM yyyy", {
-                          locale: es,
-                        })}
+                    {isUsed && (
+                      <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+                        · Canjeado {code.linked_name ? `por ${code.linked_name}` : "en registro"}
+                      </span>
+                    )}
+                    {code.created_at && (
+                      <span className="opacity-70">
+                        · Creado {format(new Date(code.created_at), "d MMM yyyy", { locale: es })}
                       </span>
                     )}
                   </div>
@@ -358,7 +415,7 @@ export function InvitationCardsClient({
                         variant="secondary"
                         size="sm"
                         onClick={() => handleShareWhatsApp(code)}
-                        className="h-9 px-3 text-xs font-semibold rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/25"
+                        className="h-9 px-3 text-xs font-bold rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30"
                       >
                         <MessageCircle className="size-3.5 mr-1.5" />
                         WhatsApp
@@ -367,7 +424,7 @@ export function InvitationCardsClient({
                         variant="secondary"
                         size="sm"
                         onClick={() => handleCopyCodeOnly(code.code)}
-                        className="h-9 px-2.5 text-xs font-semibold rounded-lg bg-muted/60 text-foreground hover:bg-muted"
+                        className="h-9 px-2.5 text-xs font-semibold rounded-xl bg-muted/60 text-foreground hover:bg-muted"
                       >
                         <Copy className="size-3.5 mr-1.5" />
                         Código
@@ -376,7 +433,7 @@ export function InvitationCardsClient({
                         variant="secondary"
                         size="sm"
                         onClick={() => handleCopyLink(code.code)}
-                        className="h-9 px-2.5 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20"
+                        className="h-9 px-2.5 text-xs font-semibold rounded-xl bg-primary/10 text-primary hover:bg-primary/20"
                       >
                         <Link2 className="size-3.5 mr-1.5" />
                         Enlace
@@ -384,8 +441,8 @@ export function InvitationCardsClient({
                     </>
                   )}
                   {isUsed && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1.5 px-2.5 bg-muted rounded-full py-1">
-                      <UserPlus className="size-3" /> Reclamado
+                    <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 px-3 bg-muted/70 rounded-full py-1">
+                      <UserPlus className="size-3 text-emerald-600" /> Reclamado
                     </span>
                   )}
                 </div>
@@ -433,7 +490,7 @@ export function InvitationCardsClient({
                         className="gap-2 cursor-pointer font-medium text-primary"
                       >
                         <RotateCcw className="size-4" />
-                        Reactivar
+                        Reactivar (+30 días)
                       </DropdownMenuItem>
                     )}
                     <DropdownMenuItem
@@ -455,21 +512,87 @@ export function InvitationCardsClient({
 
   return (
     <>
-      <div className="space-y-10">
+      <div className="space-y-6">
+        {/* Barra de Filtros y Búsqueda */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-3 rounded-2xl border border-border/50 shadow-sm">
+          {/* Tabs de Rol */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            <Button
+              type="button"
+              size="sm"
+              variant={roleFilter === "all" ? "default" : "ghost"}
+              onClick={() => setRoleFilter("all")}
+              className="rounded-xl h-8 text-xs font-bold"
+            >
+              Todos ({codes.length})
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={roleFilter === "client" ? "default" : "ghost"}
+              onClick={() => setRoleFilter("client")}
+              className="rounded-xl h-8 text-xs font-bold gap-1.5"
+            >
+              <User className="size-3.5" />
+              Clientes ({clientCount})
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={roleFilter === "admin" ? "default" : "ghost"}
+              onClick={() => setRoleFilter("admin")}
+              className="rounded-xl h-8 text-xs font-bold gap-1.5"
+            >
+              <ShieldCheck className="size-3.5" />
+              Coaches ({adminCount})
+            </Button>
+          </div>
+
+          {/* Buscador */}
+          <div className="relative min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Buscar código o email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 pr-8 h-8 rounded-xl text-xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Sección Activos */}
         <section>
           {activeCodes.length === 0 && inactiveCodes.length === 0 ? (
             <div className="p-12 text-center rounded-2xl border border-dashed border-border/50 flex flex-col items-center gap-4 bg-muted/10">
               <Key className="size-10 text-muted-foreground/30" />
               <div className="space-y-1">
-                <p className="font-semibold">Nuevos horizontes</p>
-                <p className="text-sm text-muted-foreground max-w-sm">No has generado ningún código de invitación para tus atletas todavía.</p>
+                <p className="font-semibold text-foreground">
+                  {searchQuery || roleFilter !== "all"
+                    ? "Sin resultados para el filtro seleccionado"
+                    : "No has generado ningún código de invitación todavía"}
+                </p>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  {searchQuery || roleFilter !== "all"
+                    ? "Prueba cambiando el rol o limpiando el texto de búsqueda."
+                    : "Usa el formulario superior para generar códigos para tus atletas o coaches."}
+                </p>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
               {activeCodes.length > 0 && (
                 <div className="space-y-3">
-                  <h3 className="text-sm font-semibold uppercase tracking-widest text-primary flex items-center gap-2">
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
                     <span className="relative flex size-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                       <span className="relative inline-flex rounded-full size-2 bg-primary"></span>
@@ -483,14 +606,17 @@ export function InvitationCardsClient({
           )}
         </section>
 
+        {/* Sección Historial */}
         {inactiveCodes.length > 0 && (
-          <section className="space-y-4 pt-6 border-t border-border/30">
-            <h3 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-              Historial de Códigos ({inactiveCodes.length})
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Los códigos vencidos, usados o inactivos aparecerán aquí. Ahora puedes eliminarlos para limpiar tu lista sin afectar a los usuarios registrados.
-            </p>
+          <section className="space-y-4 pt-6 border-t border-border/40">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                Historial de Códigos ({inactiveCodes.length})
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Códigos completados, vencidos o dados de baja. Puedes eliminarlos definitivamente sin afectar a los usuarios ya registrados.
+              </p>
+            </div>
             {renderCodeList(inactiveCodes)}
           </section>
         )}
