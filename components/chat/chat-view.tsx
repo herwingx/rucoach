@@ -380,7 +380,8 @@ function ThreadPane({
             isKeyboardOpen ? 'py-2 sm:py-0' : 'py-3 sm:py-0',
           )}
         >
-          {/* Leading icon (back chevron on admin mobile, or RU Coach logo on client mobile) */}
+          {/* Leading icon: back chevron only (admin mobile). El cliente ya navega con la barra inferior,
+              así que no se repite el logo junto a la foto del coach. */}
           {isAdmin && onBack ? (
             <div className="shrink-0 flex items-center h-full md:hidden">
               <Button
@@ -394,15 +395,23 @@ function ThreadPane({
                 <ChevronLeft className="size-6 sm:size-7" strokeWidth={2.5} />
               </Button>
             </div>
-          ) : !isAdmin ? (
-            <PageHeaderLeadingIcon />
           ) : null}
 
           {/* Peer info */}
-          <Avatar className="size-9 shrink-0 ring-2 ring-primary/15 sm:size-11">
-            <AvatarImage src={peer.avatarUrl ?? undefined} alt="" />
-            <AvatarFallback className="text-sm font-medium">
-              {peer.name.slice(0, 2).toUpperCase()}
+          <Avatar className="size-11 shrink-0 ring-2 ring-primary/20 sm:size-12">
+            <AvatarImage
+              src={peer.avatarUrl ?? undefined}
+              alt={peer.name}
+              className="object-cover"
+            />
+            <AvatarFallback className="bg-primary/15 text-sm font-black text-primary">
+              {peer.name
+                .split(' ')
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w) => w[0])
+                .join('')
+                .toUpperCase() || peer.name.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1 flex flex-col justify-center">

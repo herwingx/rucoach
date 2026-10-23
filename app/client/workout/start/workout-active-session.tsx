@@ -127,6 +127,10 @@ interface WorkoutDraftV1 {
   workoutStartTime: number;
 }
 
+/** Estilo único para los botones de acción sobre el GIF (Técnica / Cambiar / Descanso): mismo alto, fuente y relleno. */
+const MEDIA_ACTION_CLASS =
+  "inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-background/90 px-2 text-[10px] font-black uppercase tracking-wider text-foreground backdrop-blur-md transition-all hover:bg-background active:scale-[0.97] sm:h-11 sm:px-3 sm:text-[11px]";
+
 export function WorkoutActiveSession({
   clientId,
   clientRoutineId = null,
@@ -1381,45 +1385,42 @@ export function WorkoutActiveSession({
                   </div>
                 </button>
 
-                <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1.5 sm:bottom-3.5 sm:left-3.5 sm:right-3.5 sm:gap-2">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className="h-9 rounded-xl border border-border/50 bg-background/90 px-2.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-md transition-all hover:bg-background sm:h-10 sm:px-3.5"
-                      onClick={() => {
-                        setSelectedExercise(currentExercise.exercises);
-                        setDetailOpen(true);
-                      }}
-                    >
-                      <PlayCircle className="size-3.5 text-primary shrink-0" aria-hidden />
-                      <span>Ver técnica</span>
-                    </Button>
+                <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-stretch gap-1.5 sm:bottom-3.5 sm:left-3.5 sm:right-3.5 sm:gap-2">
+                  <button
+                    type="button"
+                    className={MEDIA_ACTION_CLASS}
+                    onClick={() => {
+                      setSelectedExercise(currentExercise.exercises);
+                      setDetailOpen(true);
+                    }}
+                  >
+                    <PlayCircle className="size-4 shrink-0 text-primary" aria-hidden />
+                    <span className="truncate">Técnica</span>
+                  </button>
 
-                    {clientRoutineId && currentExercise.exercises && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="h-9 rounded-xl border border-border/50 bg-background/90 px-2.5 text-[10px] font-black uppercase tracking-wider backdrop-blur-md transition-all hover:bg-background sm:h-10 sm:px-3"
-                        onClick={() => setSwapOpen(true)}
-                      >
-                        <RefreshCw className="size-3.5 text-muted-foreground shrink-0" aria-hidden />
-                        <span>Cambiar</span>
-                      </Button>
-                    )}
-                  </div>
+                  {clientRoutineId && currentExercise.exercises && (
+                    <button
+                      type="button"
+                      className={MEDIA_ACTION_CLASS}
+                      onClick={() => setSwapOpen(true)}
+                    >
+                      <RefreshCw className="size-4 shrink-0 text-primary" aria-hidden />
+                      <span className="truncate">Cambiar</span>
+                    </button>
+                  )}
 
                   <button
                     type="button"
                     onClick={() => startManualRest(restSeconds)}
                     aria-label={`Iniciar descanso sugerido de ${restSeconds} segundos`}
                     title="Iniciar temporizador de descanso manual"
-                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-border/70 bg-card/90 backdrop-blur-md px-2.5 text-[10px] font-bold text-muted-foreground transition-all hover:bg-card hover:text-foreground hover:border-primary/40 active:scale-95 sm:h-10 sm:px-3.5"
+                    className={MEDIA_ACTION_CLASS}
                   >
-                    <Timer className="size-3.5 text-primary shrink-0" aria-hidden />
-                    <span>Descanso: {restSeconds}s</span>
+                    <Timer className="size-4 shrink-0 text-primary" aria-hidden />
+                    <span className="truncate">Descanso</span>
+                    <span className="hidden shrink-0 font-bold tabular-nums text-muted-foreground normal-case sm:inline">
+                      {restSeconds}s
+                    </span>
                   </button>
                 </div>
               </div>
