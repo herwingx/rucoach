@@ -2,7 +2,6 @@
  * Muscle taxonomy, canonical aliases, and load calculation for Anatomical Maps
  */
 
-import type { Exercise } from '@/lib/types'
 
 export const MUSCLES = [
   'trapezius',

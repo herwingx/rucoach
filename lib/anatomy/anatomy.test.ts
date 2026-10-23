@@ -3,11 +3,9 @@ import {
   calculateMuscleLoad,
   canonicalMuscle,
   levelsOf,
-  MUSCLES,
 } from './muscles'
 import {
   computeMuscleRecovery,
-  FATIGUE_HALF_LIFE_BY_MUSCLE,
 } from './recovery'
 import { checkExerciseContraindications } from './pain-map'
 import type { Exercise } from '@/lib/types'

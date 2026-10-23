@@ -125,7 +125,7 @@ export function checkExerciseContraindications(
   }
 
   // Direct muscle matches
-  for (const [zone, sev] of painMap.entries()) {
+  for (const zone of painMap.keys()) {
     if (primary.includes(zone)) {
       if (!conflicting.includes(zone)) conflicting.push(zone)
     }

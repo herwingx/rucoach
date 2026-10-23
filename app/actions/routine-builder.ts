@@ -116,7 +116,6 @@ export async function saveRoutineFromBuilder(
           reError.code === "42703")
       ) {
         const fallbackPayload = exercisesPayload.map(
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           ({ warmup_sets: _w, ...rest }) => rest,
         );
         const retry = await supabase
@@ -301,7 +300,6 @@ export async function updateRoutineFromBuilder(
           reError.code === "42703")
       ) {
         const fallbackPayload = exercisesPayload.map(
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           ({ warmup_sets: _w, ...rest }) => rest,
         );
         const retry = await supabase
@@ -470,7 +468,6 @@ export async function cloneRoutine(routineId: string): Promise<{
           exErr.code === "42703")
       ) {
         const fallbackPayload = payload.map(
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           ({ warmup_sets: _w, ...rest }) => rest,
         );
         const retry = await supabase

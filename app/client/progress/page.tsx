@@ -87,7 +87,7 @@ export default async function ClientProgressPage() {
       .from("exercise_logs")
       .select(
         `exercise_id, exercise_name, weight_kg, reps, is_warmup, workout_session_id,
-           exercises(name, name_es, exercise_type, uses_external_load, equipment, primary_muscle, secondary_muscles, muscle_weights),
+           exercises(name, name_es, exercise_type, uses_external_load, equipment, primary_muscle, secondary_muscles),
            workout_sessions!inner(started_at, client_id, status)`,
       )
       .eq("workout_sessions.client_id", clientId)
@@ -95,15 +95,18 @@ export default async function ClientProgressPage() {
       .order("workout_session_id", { ascending: false })
       .limit(1200),
     supabase
-      .from("routines")
+      .from("client_routines")
       .select(
         `id, is_active,
-         routine_days (
+         routines (
            id,
-           routine_exercises (
-             sets,
-             exercises (
-               id, name, name_es, primary_muscle, secondary_muscles, muscle_weights
+           routine_days (
+             id,
+             routine_exercises (
+               sets,
+               exercises (
+                 id, name, name_es, primary_muscle, secondary_muscles
+               )
              )
            )
          )`,
@@ -117,7 +120,12 @@ export default async function ClientProgressPage() {
   const prRows = [...(prRowsDesc ?? [])].reverse();
 
   // Compute plannedWeeklyLoad from active routine if present
-  const activeRoutine = activeRoutineRows?.[0] as any;
+  const activeRoutineLink = activeRoutineRows?.[0] as any;
+  const activeRoutine = activeRoutineLink?.routines
+    ? Array.isArray(activeRoutineLink.routines)
+      ? activeRoutineLink.routines[0]
+      : activeRoutineLink.routines
+    : activeRoutineLink;
   const plannedExercisesList: Array<{ exercise: any; sets: number }> = [];
   if (activeRoutine?.routine_days) {
     for (const d of activeRoutine.routine_days) {

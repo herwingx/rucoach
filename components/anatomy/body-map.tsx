@@ -243,7 +243,7 @@ export function BodyMap({
                 key={`${slug}-${i}`}
                 className={cn(
                   `bm-m l${lvl}`,
-                  resolvedSelected === slug && 'sel',
+                  isSel && 'sel',
                 )}
                 d={d}
                 onPointerEnter={() => interactive && setHoveredMuscle(slug)}

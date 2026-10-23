@@ -22,7 +22,6 @@ import {
   ShieldCheck,
   Search,
   X,
-  Filter,
 } from "lucide-react";
 import {
   deactivateInvitationCode,

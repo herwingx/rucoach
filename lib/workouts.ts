@@ -134,7 +134,7 @@ export async function getExerciseLogsForSessions(
   const { data, error } = await supabase
     .from('exercise_logs')
     .select(
-      'workout_session_id, exercise_id, exercise_name, set_number, weight_kg, reps, is_warmup, is_pr, created_at, exercises(id, name, name_es, primary_muscle, secondary_muscles, muscle_weights)',
+      'workout_session_id, exercise_id, exercise_name, set_number, weight_kg, reps, is_warmup, is_pr, created_at, exercises(id, name, name_es, primary_muscle, secondary_muscles)',
     )
     .in('workout_session_id', sessionIds)
     .order('created_at', { ascending: true })
