@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import { RealtimeNotifications } from '@/components/realtime-notifications'
+import { useScrollResetOnNavigate } from '@/hooks/use-scroll-reset-on-navigate'
 
 const ClientSidebar = dynamic(
   () => import('@/components/client-sidebar').then((m) => m.ClientSidebar),
@@ -13,6 +14,7 @@ const ClientSidebar = dynamic(
 
 export function ClientLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  useScrollResetOnNavigate()
   const isMessagesRoute = pathname.includes('/messages')
   const isActiveWorkoutRoute = pathname.startsWith('/client/workout/start')
 

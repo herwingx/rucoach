@@ -6,9 +6,11 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import { RealtimeNotifications } from '@/components/realtime-notifications'
 import { cn } from '@/lib/utils'
+import { useScrollResetOnNavigate } from '@/hooks/use-scroll-reset-on-navigate'
 
 export function AdminLayoutShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  useScrollResetOnNavigate()
   const isMessages = pathname.includes('/messages')
 
   return (

@@ -37,7 +37,9 @@ export function ClientStackPageHeader({
     <header
       className={cn(
         'border-b border-border/50 bg-background/80 backdrop-blur-xl safe-area-header-pt min-h-[76px] sm:min-h-[112px] flex items-center',
-        sticky && 'sticky top-0 z-50',
+        // El contenedor de scroll ya reserva la zona segura (notch); el margen negativo hace que el
+        // header sticky nazca pegado arriba, sin salto ni doble espacio al empezar a hacer scroll.
+        sticky && 'sticky top-0 z-50 -mt-[env(safe-area-inset-top)]',
         className,
       )}
     >

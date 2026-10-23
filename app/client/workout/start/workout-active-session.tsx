@@ -852,7 +852,7 @@ export function WorkoutActiveSession({
   return (
     <div className="flex min-h-dvh flex-col overflow-x-clip bg-background">
       {/* Compact Sticky Workout Header (Single Row on Mobile & Desktop + Live Progress Bar) */}
-      <header className="sticky top-0 z-40 border-b border-border/50 bg-background/85 backdrop-blur-xl safe-area-header-pt">
+      <header className="sticky top-0 z-40 -mt-[env(safe-area-inset-top)] border-b border-border/50 bg-background/85 backdrop-blur-xl safe-area-header-pt">
         <div className="container mx-auto flex min-h-[64px] max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:min-h-[84px] sm:gap-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3.5">
             <Button
