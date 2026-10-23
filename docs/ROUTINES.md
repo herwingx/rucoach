@@ -86,9 +86,49 @@ Para que el asesorado nunca pierda su entrenamiento por imprevistos en el gimnas
   - El coach recibe una **notificación Push** inmediata y visualiza todas las sustituciones activas en la pestaña **Rutina** de `/admin/clients/[clientId]`, con un botón **"Restaurar original"** (`revertExerciseOverride`) para volver al ejercicio base cuando lo considere oportuno.
 
 ### 2. Cambio del Día a Entrenar Hoy (`ScheduleOverrideDialog` / `override_next_day_id`)
-- Si al asesorado le tocaba *"Día 1 — Pierna"* pero necesita hacer *"Día 2 — Torso"* hoy, puede cambiar el día activo desde `/client/routines`.
-- Esto actualiza `client_routines.override_next_day_id`.
+- Si al asesorado le tocaba *"Día 1 — Pierna"* pero necesita hacer *"Día 2 — Torso"* hoy, puede cambiar el día activo:
+  - **Desde el Dashboard (`NextWorkoutCard`)**: Con el botón **"Cambiar día"**, se abre directamente el diálogo sin salir de la pantalla principal y recarga el día seleccionado en tiempo real (`router.refresh()`).
+  - **Desde `/client/routines`**: Mediante el botón superior de "Cambiar sesión".
+- **Opciones disponibles**:
+  1. *Adelantar sesión*: Salta al siguiente día del ciclo.
+  2. *Repetir sesión anterior*: Vuelve a ejecutar la última sesión completada.
+  3. *Elegir un día específico*: Permite seleccionar cualquier día entrenable de la rutina activa.
+- Esto actualiza `client_routines.override_next_day_id` y notifica al coach.
 - Una vez que el asesorado completa la sesión en `/client/workout/start`, `completeWorkoutSession` limpia automáticamente `override_next_day_id = null` para que el ciclo normal de días continúe en la siguiente sesión.
+
+---
+
+## Lógica de Microciclos y Periodización Óptima (`lib/next-routine-day.ts`)
+
+En el entrenamiento de fuerza y sobrecarga progresiva basado en evidencia, **el plan de entrenamiento avanza sesión a sesión por rotación secuencial**, no como un candado rígido de calendario:
+
+1. **¿Por qué NO se salta días por calendario automáticamente?**
+   - Si un atleta tiene un plan de 4 días (Día 1 Torso, Día 2 Pierna, Día 3 Empuje, Día 4 Tirón) y el coach nombró al Día 1 como "Lunes"...
+   - Si por trabajo o descanso el atleta asiste al gimnasio el **Viernes**, la app le sugiere el **Día 1 (Torso)**.
+   - Si la app se saltara días según el día de la semana actual, el atleta se saltaría 3 entrenamientos completos, dejando grupos musculares clave sin estímulo durante semanas y rompiendo el equilibrio corporal.
+   - Por ello, la app avanza con cada sesión completada (`getNextRoutineDay` evalúa la última sesión completada y entrega el siguiente bloque entrenable).
+2. **Claridad en la Interfaz**:
+   - Para evitar confusiones cuando un día asignado como "Lunes" se entrena en viernes, la cabecera muestra la fecha real del día (`VIERNES, 23 OCT`), el kicker `PRÓXIMA SESIÓN EN TU ROTACIÓN`, el número del día (`Día 1`) y una etiqueta sutil `Plantilla: Lunes`, explicando al alumno que el plan progresa en orden sesión a sesión.
+   - Si el atleta desea deliberadamente entrenar otro bloque hoy, el botón **"Cambiar día"** le permite sobrescribirlo con 1 toque.
+
+---
+
+## Diseño Mobile-First de la Rutina (`app/client/routines/client-routines-content.tsx`)
+
+Para garantizar una experiencia fluida tipo aplicación nativa en dispositivos móviles (375px–430px):
+
+1. **Tarjetas Horizontales Compactas**:
+   - Cada ejercicio se organiza en una fila horizontal:
+     - **Miniatura izquierda (`size-16 sm:size-18`)**: GIF del ejercicio en Cloudflare R2 con carga progresiva y fallback de imagen estática.
+     - **Columna central (`flex-1`)**: Título en hasta 2 líneas (`line-clamp-2`), badge de sustitución (`Cambiado`) y métricas de series y repeticiones (`3 series · 8-15 reps`).
+     - **Acciones derecha**: Botón circular de cambio de ejercicio (`RefreshCw`) y botón de guía técnica (`Info`).
+   - Reduce la altura vertical de la lista en más del **55%**, eliminando el scroll excesivo.
+2. **Desglose de Cobertura Muscular (`WeeklyMuscleCoverage`)**:
+   - **Proporción de estímulo relativo**: Muestra el porcentaje (`100%`, `87%`...) respecto al grupo muscular con mayor volumen de la sesión.
+   - **Activación primaria vs secundaria**: Calcula series efectivas asignando 100% al músculo principal y 40% a los sinergistas/estabilizadores.
+   - **Leyenda pedagógica**: Explica al atleta el cálculo de series fraccionadas (ej. 4.6 series) y evita cualquier corte de texto (`Foco: Hombros`).
+
+---
 
 ---
 

@@ -47,3 +47,34 @@ Todas las mejoras funcionales, de arquitectura, base de datos, seguridad, diseñ
   - Duplicado/clonación de rutinas en 1 clic (`cloneRoutine`) y modal de asignación rápida a asesorados (`AssignRoutineModal`).
 - [x] **Sistema Unificado de Skeletons (`loading.tsx`)**: 33 pantallas de carga alineadas píxel a píxel con los contenedores reales (`ADMIN_DATA_PAGE_SHELL` / `CLIENT_DATA_PAGE_SHELL`) tanto en Desktop (1440px) como en Mobile (375px).
 
+### 7. Optimización de Rendimiento, Lógica de Microciclos y UX/UI Mobile-First
+- [x] **Corrección Crítica de Guardado de Entrenamientos (`app/actions/workout.ts`)**:
+  - Eliminación de la referencia a la columna inexistente `muscle_weights`, previniendo errores de PostgreSQL al registrar series.
+  - Sincronización robusta de `clients.last_session_at` y `clients.total_sessions` con bypass de RLS (`createAdminClient()`), asegurando trazabilidad exacta para cualquier coach y cliente.
+- [x] **Navegación Instantánea SPA y Cero Skeletons Parpadeantes**:
+  - Conversión de `/client/routines` en Server Component asíncrono con pre-fetching paralelo en el servidor y drawer interactivo `client-routines-content.tsx`.
+  - Eliminación de sub-skeletons `loading.tsx` en las pestañas principales del cliente para evitar el parpadeo gris al cambiar de vista, conservando la carga instantánea en memoria.
+  - Paralelización masiva de consultas en `/client/dashboard/page.tsx` (`Promise.all`), reduciendo el tiempo de carga del servidor en más de un 50%.
+- [x] **Flujo de Entrenamiento Activo Optimizado (`/client/workout/start`)**:
+  - Tiempo de arranque optimizado de ~2.7s a ~375ms mediante paralelización de la rutina, última sesión y PRs en una sola ola.
+  - Temporizador de descanso flotante y minimizable (`⏱ Descanso activo: 1:45 restantes | +30s | Saltar`), permitiendo al atleta revisar técnica o navegar por la rutina mientras descansa.
+  - Claridad de interfaces: sustitución del botón amarillo `180s Rest` por el pill `Descanso: 180s` y diferenciación explícita del cronómetro de sesión (`⏱ SESIÓN 0:03`).
+- [x] **Notificaciones Push y Mensajería Tipo WhatsApp (`app/sw.ts` + `app/actions/messages.ts`)**:
+  - Notificaciones apilables por remitente (`"Dileri (3 mensajes)"`) con las líneas más recientes.
+  - Título dinámico con el nombre real del remitente (`profile.full_name`) en lugar del nombre de la app.
+  - Eliminación de textos hardcodeados de coach en toasts y limpieza automática de notificaciones al ingresar a `/messages`.
+- [x] **Lógica de Microciclos y Periodización Dinámica (`lib/next-routine-day.ts` + `NextWorkoutCard`)**:
+  - Avance secuencial sesión por sesión para garantizar el estímulo muscular sin importar los días de calendario en que el atleta asista al gimnasio.
+  - Desvinculación de la etiqueta de la plantilla respecto al día real: cabecera con `PRÓXIMA SESIÓN EN TU ROTACIÓN`, título `Día 1` y etiqueta `Plantilla: Lunes`.
+  - Integración directa de `ScheduleOverrideDialog` en el Dashboard mediante el botón **"Cambiar día"** para adelantar, repetir o seleccionar cualquier sesión sin salir de la vista principal.
+- [x] **Consistencia Visual de Iconos 100% Circulares (`rounded-full`)**:
+  - Unificación de contenedores de iconos en círculos perfectos con bordes definidos (`size-11` / `size-12 rounded-full`) en el Dashboard (Dumbbell, Clock, Flame, Award, PR, HOT, avatar de nivel).
+- [x] **Tarjetas Horizontales de Ejercicios en `/client/routines`**:
+  - Reestructuración a layout horizontal compacto (miniatura a la izquierda, datos y series al centro, botones de cambio y técnica a la derecha), reduciendo el scroll vertical en más del 55%.
+- [x] **Desglose de Cobertura Muscular Pedagógica (`weekly-muscle-coverage.tsx`)**:
+  - Indicadores de porcentaje de volumen relativo (`100%`, `87%`...) junto a la barra dorada con leyenda explicativa para atletas.
+  - Corrección del corte de texto (`Foco: Hombros`) mediante `flex-wrap` e insignias circulares estandarizadas.
+- [x] **Eliminación del Salto de Cabecera Móvil y Reseteo de Scroll**:
+  - Hook `useScrollResetOnNavigate` para garantizar que toda navegación inicie en la parte superior (`scrollTop = 0`).
+  - Margen negativo `-mt-[env(safe-area-inset-top)]` en encabezados sticky para evitar el salto de 47px del notch en iOS/Android.
+

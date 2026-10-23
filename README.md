@@ -105,13 +105,17 @@ flowchart LR
 ### 2. Portal del Asesorado / Atleta (`/client/*`)
 - **Onboarding Clínico y Antropométrico en 4 Pasos (`/onboarding`)**:
   - Sincronización inteligente de datos pre-cargados por el coach, creación automática de la **medición base Día 1** en `body_measurements`, selección de objetivos y disponibilidad semanal (`2` a `6+` días/semana), **tamizaje articular/lesiones** que genera alertas clínicas automáticas y activación de notificaciones Push compatible con iOS/Android/Desktop.
-- **Dashboard del Atleta (`/client/dashboard`)**: Nivel actual, barra de XP, racha de días calendario, tarjeta del entrenamiento del día, gráfica de actividad (`7d` / `30d` / `90d`) e hitos recientes.
+- **Dashboard del Atleta (`/client/dashboard`)**: Nivel actual, barra de XP, racha de días calendario, tarjeta de **Rotación Dinámica de Microciclos** (el plan progresa sesión a sesión completada para garantizar el estímulo muscular sin saltarse bloques por calendario, con títulos de ejercicios legibles en 2 líneas, iconos 100% circulares `rounded-full` y botón directo de **"Cambiar día"** integrado para adelantar, repetir o elegir cualquier sesión sin salir de la vista), gráfica de actividad (`7d` / `30d` / `90d`) e hitos recientes.
 - **Mi Rutina (`/client/routines`)**:
-  - Exploración de días del programa, desglose visual **"Qué trabaja esta sesión"** con mapa anatómico bare frontal/dorsal, ficha técnica con GIF e instrucciones paso a paso, **intercambio inteligente de ejercicio** (`ExerciseSwapDrawer`) con selector anatómico y **cambio temporal del día a entrenar hoy** (`ScheduleOverrideDialog`).
+  - **Tarjetas Horizontales Compactas**: Cada ejercicio se organiza en una fila horizontal con miniatura GIF a la izquierda, datos y series/repeticiones al centro y acciones de cambio/guía a la derecha, reduciendo la altura vertical en más del **55%** y eliminando el scroll excesivo.
+  - **Desglose Pedagógico "Qué trabaja esta sesión"**: Mapa anatómico SVG interactivo frontal y dorsal con **porcentajes numéricos de carga relativa (`100%`, `87%`, `83%`...)**, distinción entre series primarias (100%) vs. secundarias de soporte (40%), leyenda clara para el atleta y etiquetas sin truncamiento (`Foco: Hombros`).
+  - Instrucciones paso a paso con GIF, **intercambio inteligente de ejercicio** (`ExerciseSwapDrawer`) con selector anatómico y **cambio temporal del día a entrenar hoy** (`ScheduleOverrideDialog`).
 - **Sesión de Entrenamiento Activa (`/client/workout/start`)**:
+  - **Arranque Instantáneo (~375ms)**: Carga paralela de rutina, última sesión y PRs en una sola ola concurrente en servidor.
+  - **Temporizador de Descanso Minimizable**: Modal interactivo que puede minimizarse en una barra flotante fija inferior (`⏱ Descanso activo: 1:45 restantes | +30s | Saltar`) para navegar por la rutina o revisar la técnica mientras continúa la cuenta regresiva.
   - Soporte de **Series de Aproximación (W)** vs. Series Efectivas de trabajo con un clic.
-  - Registro serie por serie con historial previo del ejercicio, controles táctiles de `44x44px`, soporte para biseries/superseries, temporizador flotante con alerta Web Audio API + vibración háptica y autoguardado en `localStorage`.
-  - **Cierre con Sensación Post-Entreno (`1–5`)** y nota directa para el coach (excluyendo automáticamente las series de aproximación del tonelaje total).
+  - Registro serie por serie con historial previo del ejercicio, controles táctiles de `44x44px`, soporte para biseries/superseries, alerta Web Audio API + vibración háptica y autoguardado en `localStorage`.
+  - **Cierre con Sensación Post-Entreno (`1–5`)** y nota directa para el coach (excluyendo automáticamente las series de aproximación del tonelaje total y actualizando estadísticas con bypass RLS seguro).
 - **Resumen Post-Entrenamiento y Auto-Progresión (`/client/workout/summary`)**:
   - **Resumen Anatómico de la Sesión**: Mapa corporal SVG reactivo que muestra los músculos estimulados hoy.
   - Desglose de series, XP obtenido, **Nuevos Récords Personales (PRs)** (calculados solo sobre series efectivas) y modales de desbloqueo de medallas con opción de compartir (`navigator.share`).

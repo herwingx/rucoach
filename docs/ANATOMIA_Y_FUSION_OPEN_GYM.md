@@ -56,8 +56,7 @@ Los cálculos anatómicos se encuentran centralizados en [`lib/anatomy/`](../lib
 ### A. Taxonomía y Ponderación Muscular ([`lib/anatomy/muscles.ts`](../lib/anatomy/muscles.ts))
 - **18 Grupos Musculares Canónicos**: `trapezius`, `deltoids`, `chest`, `upper-back`, `serratus`, `biceps`, `triceps`, `forearm`, `abs`, `obliques`, `lower-back`, `gluteal`, `quadriceps`, `hamstring`, `adductors`, `hip-flexors`, `calves`, `tibialis`.
 - **Cálculo de Volumen Ponderado (`getExerciseMuscleWeights` / `calculateMuscleLoad`)**:
-  - Si el ejercicio cuenta con pesos específicos en `muscle_weights` (JSONB), se respeta dicha distribución.
-  - De lo contrario, se asigna **1.0 (100%)** al músculo primario (`primary_muscle`) y **0.4 (40%)** a los músculos secundarios (`secondary_muscles`).
+  - Se asigna **1.0 (100%)** al músculo primario (`target_muscle`) y **0.4 (40%)** a cada músculo secundario o sinergista (`secondary_muscles`).
   - Ejemplo: Un Press de Banca otorga 3 series efectivas completas a `chest` y 1.2 series a `triceps` y `deltoids`.
 - **Ranking y Umbrales (`rankOf` / `levelsOf`)**:
   - Separa los músculos trabajados ordenados por carga de aquellos sin estímulo directo (`missed`).
@@ -118,11 +117,14 @@ Explorador anatómico interactivo para filtrado de bibliotecas:
   - **`También entrena`**: El músculo participa como sinergista o secundario (40% de carga).
 
 ### 5. `WeeklyMuscleCoverage` ([`components/anatomy/weekly-muscle-coverage.tsx`](../components/anatomy/weekly-muscle-coverage.tsx))
-Componente liviano que combina:
-- Miniatura de `BodyMap`.
-- Leyenda visual de series.
-- Desglose en barras horizontales `.mrow` de los músculos más trabajados.
-- Chips de músculos sin trabajo directo.
+Componente liviano y pedagógico que combina:
+- Miniatura interactiva de `BodyMap` frontal y dorsal.
+- Leyenda visual de series (`Menos series` a `Más series`).
+- **Encabezado flexible con Foco del Día**: Píldora destacada sin truncamiento (`Foco: Hombros`) y conteo de músculos activados.
+- **Aviso Explicativo de Proporción de Estímulo**: Aclara al atleta que la barra indica el volumen de series relativo respecto al músculo con mayor carga de la sesión.
+- **Desglose de Barras con Porcentaje Numérico**: Muestra las series acumuladas (directas y secundarias, ej. `4.6 series`) junto con el porcentaje exacto de carga (`100%`, `87%`, `83%`...).
+- **Insignias de Posición Circulares**: Círculos `rounded-full size-7` numerados por ranking de activación.
+- Chips de músculos sin trabajo directo (`showMissed`).
 
 ---
 
@@ -164,6 +166,15 @@ Durante la integración se incorporaron tres requerimientos clave solicitados pa
     - **Fila superior**: Miniatura, nombre completo del ejercicio (permitiendo salto de línea) y tags de músculos/equipo con `flex-wrap`.
     - **Fila inferior**: Controles de series, repeticiones, descanso y botones de acción rápida con separación amplia y padding seguro.
   - Viewport de selección (`SelectContent`) limitado a `max-h-[min(24rem,var(--radix-select-content-available-height,80vh))]` para evitar desbordamientos en pantallas pequeñas con teclado virtual.
+
+### 4. Tarjetas Horizontales de Ejercicios en Rutinas (`app/client/routines/client-routines-content.tsx`)
+- **Problema**: Las tarjetas apilaban el GIF arriba, los datos al centro y las acciones abajo en mobile, provocando que cada ejercicio ocupara casi 180px de alto y requiriera un scroll excesivo.
+- **Solución**:
+  - Reestructuración completa a **fila horizontal compacta**:
+    - **Izquierda**: Miniatura `size-16 sm:size-18 rounded-xl` con el GIF animado.
+    - **Centro**: Título legible en 2 líneas (`line-clamp-2`), badge si fue modificado (`Cambiado`) y métricas de series y repeticiones (`3 series · 8-15 reps`).
+    - **Derecha**: Botones circulares compactos de sustitución (`RefreshCw`) y guía técnica (`Info`).
+  - Reduce la altura en más de un **55%**, logrando una navegación ágil y limpia en cualquier tamaño de pantalla.
 
 ---
 

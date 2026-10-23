@@ -197,10 +197,12 @@ Definido íntegramente en [`supabase/supabase_schema_dump.sql`](../supabase/supa
 ### 3. Notificaciones Web Push (`lib/push.ts` + `app/sw.ts`)
 - [`lib/push.ts`](../lib/push.ts) está protegido con `import "server-only"` y expone `notifyUser(userId, payload)` para ser invocado exclusivamente desde Server Actions autenticadas.
 - Si un endpoint devuelve HTTP `404` o `410` (suscripción expirada o revocada en el navegador), se elimina automáticamente de `public.push_subscriptions`.
+- **Apilamiento Inteligente Tipo WhatsApp (`app/sw.ts`)**: El Service Worker agrupa notificaciones consecutivas del mismo remitente (por ejemplo, `"Dileri (3 mensajes)"`), concatenando las líneas más recientes y utilizando la etiqueta (`tag`) del usuario para no saturar la bandeja del sistema operativo.
+- **Nombre Real del Remitente**: Las alertas push de mensajería utilizan el nombre real del coach o cliente remitente (`profile.full_name`) en lugar de textos genéricos o fijos.
 
 ### 4. Motor Biomecánico y Modelos Fisiológicos (`lib/anatomy/*`)
 - **Taxonomía Canónica (18 Músculos)**: Basada en la arquitectura de `open-gym`, traduce las nomenclaturas heterogéneas de la base de datos a un conjunto ortogonal de 18 grupos musculares primarios y secundarios.
-- **Ponderación de Volumen**: Cada serie efectiva asigna 1.0 al músculo objetivo primario y 0.4 a los secundarios, o utiliza pesos fraccionarios normalizados (`muscle_weights`). Las series de calentamiento/aproximación (`is_warmup`) se excluyen estrictamente del volumen de fatiga acumulada.
+- **Ponderación de Volumen**: Cada serie efectiva asigna 1.0 (100%) al músculo objetivo primario (`target_muscle`) y 0.4 (40%) a cada músculo secundario sinergista (`secondary_muscles`). Las series de calentamiento/aproximación (`is_warmup`) se excluyen estrictamente del volumen de fatiga acumulada.
 - **Modelo de Fatiga Neuromuscular (Half-Life Decay)**: Decaimiento exponencial $R(t) = e^{-\lambda \cdot t}$, donde $\lambda = \frac{\ln(2)}{t_{1/2}}$ con semividas fisiológicas diferenciadas por grupo (pecho/espalda/cuádriceps 48h, brazos 36h, core/pantorrillas 24h).
 - **Modelo de Retención de 1RM (Fitness-Fatigue Decay)**: Meseta de mantenimiento de 14 días sin pérdidas, seguida de decaimiento con semivida de 28 días acotado por un suelo fisiológico del 50% ($0.5$).
 - **Renderizado SVG Reactivo**: El componente [`BodyMap`](../components/anatomy/body-map.tsx) aísla silueta inerte (`.bm-sil`) de músculos activos (`.bm-m.l0..l4`), utilizando la paleta dorada/ámbar de RU Coach con trazado de juntas nítidas (`stroke: var(--card)`).
@@ -208,5 +210,9 @@ Definido íntegramente en [`supabase/supabase_schema_dump.sql`](../supabase/supa
 
 ### 5. Arquitectura SPA de Cero Latencia y Rendimiento Nativo Móvil
 - **Caché Progresivo con Serwist (`app/sw.ts`)**: Estrategia Stale-While-Revalidate para catálogos y llamadas estáticas, Cache-First para fuentes y recursos visuales (GIFs y avatares), y Network-First con fallback offline para rutas de navegación.
+- **Eliminación de Skeletons Parpadeantes**: Eliminación de sub-archivos `loading.tsx` en rutas hijas de clientes (`dashboard`, `routines`, `workouts`, `messages`, `progress`) para evitar parpadeos grises durante el cambio de pestañas, manteniendo una navegación SPA instantánea.
+- **Temporizador de Descanso Flotante Minimizable (`workout-active-session.tsx`)**: Modal de descanso con opción de minimizar a una barra flotante fija inferior (`⏱ Descanso activo: 1:45 restantes | +30s | Saltar`), permitiendo al atleta explorar la técnica o revisar ejercicios mientras continúa la cuenta regresiva.
+- **Reseteo Automático de Scroll (`hooks/use-scroll-reset-on-navigate.ts`)**: Garantiza que al cambiar de pestaña o pantalla móvil, el contenedor principal `#main-content` siempre inicie en la posición superior (`scrollTop = 0`).
+- **Compensación de Notch Móvil**: Encabezados sticky con `-mt-[env(safe-area-inset-top)]` para evitar saltos de altura de 47px en dispositivos con Dynamic Island o Notch al hacer scroll.
 - **Caché en Memoria y LocalStorage (`lib/local-cache.ts`)**: Búsqueda instantánea de ejercicios y rutinas sin esperar latencia de red, con invalidación por TTL.
 - **Transiciones Nativas y Micro-interacciones**: Soporte de CSS View Transitions en Next.js 16, respuesta háptica y táctil inmediata (`active:scale-95`), campos de selección adaptados a dedos (`py-3 text-base`) y respeto estricto de `env(safe-area-inset-bottom)` en la barra de navegación inferior móvil.

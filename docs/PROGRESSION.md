@@ -53,6 +53,12 @@ La pantalla de sesión activa ([`workout-active-session.tsx`](../app/client/work
   - **Exclusión Analítica**: Las series de aproximación no se computan dentro del volumen total de trabajo (`total_volume_kg`), no alteran las curvas de fatiga ni computan para Récords Personales (PRs).
 - **Persistencia Resiliente (`localStorage`)**: Cada cambio de serie, peso o cronómetro se guarda localmente en el dispositivo (`workout_draft_{clientId}_{dayId}`). Si el navegador móvil se suspende al bloquear la pantalla, el estado se restaura intacto al volver.
 - **Edición Flexible**: Una serie marcada como completada puede desmarcarse con un toque para corregir peso o repeticiones antes de finalizar la sesión.
+- **Arranque Instantáneo (~375ms)**: La vista `/client/workout/start` carga la rutina, última sesión y marcas personales en una única ola concurrente en servidor (`Promise.all`), eliminando pantallas de carga en blanco o demoras de más de 2.5 segundos.
+- **Temporizador de Descanso Minimizable**:
+  - Al completar una serie de trabajo se dispara el temporizador con sonido y vibración háptica.
+  - El atleta puede **Minimizar** el descanso en una barra flotante inferior persistente (`⏱ Descanso activo: 1:45 restantes | +30s | Saltar`), permitiéndole explorar la rutina, revisar notas o consultar la guía técnica del ejercicio sin interrumpir la cuenta regresiva.
+  - El cronómetro de cabecera se etiqueta de forma transparente como `⏱ SESIÓN` para evitar confundirlo con el descanso entre series.
+  - La tarjeta muestra un pill informativo secundario `Descanso: 180s` en vez de botones amarillos distractores.
 
 ---
 

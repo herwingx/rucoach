@@ -44,16 +44,19 @@
 - **Chat en Tiempo Real (`/admin/messages` y `/client/messages`)**: Bandeja de entrada conectada a `Supabase Realtime` (`postgres_changes` + Broadcast `chat_room` + puente Service Worker `CHAT_NEW_MESSAGE`), soporte de teclado virtual móvil (`VisualViewport`), doble check (`is_read`) y respuestas rápidas.
 
 ### 2. Flujo del Asesorado (`/client/*`)
-- **Dashboard (`/client/dashboard`)**: Nivel y progreso de XP, racha de días entrenados, acceso directo al entrenamiento del día y gráfica de actividad.
+- **Dashboard (`/client/dashboard`)**:
+  - **Rotación Dinámica de Microciclo (`NextWorkoutCard`)**: El plan avanza ordenadamente por cada sesión completada para balancear el estímulo muscular sin saltarse bloques por días de calendario. Muestra fecha real, etiqueta de plantilla del coach, títulos de ejercicios legibles en 2 líneas y botón directo de **"Cambiar día"** (`ScheduleOverrideDialog`) con recarga en tiempo real.
+  - **Consistencia Visual**: Iconos 100% circulares (`rounded-full`) con bordes suaves en todas las tarjetas de estadísticas, racha, volumen, PRs y nivel del atleta.
 - **Mi Rutina (`/client/routines`)**:
-  - Vista completa del plan continuo o por semanas, desglose visual **"Qué trabaja esta sesión"** con mapa corporal bare frontal/dorsal y chips de músculos objetivo antes de empezar.
-  - Instrucciones paso a paso con GIF, **intercambio de ejercicio (`ExerciseSwapDrawer`)** con explorador muscular y **cambio del día programado para hoy (`ScheduleOverrideDialog`)**.
+  - **Tarjetas Horizontales Compactas**: Layout horizontal (miniatura GIF a la izquierda, detalles de series/reps al centro, botones de cambio y técnica a la derecha) que reduce la altura vertical en más del 55% y elimina el scroll excesivo.
+  - **Cobertura Muscular Pedagógica (`WeeklyMuscleCoverage`)**: Mapa corporal frontal/dorsal con leyenda explicativa de proporción de volumen relativo (`100%`, `87%`...), diferenciación de activación primaria (100%) vs secundaria (40%) y nombres anatómicos completos sin truncamiento (`Foco: Hombros`).
 - **Entrenamiento en Vivo (`/client/workout/start`)**:
+  - **Arranque Instantáneo (~375ms)**: Carga paralela de rutina, última sesión y PRs en una sola ola concurrente en el servidor.
+  - **Temporizador de Descanso Minimizable**: Modal interactivo que puede minimizarse en una barra flotante fija inferior para navegar por la rutina o revisar la técnica mientras continúa la cuenta regresiva.
   - Registro de **Series de Aproximación (W)** separadas de las Series Efectivas de trabajo con un clic.
   - Registro serie por serie con referencia histórica de la última sesión de ese ejercicio.
-  - Temporizador de descanso flotante con Web Audio API, vibración y controles `-15s` / `+15s`.
   - Persistencia automática en `localStorage` para evitar pérdida de datos si se bloquea el teléfono.
-  - **Modal de Finalización**: KPIs en vivo (excluyendo series de aproximación del volumen total), advertencia de series incompletas, selector de esfuerzo percibido (`1–5`) y nota para el coach.
+  - **Modal de Finalización**: KPIs en vivo (excluyendo series de aproximación del volumen total), advertencia de series incompletas, selector de esfuerzo percibido (`1–5`), nota para el coach y guardado blindado en Supabase con bypass RLS para estadísticas de sesión.
 - **Resumen y Auto-Progresión (`/client/workout/summary`)**:
   - **Tarjeta "Músculos trabajados hoy"**: Mapa anatómico SVG con gradiente de activación según series completadas en la sesión.
   - Desglose de series realizadas, PRs batidos (evaluados exclusivamente en series efectivas), desbloqueo animado de logros y ajuste automático de cargas (`lib/auto-progression.ts`).
