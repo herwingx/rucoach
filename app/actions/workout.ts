@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthUser } from "@/lib/auth-utils";
 import { calculate1RM } from "@/lib/types";
 import {
@@ -367,7 +368,8 @@ export async function completeWorkoutSession(data: WorkoutCompletionData) {
     (session.started_at as string | null) ??
     new Date().toISOString();
 
-  const { error: clientUpdateError } = await supabase
+  const adminClient = createAdminClient();
+  const { error: clientUpdateError } = await adminClient
     .from("clients")
     .update({
       total_sessions: completedCount ?? (client.total_sessions ?? 0) + 1,
