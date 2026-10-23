@@ -316,6 +316,7 @@ export default async function ClientDashboard() {
       totalVolume={totalVolume}
       prsThisMonth={prsThisMonth || 0}
       assignedRoutine={assignedRoutine}
+      clientRoutineId={activeClientRoutineId}
       nextWorkoutRoutineDay={nextWorkoutRoutineDay}
       isRoutineCompleted={isRoutineCompleted}
       userAchievements={userAchievements || []}

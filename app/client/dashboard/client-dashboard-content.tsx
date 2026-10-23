@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,7 @@ interface ClientDashboardContentProps {
   totalVolume: number;
   prsThisMonth: number;
   assignedRoutine: Routine | null;
+  clientRoutineId?: string | null;
   /** Mismo criterio que /client/workout/start (última sesión completada + orden day_number). */
   nextWorkoutRoutineDay: RoutineDay | null;
   isRoutineCompleted?: boolean;
@@ -75,6 +77,7 @@ export function ClientDashboardContent({
   totalVolume,
   prsThisMonth,
   assignedRoutine,
+  clientRoutineId,
   nextWorkoutRoutineDay,
   isRoutineCompleted,
   userAchievements,
@@ -88,6 +91,12 @@ export function ClientDashboardContent({
 }: ClientDashboardContentProps) {
   const userLabel =
     profile?.full_name?.split(/\s+/).filter(Boolean)[0] || "Asesorado";
+
+  const trainDays = useMemo(() => {
+    return ((assignedRoutine?.routine_days || []) as any[]).filter(
+      (d) => !d.is_rest_day,
+    );
+  }, [assignedRoutine]);
 
   const daysUntilExpiry = (() => {
     if (!membershipEnd) return null;
@@ -123,8 +132,8 @@ export function ClientDashboardContent({
             <Card className="overflow-hidden rounded-2xl border-warning/40 bg-warning/10 shadow-sm">
               <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-warning/20 text-warning-foreground">
-                    <CalendarClock className="size-5" />
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-warning/30 bg-warning/20 text-warning-foreground">
+                    <CalendarClock className="size-4.5" />
                   </div>
                   <div>
                     <p className="text-sm font-bold text-foreground">
@@ -178,7 +187,7 @@ export function ClientDashboardContent({
                 <CardContent className="p-4 sm:p-6 flex flex-col gap-4">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <div className="flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                      <div className="flex size-8 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary shrink-0">
                         <Flame className="size-4" aria-hidden />
                       </div>
                       <span className="text-xs font-black uppercase tracking-widest text-foreground">
@@ -246,6 +255,8 @@ export function ClientDashboardContent({
               currentWeek={currentWeek}
               durationWeeks={durationWeeks}
               focus={nextWorkoutRoutineDay?.focus}
+              clientRoutineId={clientRoutineId}
+              trainDays={trainDays}
             />
           </div>
 
@@ -255,15 +266,17 @@ export function ClientDashboardContent({
             <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm">
               <CardHeader className="pb-4 pt-6 px-6 sm:px-8">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                     <Award className="size-5 text-primary" aria-hidden />
-                     <CardTitle className="text-lg font-black tracking-tight">Hitos Recientes</CardTitle>
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-8 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-primary shrink-0">
+                      <Award className="size-4" aria-hidden />
+                    </div>
+                    <CardTitle className="text-lg font-black tracking-tight">Hitos Recientes</CardTitle>
                   </div>
                   <Button
                     variant="ghost"
                     size="sm"
                     asChild
-                    className="h-9 px-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-primary/5 hover:text-primary transition-all"
+                    className="h-9 px-3 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-primary/5 hover:text-primary transition-all"
                   >
                     <Link
                       href="/client/achievements"

@@ -55,7 +55,7 @@ export function LevelProgress({ levelInfo, username, avatarUrl }: LevelProgressP
               </div>
             </CircularProgress>
 
-            <div className="absolute -bottom-1 -right-1 flex size-10 items-center justify-center rounded-2xl border-4 border-background bg-primary text-sm font-black text-primary-foreground shadow-lg z-20">
+            <div className="absolute -bottom-1 -right-1 flex size-9 items-center justify-center rounded-full border-3 border-background bg-primary text-xs font-black text-primary-foreground shadow-lg z-20">
               {levelInfo.level}
             </div>
           </div>
@@ -66,7 +66,7 @@ export function LevelProgress({ levelInfo, username, avatarUrl }: LevelProgressP
                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60">Atleta de Élite</span>
                 <h3 className="text-2xl font-black tracking-tight text-foreground truncate">{username || 'Tu progreso'}</h3>
               </div>
-              <Badge className="w-fit shrink-0 font-black text-[10px] uppercase tracking-widest px-3 py-1.5 bg-primary/10 text-primary border-none rounded-xl">
+              <Badge className="w-fit shrink-0 font-black text-[10px] uppercase tracking-widest px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full">
                 {levelName}
               </Badge>
             </div>
@@ -89,7 +89,7 @@ export function LevelProgress({ levelInfo, username, avatarUrl }: LevelProgressP
                 <p className="text-xs font-medium text-muted-foreground italic">
                   Próximo objetivo: <span className="text-foreground font-black tabular-nums">{xpRemaining.toLocaleString()} XP</span>
                 </p>
-                <Button variant="ghost" size="sm" asChild className="h-8 px-2.5 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-primary/5 hover:text-primary transition-all">
+                <Button variant="ghost" size="sm" asChild className="h-8 px-3 rounded-full font-black text-[10px] uppercase tracking-wider hover:bg-primary/5 hover:text-primary transition-all">
                   <Link href="/client/achievements" className="flex items-center gap-1.5">
                     Ver mis hitos
                     <ChevronRight className="size-3.5" />

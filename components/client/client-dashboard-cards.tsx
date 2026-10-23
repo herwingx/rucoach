@@ -24,11 +24,11 @@ export function ClientDashboardCards({
       <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm transition-all hover:bg-card">
         <CardHeader className="p-5 pb-2">
           <div className="flex items-center justify-between">
-            <div className="size-10 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Flame className="size-5 text-primary" />
+            <div className="size-11 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+              <Flame className="size-5 text-primary" strokeWidth={2.2} />
             </div>
             {streakDays >= 7 && (
-              <Badge className="h-5 font-black text-[9px] uppercase tracking-widest px-2 bg-primary text-primary-foreground border-none rounded-lg">
+              <Badge className="h-5 font-black text-[9px] uppercase tracking-widest px-2.5 bg-primary text-primary-foreground border-none rounded-full">
                 HOT
               </Badge>
             )}
@@ -42,8 +42,8 @@ export function ClientDashboardCards({
 
       <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm transition-all hover:bg-card">
         <CardHeader className="p-5 pb-2">
-          <div className="size-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center">
-            <Dumbbell className="size-5 text-indigo-500" />
+          <div className="size-11 rounded-full bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shrink-0">
+            <Dumbbell className="size-5 text-indigo-500" strokeWidth={2.2} />
           </div>
         </CardHeader>
         <CardContent className="p-5 pt-2">
@@ -54,8 +54,8 @@ export function ClientDashboardCards({
 
       <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm transition-all hover:bg-card">
         <CardHeader className="p-5 pb-2">
-          <div className="size-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center">
-            <TrendingUp className="size-5 text-emerald-500" />
+          <div className="size-11 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+            <TrendingUp className="size-5 text-emerald-500" strokeWidth={2.2} />
           </div>
         </CardHeader>
         <CardContent className="p-5 pt-2">
@@ -67,11 +67,11 @@ export function ClientDashboardCards({
       <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/60 backdrop-blur-sm transition-all hover:bg-card">
         <CardHeader className="p-5 pb-2">
           <div className="flex items-center justify-between">
-            <div className="size-10 rounded-2xl bg-amber-500/10 flex items-center justify-center">
-              <Trophy className="size-5 text-amber-500" />
+            <div className="size-11 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+              <Trophy className="size-5 text-amber-500" strokeWidth={2.2} />
             </div>
             {prsThisMonth > 0 && (
-              <Badge className="h-5 font-black text-[9px] uppercase tracking-widest px-2 bg-amber-500 text-amber-950 border-none rounded-lg">
+              <Badge className="h-5 font-black text-[9px] uppercase tracking-widest px-2.5 bg-amber-500 text-amber-950 border-none rounded-full">
                 PR
               </Badge>
             )}
