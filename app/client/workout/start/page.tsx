@@ -23,50 +23,31 @@ export default async function WorkoutStartPage() {
 
   if (!client) redirect("/client/dashboard");
 
-  // Obtener routine_id: de clients.assigned_routine_id o de client_routines activa
-  let routineId = client.assigned_routine_id;
-  if (!routineId) {
-    const { data: activeRoutine } = await supabase
-      .from("client_routines")
-      .select("routine_id")
-      .eq("client_id", client.id)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-    routineId = activeRoutine?.routine_id ?? null;
-  }
-
-  if (!routineId) redirect("/client/dashboard");
-
-  // Wave 1: Obtener rutina completa, vínculo activo, última sesión y récords personales en paralelo
-  const [
-    { data: routine },
-    { data: activeLink },
-    { data: lastSession },
-    { data: personalRecords },
-  ] = await Promise.all([
+  // Wave 1: Fetch active client routine graph, last session and personal records in a single parallel wave
+  const [crRes, lastSessionRes, prsRes] = await Promise.all([
     supabase
-      .from("routines")
+      .from("client_routines")
       .select(
         `
-        *,
-        routine_days (
+        id,
+        current_week,
+        override_next_day_id,
+        routine_id,
+        routines (
           *,
-          routine_exercises (
+          routine_days (
             *,
-            exercises (*)
+            routine_exercises (
+              *,
+              exercises (*)
+            )
           )
         )
       `,
       )
-      .eq("id", routineId)
-      .single(),
-    supabase
-      .from("client_routines")
-      .select("id, current_week, override_next_day_id")
       .eq("client_id", client.id)
-      .eq("routine_id", routineId)
       .eq("is_active", true)
+      .limit(1)
       .maybeSingle(),
     supabase
       .from("workout_sessions")
@@ -82,6 +63,38 @@ export default async function WorkoutStartPage() {
       .eq("client_id", client.id),
   ]);
 
+  const activeLink = crRes.data;
+  const rawRoutine = Array.isArray(activeLink?.routines)
+    ? activeLink?.routines[0]
+    : activeLink?.routines;
+
+  let routine: any = rawRoutine;
+
+  // Fallback: If client_routines didn't have routines join or client only has assigned_routine_id
+  if (!routine) {
+    const routineId = client.assigned_routine_id || activeLink?.routine_id;
+    if (!routineId) redirect("/client/dashboard");
+
+    const { data: routineFallback } = await supabase
+      .from("routines")
+      .select(
+        `
+        *,
+        routine_days (
+          *,
+          routine_exercises (
+            *,
+            exercises (*)
+          )
+        )
+      `,
+      )
+      .eq("id", routineId)
+      .single();
+
+    routine = routineFallback;
+  }
+
   if (!routine) {
     redirect("/client/dashboard");
   }
@@ -93,6 +106,9 @@ export default async function WorkoutStartPage() {
   ) {
     redirect("/client/dashboard");
   }
+
+  const lastSession = lastSessionRes.data;
+  const personalRecords = prsRes.data || [];
 
   const routineDays = sortRoutineDaysByDayNumber(routine.routine_days || []);
 
@@ -120,6 +136,7 @@ export default async function WorkoutStartPage() {
     (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0),
   );
 
+  // Apply exercise overrides if active routine exists
   if (activeLink?.id && currentDay.routine_exercises?.length) {
     const { applyExerciseOverrides } = await import(
       "@/app/actions/routine-overrides"
@@ -197,7 +214,7 @@ export default async function WorkoutStartPage() {
       routineDay={currentDay}
       routineName={routine.name}
       previousByExercise={previousByExercise}
-      personalRecords={personalRecords || []}
+      personalRecords={personalRecords}
     />
   );
 }

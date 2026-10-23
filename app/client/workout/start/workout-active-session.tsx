@@ -43,6 +43,7 @@ import {
   RefreshCw,
   Flame,
   MessageSquareText,
+  Minimize2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -189,6 +190,7 @@ export function WorkoutActiveSession({
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [sets, setSets] = useState<Map<string, SetLog[]>>(new Map());
   const [isResting, setIsResting] = useState(false);
+  const [isRestMinimized, setIsRestMinimized] = useState(false);
   const [restTime, setRestTime] = useState(0);
   const [totalRestTime, setTotalRestTime] = useState(90);
   const [workoutStartTime, setWorkoutStartTime] = useState(() => Date.now());
@@ -384,6 +386,7 @@ export function WorkoutActiveSession({
       }, 1000);
     } else if (restTime === 0 && isResting) {
       setIsResting(false);
+      setIsRestMinimized(false);
       if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
       toast.success("Descanso terminado. ¡Siguiente serie!");
     }
@@ -489,6 +492,7 @@ export function WorkoutActiveSession({
         setTotalRestTime(restSec);
         setIsPaused(false);
         setIsResting(true);
+        setIsRestMinimized(false);
       }
     });
   };
@@ -501,6 +505,7 @@ export function WorkoutActiveSession({
       }
       if (next === 0) {
         setIsResting(false);
+        setIsRestMinimized(false);
       }
       return next;
     });
@@ -512,6 +517,7 @@ export function WorkoutActiveSession({
     setRestTime(sec);
     setIsPaused(false);
     setIsResting(true);
+    setIsRestMinimized(false);
   };
 
   const updateSetValue = (
@@ -693,6 +699,7 @@ export function WorkoutActiveSession({
 
   const skipRest = () => {
     setIsResting(false);
+    setIsRestMinimized(false);
     setRestTime(0);
   };
 
@@ -877,9 +884,10 @@ export function WorkoutActiveSession({
               className="inline-flex h-9 sm:h-11 items-center gap-1.5 rounded-xl sm:rounded-2xl border border-primary/25 bg-primary/5 px-2.5 sm:px-4 text-xs sm:text-sm font-black tabular-nums text-primary"
               role="timer"
               aria-live="polite"
-              aria-label={`Tiempo de sesión ${formatElapsed(elapsedSec)}`}
+              aria-label={`Tiempo de sesión transcurrido ${formatElapsed(elapsedSec)}`}
             >
-              <Timer className="size-3.5 sm:size-4 shrink-0" aria-hidden />
+              <Timer className="size-3.5 sm:size-4 shrink-0 text-primary" aria-hidden />
+              <span className="text-[10px] font-black uppercase tracking-wider opacity-75 hidden xs:inline">Sesión</span>
               {formatElapsed(elapsedSec)}
             </div>
             <Button
@@ -995,9 +1003,21 @@ export function WorkoutActiveSession({
         </AlertDialogContent>
       </AlertDialog>
 
-      {isResting && (
+      {/* Fullscreen Rest Timer Modal */}
+      {isResting && !isRestMinimized && (
         <div className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-background/85 p-4 backdrop-blur-2xl animate-in fade-in duration-300 sm:p-8">
           <div className="absolute inset-0 bg-linear-to-b from-primary/5 via-transparent to-primary/5 pointer-events-none" />
+
+          {/* Minimize button at top right */}
+          <button
+            type="button"
+            onClick={() => setIsRestMinimized(true)}
+            className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20 flex items-center gap-1.5 rounded-full border border-border/60 bg-secondary/80 px-3.5 py-1.5 text-xs font-bold text-muted-foreground hover:bg-secondary hover:text-foreground transition-all"
+            aria-label="Minimizar temporizador de descanso"
+          >
+            <Minimize2 className="size-3.5" />
+            <span>Minimizar</span>
+          </button>
 
           <div className="relative flex flex-col items-center">
             <div className="absolute -inset-4 bg-primary/20 blur-3xl rounded-full animate-pulse" />
@@ -1085,7 +1105,16 @@ export function WorkoutActiveSession({
           </div>
 
           <div className="mt-8 text-center relative z-10 max-w-xs px-4">
-            {allSetsCompleted && currentExerciseIndex < exercises.length - 1 ? (
+            {completedSetsCount === 0 ? (
+              <>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/70 mb-1">
+                  Preparación previa
+                </p>
+                <p className="text-lg font-black tracking-tight text-foreground">
+                  Serie 1 de {currentSets.length}
+                </p>
+              </>
+            ) : allSetsCompleted && currentExerciseIndex < exercises.length - 1 ? (
               <>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/70 mb-1">
                    Ejercicio completado · Siguiente
@@ -1097,14 +1126,59 @@ export function WorkoutActiveSession({
             ) : (
               <>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/70 mb-1">
-                  Próxima Serie
+                  Serie {completedSetsCount} completada
                 </p>
                 <p className="text-lg font-black tracking-tight underline decoration-primary decoration-2 underline-offset-4">
-                  Serie {Math.min(completedSetsCount + 1, currentSets.length)} de{" "}
+                  Próxima: Serie {Math.min(completedSetsCount + 1, currentSets.length)} de{" "}
                   {currentSets.length}
                 </p>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Minimized Rest Bar */}
+      {isResting && isRestMinimized && (
+        <div className="fixed bottom-4 inset-x-3 sm:inset-x-6 max-w-md mx-auto z-50 flex items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-card/95 p-3 shadow-2xl backdrop-blur-xl animate-in slide-in-from-bottom-4 duration-300">
+          <button
+            type="button"
+            onClick={() => setIsRestMinimized(false)}
+            className="flex items-center gap-2.5 text-left group min-w-0"
+            aria-label="Expandir temporizador de descanso"
+          >
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Timer className="size-4 animate-spin" style={{ animationDuration: "4s" }} />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                Descanso activo
+              </span>
+              <span className="text-sm font-black tabular-nums text-foreground group-hover:text-primary transition-colors">
+                {restTime >= 60 ? formatElapsed(restTime) : `${restTime}s`} restantes
+              </span>
+            </div>
+          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => adjustRestTime(30)}
+              className="h-8 rounded-xl px-2.5 text-xs font-black tabular-nums"
+              aria-label="Sumar 30 segundos"
+            >
+              +30s
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={skipRest}
+              className="h-8 rounded-xl px-3 text-xs font-black uppercase tracking-wider"
+            >
+              Saltar
+            </Button>
           </div>
         </div>
       )}
@@ -1340,11 +1414,12 @@ export function WorkoutActiveSession({
                   <button
                     type="button"
                     onClick={() => startManualRest(restSeconds)}
-                    aria-label={`Iniciar descanso de ${restSeconds} segundos`}
-                    className="inline-flex h-9 shrink-0 items-center gap-1 rounded-xl bg-primary px-2.5 text-[10px] font-black uppercase tracking-wider text-primary-foreground shadow-md shadow-primary/25 transition-transform hover:scale-105 active:scale-95 sm:h-10 sm:px-3.5"
+                    aria-label={`Iniciar descanso sugerido de ${restSeconds} segundos`}
+                    title="Iniciar temporizador de descanso manual"
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border border-border/70 bg-card/90 backdrop-blur-md px-2.5 text-[10px] font-bold text-muted-foreground transition-all hover:bg-card hover:text-foreground hover:border-primary/40 active:scale-95 sm:h-10 sm:px-3.5"
                   >
-                    <Timer className="size-3.5 shrink-0" aria-hidden />
-                    {restSeconds}s Rest
+                    <Timer className="size-3.5 text-primary shrink-0" aria-hidden />
+                    <span>Descanso: {restSeconds}s</span>
                   </button>
                 </div>
               </div>
