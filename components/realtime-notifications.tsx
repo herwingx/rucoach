@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getVapidPublicKey, savePushSubscription } from "@/app/actions/web-push";
 import { urlBase64ToUint8Array } from "@/lib/utils/web-push";
@@ -80,8 +80,35 @@ export async function syncCurrentPushSubscription(): Promise<boolean> {
 
 export function RealtimeNotifications({ role }: { role: "client" | "admin" }) {
   const router = useRouter();
+  const pathname = usePathname();
   const notifiedIdsRef = useRef<Set<string>>(new Set());
+  const senderNamesRef = useRef<Map<string, string>>(new Map());
+  const toastCountRef = useRef<Map<string, number>>(new Map());
   const mountedAtIsoRef = useRef<string>(new Date().toISOString());
+
+  // 0. Al abrir el chat, limpiar las notificaciones de mensajes del sistema (como WhatsApp)
+  useEffect(() => {
+    if (!pathname?.includes("/messages")) return;
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+
+    const clearChatNotifications = () => {
+      if (document.visibilityState !== "visible") return;
+      navigator.serviceWorker
+        .getRegistration()
+        .then((reg) => reg?.getNotifications())
+        .then((list) =>
+          list?.forEach((n) => {
+            if (n.tag?.startsWith("msg-")) n.close();
+          }),
+        )
+        .catch(() => {});
+    };
+
+    clearChatNotifications();
+    document.addEventListener("visibilitychange", clearChatNotifications);
+    return () =>
+      document.removeEventListener("visibilitychange", clearChatNotifications);
+  }, [pathname]);
 
   // 1. Auto-sincronizar suscripción Web Push (Android + iOS 16.4+ PWA + Desktop)
   useEffect(() => {
@@ -157,7 +184,26 @@ export function RealtimeNotifications({ role }: { role: "client" | "admin" }) {
     let pollInterval: number | null = null;
     let isMounted = true;
 
-    const handleIncomingMessage = (newMsg: {
+    const resolveSenderName = async (fromUserId?: string): Promise<string> => {
+      const fallback = role === "admin" ? "Un asesorado" : "Tu coach";
+      if (!fromUserId) return fallback;
+      const cached = senderNamesRef.current.get(fromUserId);
+      if (cached) return cached;
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", fromUserId)
+          .maybeSingle();
+        const name = data?.full_name?.trim() || fallback;
+        senderNamesRef.current.set(fromUserId, name);
+        return name;
+      } catch {
+        return fallback;
+      }
+    };
+
+    const handleIncomingMessage = async (newMsg: {
       id?: string;
       from_user_id?: string;
       to_user_id?: string;
@@ -170,53 +216,41 @@ export function RealtimeNotifications({ role }: { role: "client" | "admin" }) {
       const isOnMessagesRoute = window.location.pathname.includes("/messages");
       const isHidden = document.visibilityState !== "visible";
 
-      const title =
-        role === "admin"
-          ? "Nuevo mensaje de asesorado"
-          : "Nuevo mensaje de Rodrigo Urbina";
+      // Cuando la app está en segundo plano, la notificación del sistema la
+      // envía Web Push (con apilado tipo WhatsApp). Aquí solo se atiende el
+      // caso "app abierta en otra pantalla" con un aviso discreto dentro de la app.
+      if (isHidden || isOnMessagesRoute) return;
+
+      const senderName = await resolveSenderName(newMsg.from_user_id);
       const bodyText =
         newMsg.content && newMsg.content.length > 90
           ? `${newMsg.content.slice(0, 90)}…`
-          : newMsg.content || "Tienes un nuevo mensaje en el chat.";
+          : newMsg.content || "Te envió un mensaje.";
       const targetUrl =
         role === "admin"
           ? `/admin/messages?clientId=${newMsg.from_user_id}`
           : "/client/messages";
 
-      // 1. Si el usuario tiene la app visible y está fuera de /messages -> mostrar solo el toast dentro de la app
-      if (!isHidden && !isOnMessagesRoute) {
-        toast(title, {
-          description: bodyText,
-          duration: 7000,
-          action: {
-            label: "Responder",
-            onClick: () => router.push(targetUrl),
-          },
-        });
-        return;
-      }
+      // Un solo toast por persona: si escribe varias veces seguidas se actualiza
+      // el contador en lugar de apilar avisos repetidos.
+      const key = newMsg.from_user_id || "chat";
+      const count = (toastCountRef.current.get(key) ?? 0) + 1;
+      toastCountRef.current.set(key, count);
 
-      // 2. Solo si la pestaña/app está en segundo plano (isHidden), usar showNotification como respaldo (con el mismo tag para no duplicar con Web Push)
-      if (
-        isHidden &&
-        "Notification" in window &&
-        Notification.permission === "granted"
-      ) {
-        navigator.serviceWorker
-          ?.getRegistration()
-          .then((reg) => {
-            if (reg?.showNotification) {
-              return reg.showNotification(title, {
-                body: bodyText,
-                icon: "/android-chrome-192x192.png",
-                badge: "/favicon-32x32.png",
-                tag: `msg-${newMsg.from_user_id || "chat"}`,
-                data: { url: targetUrl },
-              });
-            }
-          })
-          .catch(() => {});
-      }
+      toast(count > 1 ? `${senderName} · ${count} mensajes nuevos` : senderName, {
+        id: `chat-toast-${key}`,
+        description: bodyText,
+        duration: 6000,
+        onDismiss: () => toastCountRef.current.delete(key),
+        onAutoClose: () => toastCountRef.current.delete(key),
+        action: {
+          label: "Responder",
+          onClick: () => {
+            toastCountRef.current.delete(key);
+            router.push(targetUrl);
+          },
+        },
+      });
     };
 
     const setup = async () => {

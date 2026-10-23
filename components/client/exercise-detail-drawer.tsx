@@ -132,10 +132,10 @@ function ExerciseDetailSections({
       {showCompactCallout ? (
         <Alert>
           <Info aria-hidden />
-          <AlertTitle className="text-sm">Mismo ejercicio, otro contenido</AlertTitle>
+          <AlertTitle className="text-sm">Guía del ejercicio</AlertTitle>
           <AlertDescription className="text-sm leading-relaxed">
-            La repetición animada sigue arriba en el entreno. Esta vista es solo para leer pasos, músculos y
-            consejos sin duplicar el GIF.
+            Aquí ves cómo hacerlo, qué músculos trabaja y consejos de técnica. La animación sigue
+            disponible arriba, en tu entreno.
           </AlertDescription>
         </Alert>
       ) : null}

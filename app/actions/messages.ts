@@ -93,7 +93,7 @@ export async function sendMessage(toUserId: string, content: string) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, full_name")
     .eq("id", user.id)
     .single();
 
@@ -112,12 +112,15 @@ export async function sendMessage(toUserId: string, content: string) {
 
   if (error) throw new Error(error.message);
 
+  // Título = quién escribe (como WhatsApp). El service worker apila varios
+  // mensajes seguidos de la misma persona en una sola notificación.
+  const senderName =
+    profile?.full_name?.trim() ||
+    (role === "admin" ? "Tu coach" : "Un asesorado");
+
   await notifyUser(toUserId, {
-    title:
-      role === "admin"
-        ? "Nuevo mensaje de tu Coach"
-        : "Nuevo mensaje de asesorado",
-    body: text.slice(0, 100),
+    title: senderName,
+    body: text.length > 140 ? `${text.slice(0, 140)}…` : text,
     url: role === "admin" ? "/client/messages" : `/admin/messages?clientId=${user.id}`,
     tag: `msg-${user.id}`,
   });

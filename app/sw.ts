@@ -69,27 +69,70 @@ self.addEventListener("push", (event) => {
     data = { body: event.data?.text() };
   }
 
-  const title = data.title || "RU Coach";
+  const baseTitle = data.title || "RU Coach";
   const targetUrl = data.data?.url || data.url || "/";
   const isChatMessage =
     Boolean(data.tag?.startsWith("msg-")) || targetUrl.includes("/messages");
+  const incomingBody =
+    data.body || "Tienes una nueva actualización de tu entrenamiento.";
 
-  const options: NotificationOptions & {
+  const baseOptions: NotificationOptions & {
     vibrate?: number[];
     renotify?: boolean;
+    timestamp?: number;
   } = {
-    body: data.body || "Tienes una nueva actualización de tu entrenamiento.",
     icon: "/android-chrome-192x192.png",
     badge: "/favicon-32x32.png",
-    ...(data.tag ? { tag: data.tag, renotify: true } : {}),
     vibrate: [100, 50, 100],
-    data: { url: targetUrl },
+    timestamp: Date.now(),
+  };
+
+  /**
+   * Estilo WhatsApp: varios mensajes seguidos de la misma persona se apilan en
+   * UNA sola notificación ("Rodrigo (3 mensajes)") con las últimas líneas,
+   * en lugar de que cada mensaje reemplace al anterior.
+   */
+  const buildNotification = async (): Promise<{
+    title: string;
+    options: NotificationOptions & { renotify?: boolean; vibrate?: number[] };
+  }> => {
+    if (!isChatMessage || !data.tag) {
+      return {
+        title: baseTitle,
+        options: {
+          ...baseOptions,
+          body: incomingBody,
+          ...(data.tag ? { tag: data.tag, renotify: true } : {}),
+          data: { url: targetUrl },
+        },
+      };
+    }
+
+    const previous = await self.registration.getNotifications({
+      tag: data.tag,
+    });
+    const prevMessages: string[] = Array.isArray(previous[0]?.data?.messages)
+      ? previous[0].data.messages
+      : [];
+    const messages = [...prevMessages, incomingBody].slice(-5);
+    const count = (Number(previous[0]?.data?.count) || 0) + 1;
+
+    return {
+      title: count > 1 ? `${baseTitle} (${count} mensajes)` : baseTitle,
+      options: {
+        ...baseOptions,
+        body: messages.join("\n"),
+        tag: data.tag,
+        renotify: true,
+        data: { url: targetUrl, messages, count },
+      },
+    };
   };
 
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
-      .then((windowClients) => {
+      .then(async (windowClients) => {
         for (const client of windowClients) {
           client.postMessage({
             type: "CHAT_NEW_MESSAGE",
@@ -110,6 +153,7 @@ self.addEventListener("push", (event) => {
           return;
         }
 
+        const { title, options } = await buildNotification();
         return self.registration.showNotification(title, options);
       }),
   );
