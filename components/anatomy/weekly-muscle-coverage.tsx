@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   MUSCLE_LABELS,
@@ -76,18 +76,26 @@ export function WeeklyMuscleCoverage({
           muscular.
         </div>
       ) : (
-        <div className="space-y-2.5">
-          {/* Resumen rápido */}
-          <div className="flex items-center justify-between gap-3 px-1">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+        <div className="space-y-3">
+          {/* Resumen rápido sin truncamiento */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+            <p className="text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground">
               {worked.length} {worked.length === 1 ? "músculo activado" : "músculos activados"}
             </p>
-            <p className="min-w-0 truncate text-[11px] font-semibold text-muted-foreground">
-              Foco:{" "}
-              <span className="font-black text-primary">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-xs font-bold text-primary">
+              <span className="text-muted-foreground font-medium text-[11px]">Foco:</span>
+              <strong className="font-black">
                 {MUSCLE_LABELS[worked[0]].split(" / ")[0]}
-              </span>
-            </p>
+              </strong>
+            </div>
+          </div>
+
+          {/* Leyenda explicativa de qué significa la barra */}
+          <div className="flex items-center gap-2 rounded-xl bg-muted/20 border border-border/50 px-3 py-2 text-[11px] text-muted-foreground leading-snug">
+            <Info className="size-3.5 text-primary shrink-0" aria-hidden />
+            <span>
+              <strong className="text-foreground">Proporción de estímulo:</strong> La barra indica el volumen relativo respecto al músculo con mayor carga en la sesión.
+            </span>
           </div>
 
           <ul className="divide-y divide-border/40 overflow-hidden rounded-2xl border border-border/60 bg-card/60 shadow-sm">
@@ -103,58 +111,65 @@ export function WeeklyMuscleCoverage({
                     onClick={() => handleToggle(m)}
                     aria-pressed={isSelected}
                     className={cn(
-                      "flex w-full flex-col gap-2 px-3.5 py-3 text-left transition-colors active:bg-muted/50",
+                      "flex w-full flex-col gap-2.5 px-3.5 py-3 text-left transition-colors active:bg-muted/50",
                       isSelected ? "bg-primary/10" : "hover:bg-muted/30",
                     )}
                   >
                     <div className="flex items-center gap-3">
                       <span
                         className={cn(
-                          "flex size-6 shrink-0 items-center justify-center rounded-full text-[10px] font-black tabular-nums",
+                          "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-black tabular-nums border",
                           idx === 0
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted text-muted-foreground",
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted/60 text-foreground border-border/50",
                         )}
                         aria-hidden
                       >
                         {idx + 1}
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold leading-tight text-foreground">
+                        <p className="text-sm font-bold leading-tight text-foreground">
                           {primaryName}
                         </p>
                         {restName.length > 0 && (
-                          <p className="truncate text-[11px] font-medium leading-tight text-muted-foreground">
+                          <p className="text-xs font-medium leading-tight text-muted-foreground mt-0.5">
                             {restName.join(" / ")}
                           </p>
                         )}
                       </div>
                       <div className="flex shrink-0 items-baseline gap-1">
-                        <span className="text-lg font-black tabular-nums leading-none text-foreground">
+                        <span className="text-base sm:text-lg font-black tabular-nums leading-none text-foreground">
                           {fmtSets(sets)}
                         </span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                           {sets === 1 ? "serie" : "series"}
                         </span>
                       </div>
                     </div>
-                    <div
-                      className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
-                      role="presentation"
-                    >
+                    
+                    {/* Barra de proporción de estímulo con porcentaje */}
+                    <div className="flex items-center gap-2.5 pt-0.5">
                       <div
-                        className={cn(
-                          "h-full rounded-full transition-[width] duration-300 ease-out",
-                          pct >= 75
-                            ? "bg-primary"
-                            : pct >= 50
-                              ? "bg-primary/75"
-                              : pct >= 25
-                                ? "bg-primary/50"
-                                : "bg-primary/30",
-                        )}
-                        style={{ width: `${pct}%` }}
-                      />
+                        className="h-2 flex-1 overflow-hidden rounded-full bg-muted/40 border border-border/30"
+                        role="presentation"
+                      >
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-[width] duration-300 ease-out",
+                            pct >= 75
+                              ? "bg-primary"
+                              : pct >= 50
+                                ? "bg-primary/75"
+                                : pct >= 25
+                                  ? "bg-primary/50"
+                                  : "bg-primary/30",
+                          )}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="shrink-0 text-[10px] font-bold tabular-nums text-muted-foreground/80 min-w-[34px] text-right">
+                        {pct}%
+                      </span>
                     </div>
                   </button>
                 </li>
@@ -166,7 +181,7 @@ export function WeeklyMuscleCoverage({
             <button
               type="button"
               onClick={() => setShowAll((v) => !v)}
-              className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-muted/20 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground active:scale-[0.99]"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border/60 bg-muted/20 text-xs font-bold text-muted-foreground transition-all hover:bg-muted/40 hover:text-foreground active:scale-[0.99]"
             >
               {showAll
                 ? "Mostrar menos"

@@ -394,60 +394,56 @@ export function ClientRoutinesContent({
                                           }
                                         }}
                                         className={cn(
-                                          "group relative flex cursor-pointer flex-col gap-3 rounded-2xl border border-border/40 bg-background/50 p-3 text-left transition-all hover:border-primary/30 hover:bg-background hover:shadow-lg active:scale-[0.99] sm:flex-row sm:items-center sm:gap-4",
+                                          "group relative flex cursor-pointer items-center gap-3.5 sm:gap-4 rounded-2xl border border-border/50 bg-background/50 p-3 sm:p-3.5 text-left transition-all hover:border-primary/30 hover:bg-background hover:shadow-md active:scale-[0.99]",
                                           !exDetails &&
                                             "cursor-default opacity-60",
                                           exDetails &&
                                             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                                         )}
                                       >
-                                        <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-muted sm:size-14">
+                                        {/* Thumbnail / GIF a la izquierda */}
+                                        <div className="relative size-16 sm:size-18 shrink-0 overflow-hidden rounded-xl bg-muted border border-border/40 shadow-xs">
                                           <ExerciseMedia
                                             src={exDetails?.gif_url}
                                             fallbackSrc={exDetails?.image_url}
                                             alt={displayExName}
                                             variant="thumb"
-                                            className="size-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                            className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
                                           />
                                           <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </div>
+
+                                        {/* Datos del ejercicio al centro/derecha */}
                                         <div className="flex min-w-0 flex-1 flex-col gap-1">
                                           <div className="flex items-center gap-1.5 min-w-0">
-                                            <span className="truncate text-sm font-black capitalize tracking-tight group-hover:text-primary transition-colors">
+                                            <span className="line-clamp-2 text-xs sm:text-sm font-black capitalize tracking-tight text-foreground group-hover:text-primary transition-colors leading-snug">
                                               {displayExName}
                                             </span>
                                             {exercise.is_overridden && (
                                               <Badge
                                                 variant="outline"
-                                                className="shrink-0 h-4 px-1.5 text-[9px] font-bold uppercase tracking-wider border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                                className="shrink-0 h-4 px-1.5 text-[9px] font-bold uppercase tracking-wider border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-full"
                                               >
                                                 Cambiado
                                               </Badge>
                                             )}
                                           </div>
-                                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                            <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest tabular-nums">
-                                              {exercise.sets}{" "}
-                                              <span className="font-medium text-[8px] opacity-40">
-                                                SET
-                                              </span>
-                                            </span>
-                                            <div className="size-1 rounded-full bg-border" />
-                                            <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest tabular-nums">
-                                              {exercise.reps}{" "}
-                                              <span className="font-medium text-[8px] opacity-40">
-                                                REPS
-                                              </span>
-                                            </span>
+                                          <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground/80 tabular-nums">
+                                            <span className="text-foreground font-black">{exercise.sets}</span>
+                                            <span className="text-[11px] font-medium text-muted-foreground">series</span>
+                                            <span className="text-muted-foreground/30 font-bold">·</span>
+                                            <span className="text-foreground font-black">{exercise.reps}</span>
+                                            <span className="text-[11px] font-medium text-muted-foreground">reps</span>
                                           </div>
                                           {exercise.notes?.trim() && (
-                                            <p className="mt-0.5 line-clamp-2 text-[11px] font-medium text-primary/90">
+                                            <p className="mt-0.5 line-clamp-1 text-[11px] font-medium text-primary/90">
                                               Nota: {exercise.notes}
                                             </p>
                                           )}
                                         </div>
-                                        <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-start sm:gap-1">
-                                          <Info className="size-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-primary" />
+
+                                        {/* Acciones compactas a la extrema derecha */}
+                                        <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
                                           {exDetails && routines[0] && (
                                             <button
                                               type="button"
@@ -463,13 +459,16 @@ export function ClientRoutinesContent({
                                                 });
                                                 setSwapDrawerOpen(true);
                                               }}
-                                              className="rounded-full p-1 text-muted-foreground/40 hover:bg-amber-500/10 hover:text-amber-600 transition-colors"
+                                              className="flex size-8 sm:size-9 items-center justify-center rounded-full text-muted-foreground/50 hover:bg-amber-500/10 hover:text-amber-600 hover:border-amber-500/30 border border-transparent transition-all"
                                               aria-label={`Cambiar ${displayExName} por alternativa`}
                                               title="Cambiar ejercicio"
                                             >
-                                              <RefreshCw className="size-3.5" />
+                                              <RefreshCw className="size-3.5 sm:size-4" />
                                             </button>
                                           )}
+                                          <div className="flex size-8 sm:size-9 items-center justify-center rounded-full text-muted-foreground/40 group-hover:text-primary group-hover:bg-primary/10 transition-colors">
+                                            <Info className="size-4 shrink-0" />
+                                          </div>
                                         </div>
                                       </div>
                                     );
