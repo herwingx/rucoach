@@ -38,12 +38,19 @@ export default async function ClientDashboard() {
   let overrideNextDayId: string | null = null;
   let timeZone = "America/Mexico_City";
 
+  // Pre-calculate start of current month (default timezone Mexico City; adjusted if gym settings differ)
+  const nowInTz = getNowInTimezone(timeZone);
+  const startOfMonth = new Date(nowInTz);
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  // Single Parallel Wave: fetch achievements, settings, sessions, active routine with full graph, and PR count
   const [
     userAchievementsRes,
     gymSettingsRes,
     sessionsRes,
     crRes,
-    lastCompletedDayRes,
+    prsRes,
   ] = await Promise.all([
     supabase
       .from("user_achievements")
@@ -67,7 +74,22 @@ export default async function ClientDashboard() {
     client?.id
       ? supabase
           .from("client_routines")
-          .select("id, routine_id, current_week, override_next_day_id")
+          .select(`
+            id,
+            routine_id,
+            current_week,
+            override_next_day_id,
+            routines (
+              *,
+              routine_days (
+                *,
+                routine_exercises (
+                  *,
+                  exercises (*)
+                )
+              )
+            )
+          `)
           .eq("client_id", client.id)
           .eq("is_active", true)
           .limit(1)
@@ -75,36 +97,41 @@ export default async function ClientDashboard() {
       : Promise.resolve({ data: null }),
     client?.id
       ? supabase
-          .from("workout_sessions")
-          .select("routine_day_id")
+          .from("pr_events")
+          .select("*", { count: "exact", head: true })
           .eq("client_id", client.id)
-          .eq("status", "completed")
-          .not("routine_day_id", "is", null)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+          .gte("achieved_at", startOfMonth.toISOString())
+      : Promise.resolve({ count: 0 }),
   ]);
 
   const userAchievements = userAchievementsRes.data || [];
-  if (gymSettingsRes.data?.timezone) {
+  if (gymSettingsRes.data?.timezone && gymSettingsRes.data.timezone !== timeZone) {
     timeZone = gymSettingsRes.data.timezone;
   }
-  const nowInTz = getNowInTimezone(timeZone);
-  const startOfMonth = new Date(nowInTz);
-  startOfMonth.setDate(1);
-  startOfMonth.setHours(0, 0, 0, 0);
+
+  let assignedRoutine: any = null;
+  let isRoutineCompleted = false;
 
   if (client?.id) {
     workoutSessions = sessionsRes.data;
-    if (!routineId) routineId = crRes.data?.routine_id ?? null;
-    latestCompletedRoutineDayId =
-      lastCompletedDayRes.data?.routine_day_id ?? null;
+    // Derive latest completed routine_day_id directly in memory without a duplicate network query
+    const latestCompleted = (workoutSessions || []).find(
+      (s: any) => s.status === "completed" && s.routine_day_id,
+    );
+    latestCompletedRoutineDayId = latestCompleted?.routine_day_id ?? null;
+
     clientCurrentWeek = crRes.data?.current_week ?? 1;
     activeClientRoutineId = crRes.data?.id ?? null;
     overrideNextDayId =
       (crRes.data as { override_next_day_id?: string | null } | null)
         ?.override_next_day_id ?? null;
+
+    if (crRes.data?.routines) {
+      assignedRoutine = Array.isArray(crRes.data.routines)
+        ? crRes.data.routines[0]
+        : crRes.data.routines;
+      routineId = assignedRoutine?.id ?? crRes.data.routine_id;
+    }
   }
 
   // Completed sessions only (for volume, chart and count)
@@ -121,52 +148,40 @@ export default async function ClientDashboard() {
     })
     .map((s) => s.id as string);
 
-  // Batch 2: routine details + PR counts in parallel
-  let assignedRoutine = null;
-  let isRoutineCompleted = false;
-
-  const [routineRes, prsRes, prLogRowsRes] = await Promise.all([
-    routineId
-      ? supabase
-          .from("routines")
-          .select(
-            `
+  // If assignedRoutine was not in client_routines (edge case), fetch routine by assigned_routine_id
+  if (!assignedRoutine && routineId) {
+    const { data: routineFallback } = await supabase
+      .from("routines")
+      .select(`
+        *,
+        routine_days (
+          *,
+          routine_exercises (
             *,
-            routine_days (
-              *,
-              routine_exercises (
-                *,
-                exercises (*)
-              )
-            )
-          `,
+            exercises (*)
           )
-          .eq("id", routineId)
-          .single()
-      : Promise.resolve({ data: null }),
-    client?.id
-      ? supabase
-          .from("pr_events")
-          .select("*", { count: "exact", head: true })
-          .eq("client_id", client.id)
-          .gte("achieved_at", startOfMonth.toISOString())
-      : Promise.resolve({ count: 0 }),
-    sessionIdsThisMonth.length > 0
-      ? supabase
-          .from("exercise_logs")
-          .select("workout_session_id, is_warmup")
-          .eq("is_pr", true)
-          .in("workout_session_id", sessionIdsThisMonth)
-      : Promise.resolve({ data: null }),
-  ]);
+        )
+      `)
+      .eq("id", routineId)
+      .single();
+    assignedRoutine = routineFallback;
+  }
 
-  assignedRoutine = routineRes.data;
   if (assignedRoutine && assignedRoutine.duration_weeks) {
     isRoutineCompleted = clientCurrentWeek > assignedRoutine.duration_weeks;
   }
 
-  const prLogsCount = (prLogRowsRes.data || []).filter((r) => !r.is_warmup).length;
-  prsThisMonth = Math.max(prsRes.count ?? 0, prLogsCount);
+  // Calculate PRs count: use pr_events count; fallback to exercise_logs if 0 and sessions exist
+  prsThisMonth = prsRes.count ?? 0;
+  if (prsThisMonth === 0 && sessionIdsThisMonth.length > 0) {
+    const { data: prLogRows } = await supabase
+      .from("exercise_logs")
+      .select("workout_session_id, is_warmup")
+      .eq("is_pr", true)
+      .in("workout_session_id", sessionIdsThisMonth);
+    const prLogsCount = (prLogRows || []).filter((r) => !r.is_warmup).length;
+    prsThisMonth = Math.max(prsThisMonth, prLogsCount);
+  }
 
   // Calculate level info
   const levelInfo = calculateLevel(profile?.xp_points || 0);
