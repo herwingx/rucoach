@@ -125,12 +125,12 @@ export function WorkoutCalendar({
             <p className="mt-0.5 text-sm text-muted-foreground capitalize">{label}</p>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
-            <Button variant="outline" size="icon" className="size-10 rounded-xl" asChild>
+            <Button variant="outline" size="icon" className="size-10 rounded-full" asChild>
               <Link href={prevMonthHref} aria-label="Mes anterior" prefetch>
                 <ChevronLeft className="size-4" aria-hidden />
               </Link>
             </Button>
-            <Button variant="outline" size="icon" className="size-10 rounded-xl" asChild>
+            <Button variant="outline" size="icon" className="size-10 rounded-full" asChild>
               <Link href={nextMonthHref} aria-label="Mes siguiente" prefetch>
                 <ChevronRight className="size-4" aria-hidden />
               </Link>

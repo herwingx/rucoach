@@ -235,7 +235,7 @@ export default async function ClientAchievementsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
                   <div className="group flex flex-col gap-4 rounded-3xl border border-border/50 p-6 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card hover:-translate-y-0.5 hover:shadow-md">
                     <div className="flex items-center justify-between">
-                      <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 border border-primary/15 text-primary group-hover:scale-110 transition-transform">
+                      <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary group-hover:scale-110 transition-transform">
                         <Trophy className="size-5" />
                       </div>
                       <Badge
@@ -257,7 +257,7 @@ export default async function ClientAchievementsPage() {
 
                   <div className="group flex flex-col gap-4 rounded-3xl border border-border/50 p-6 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card hover:-translate-y-0.5 hover:shadow-md">
                     <div className="flex items-center justify-between">
-                      <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 border border-primary/15 text-primary group-hover:scale-110 transition-transform">
+                      <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary group-hover:scale-110 transition-transform">
                         <CalendarDays className="size-5" />
                       </div>
                       <Badge
@@ -279,7 +279,7 @@ export default async function ClientAchievementsPage() {
 
                   <div className="group flex flex-col gap-4 rounded-3xl border border-border/50 p-6 bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card hover:-translate-y-0.5 hover:shadow-md">
                     <div className="flex items-center justify-between">
-                      <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 border border-primary/15 text-primary group-hover:scale-110 transition-transform">
+                      <div className="flex size-11 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary group-hover:scale-110 transition-transform">
                         <Flame className="size-5" />
                       </div>
                       <Badge

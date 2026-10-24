@@ -66,20 +66,20 @@ export function MobileBottomNav({ type }: { type: 'client' | 'admin' }) {
                 onTouchStart={() => handleWarmupRoute(item.href)}
                 onPointerEnter={() => handleWarmupRoute(item.href)}
                 className={cn(
-                  "flex flex-col items-center justify-center w-full h-full gap-0.5 min-w-[44px] transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 rounded-xl",
+                  "flex flex-col items-center justify-center w-full h-full gap-1 min-w-[44px] transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 rounded-full py-1",
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 )}
                 aria-current={isActive ? 'page' : undefined}
               >
                 <div className={cn(
-                  "flex items-center justify-center rounded-xl p-1 transition-all duration-300",
-                  isActive ? "bg-primary/10 text-primary scale-110" : "bg-transparent text-muted-foreground scale-100"
+                  "flex size-8 items-center justify-center rounded-full transition-all duration-200",
+                  isActive ? "bg-primary/15 text-primary scale-105 shadow-xs" : "bg-transparent text-muted-foreground scale-100"
                 )}>
-                  <Icon className="size-[22px]" strokeWidth={isActive ? 2.5 : 2} />
+                  <Icon className="size-5 shrink-0" strokeWidth={isActive ? 2.4 : 2} />
                 </div>
                 <span className={cn(
-                  "text-[10px] font-medium tracking-tight truncate px-1",
-                  isActive ? "text-primary font-bold" : "text-muted-foreground"
+                  "text-[10px] tracking-tight truncate px-0.5 leading-none transition-colors",
+                  isActive ? "text-primary font-bold" : "text-muted-foreground font-medium"
                 )}>
                   {item.label}
                 </span>
@@ -91,13 +91,13 @@ export function MobileBottomNav({ type }: { type: 'client' | 'admin' }) {
           <button
             type="button"
             onClick={() => setOpenMobile(true)}
-            className="flex flex-col items-center justify-center w-full h-full gap-0.5 min-w-[44px] text-muted-foreground hover:text-foreground transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 rounded-xl"
+            className="flex flex-col items-center justify-center w-full h-full gap-1 min-w-[44px] text-muted-foreground hover:text-foreground transition-colors outline-hidden focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 rounded-full py-1"
             aria-label="Abrir menú"
           >
-            <div className="flex items-center justify-center rounded-xl p-1 transition-all duration-300 bg-transparent text-muted-foreground scale-100">
-              <Menu className="size-[22px]" strokeWidth={2} />
+            <div className="flex size-8 items-center justify-center rounded-full transition-all duration-200 bg-transparent text-muted-foreground scale-100">
+              <Menu className="size-5 shrink-0" strokeWidth={2} />
             </div>
-            <span className="text-[10px] font-medium tracking-tight truncate px-1 text-muted-foreground">
+            <span className="text-[10px] font-medium tracking-tight truncate px-0.5 leading-none text-muted-foreground">
               Menú
             </span>
           </button>

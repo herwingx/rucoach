@@ -115,7 +115,7 @@ export function ClientSidebar() {
             onClick={handleNavClick}
             className="flex items-center gap-3.5 transition-opacity duration-300 group-data-[collapsible=icon]:opacity-0 group-data-[collapsible=icon]:hidden h-full min-w-0"
           >
-            <div className="size-10 rounded-xl overflow-hidden flex items-center justify-center shrink-0 ring-1 ring-border/50 shadow-md bg-primary/10">
+            <div className="size-10 rounded-full overflow-hidden flex items-center justify-center shrink-0 border border-primary/20 shadow-xs bg-primary/10 p-0.5">
               <Image
                 src="/android-chrome-192x192.png"
                 alt="RU Coach"

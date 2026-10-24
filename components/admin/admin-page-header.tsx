@@ -56,13 +56,13 @@ export function AdminPageHeader({
               </Button>
             ) : (
               <div className="flex items-center md:hidden">
-                <div className="size-11 rounded-xl overflow-hidden ring-1 ring-border/50 shadow-md shrink-0 bg-primary/10 flex items-center justify-center p-1.5">
+                <div className="size-10 sm:size-11 rounded-full overflow-hidden border border-primary/20 shadow-xs shrink-0 bg-primary/10 flex items-center justify-center p-1.5">
                   <Image
                     src="/android-chrome-192x192.png"
                     alt="Logo RU Coach"
                     width={36}
                     height={36}
-                    className="size-full object-contain p-1"
+                    className="size-full object-contain p-0.5"
                   />
                 </div>
               </div>

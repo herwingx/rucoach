@@ -61,7 +61,7 @@ export function WorkoutsHistoryDateRangePicker({
             id="date"
             variant={'outline'}
             className={cn(
-              'w-full sm:w-[300px] justify-start rounded-xl text-left font-normal',
+              'w-full sm:w-[300px] justify-start rounded-full text-left font-normal h-10',
               !date && 'text-muted-foreground'
             )}
           >

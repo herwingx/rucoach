@@ -96,7 +96,7 @@ export default async function ClientWorkoutsPage({
       <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
         <CardHeader className="pb-5 pt-6 px-6">
           <div className="flex items-center gap-4">
-            <div className="flex size-11 grow-0 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
+            <div className="flex size-11 grow-0 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
               <Dumbbell className="size-5 text-primary" aria-hidden />
             </div>
             <div>
@@ -155,7 +155,7 @@ export default async function ClientWorkoutsPage({
             <Card className="overflow-hidden rounded-3xl border-border/80 shadow-sm ring-1 ring-primary/5">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                     <CalendarDays className="size-4 text-primary" aria-hidden />
                   </div>
                   <div>
@@ -187,7 +187,7 @@ export default async function ClientWorkoutsPage({
             <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl">
               <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 pb-6 pt-6 px-6 border-b bg-muted/5">
                 <div className="flex items-center gap-4">
-                  <div className="flex size-11 grow-0 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
+                  <div className="flex size-11 grow-0 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                     <CalendarDays className="size-5 text-primary" aria-hidden />
                   </div>
                   <div className="min-w-0">
@@ -286,7 +286,7 @@ export default async function ClientWorkoutsPage({
 
                           <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-x-6 gap-y-4 pt-4 border-t border-border/40 relative z-10">
                             <div className="flex items-center gap-3">
-                              <div className="flex size-9 items-center justify-center rounded-xl bg-primary/5 border border-primary/10 shadow-inner group-hover:bg-primary/10 transition-colors">
+                              <div className="flex size-9 items-center justify-center rounded-full bg-primary/5 border border-primary/10 shadow-inner group-hover:bg-primary/10 transition-colors">
                                 <Dumbbell className="size-4 text-primary" aria-hidden />
                               </div>
                               <div className="flex flex-col">
@@ -299,7 +299,7 @@ export default async function ClientWorkoutsPage({
 
                             {session.duration_minutes != null && (
                               <div className="flex items-center gap-3">
-                                <div className="flex size-9 items-center justify-center rounded-xl bg-primary/5 border border-primary/10 shadow-inner group-hover:bg-primary/10 transition-colors">
+                                <div className="flex size-9 items-center justify-center rounded-full bg-primary/5 border border-primary/10 shadow-inner group-hover:bg-primary/10 transition-colors">
                                   <Clock className="size-4 text-primary" aria-hidden />
                                 </div>
                                 <div className="flex flex-col">
@@ -313,7 +313,7 @@ export default async function ClientWorkoutsPage({
 
                             {session.total_volume_kg != null && session.total_volume_kg > 0 && (
                               <div className="flex items-center gap-3 col-span-2 sm:col-span-1">
-                                <div className="flex size-9 items-center justify-center rounded-xl bg-primary/5 border border-primary/10 shadow-inner group-hover:bg-primary/10 transition-colors">
+                                <div className="flex size-9 items-center justify-center rounded-full bg-primary/5 border border-primary/10 shadow-inner group-hover:bg-primary/10 transition-colors">
                                   <div className="font-black text-primary text-[10px]">KG</div>
                                 </div>
                                 <div className="flex flex-col">

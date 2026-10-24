@@ -116,8 +116,8 @@ export function ScheduleOverrideDialog({
       <DialogContent className="max-w-md rounded-2xl border-border/60 shadow-2xl">
         <DialogHeader>
           <div className="flex items-center gap-3 mb-1">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-blue-500/10">
-              <CalendarDays className="size-4 text-blue-600" />
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
+              <CalendarDays className="size-5 text-primary" />
             </div>
             <DialogTitle className="text-lg font-bold">
               Cambiar sesión de hoy

@@ -885,7 +885,7 @@ export function WorkoutActiveSession({
 
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
             <div
-              className="inline-flex h-9 sm:h-11 items-center gap-1.5 rounded-xl sm:rounded-2xl border border-primary/25 bg-primary/5 px-2.5 sm:px-4 text-xs sm:text-sm font-black tabular-nums text-primary"
+              className="inline-flex h-9 sm:h-11 items-center gap-1.5 rounded-full border border-primary/25 bg-primary/5 px-3 sm:px-4 text-xs sm:text-sm font-black tabular-nums text-primary"
               role="timer"
               aria-live="polite"
               aria-label={`Tiempo de sesión transcurrido ${formatElapsed(elapsedSec)}`}
@@ -899,7 +899,7 @@ export function WorkoutActiveSession({
               size="sm"
               onClick={requestFinishWorkout}
               disabled={isFinishing}
-              className="h-9 sm:h-11 rounded-xl sm:rounded-2xl px-3.5 sm:px-6 text-[11px] sm:text-sm font-black uppercase tracking-wider sm:tracking-widest bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
+              className="h-9 sm:h-11 rounded-full px-4 sm:px-6 text-[11px] sm:text-sm font-black uppercase tracking-wider sm:tracking-widest bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
             >
               {isFinishing ? "Guardando…" : "Terminar"}
             </Button>

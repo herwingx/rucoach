@@ -31,7 +31,7 @@ export function ClientStackPageHeaderSkeleton({
             {withBackButton ? (
               <Skeleton className="size-10 sm:size-11 rounded-full" />
             ) : (
-              <Skeleton className="size-11 rounded-xl" />
+              <Skeleton className="size-10 sm:size-11 rounded-full" />
             )}
           </div>
           <div className="min-w-0 flex flex-col justify-center py-1 sm:h-full gap-1.5">

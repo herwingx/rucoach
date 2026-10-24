@@ -164,7 +164,7 @@ export function PhotosContent({
         <Card className="overflow-hidden rounded-3xl border-border/80 shadow-md ring-1 ring-primary/5 transition-all hover:shadow-lg">
           <CardHeader className="space-y-4 pb-5">
             <div className="flex items-center gap-4">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                 <Camera className="size-5 text-primary" aria-hidden />
               </div>
               <div className="min-w-0 flex-1">
