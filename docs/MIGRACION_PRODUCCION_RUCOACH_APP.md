@@ -1,240 +1,265 @@
-# Guía Maestra de Migración a Producción (`rucoach.app`)
+# Guía Maestra de Migración y Entrega a Producción (`rucoach.app`)
 
-Esta guía detalla paso a paso cómo:
-1. Conectar tu dominio **`rucoach.app`** (obtenido en **Name.com** con GitHub Student Developer Pack) hacia **Cloudflare DNS** y **Vercel**.
-2. Verificar **`rucoach.app`** en **Resend** para enviar correos transaccionales y de autenticación desde `noreply@rucoach.app`.
-3. Migrar la base de datos a tu **nueva cuenta de Supabase** (esquema completo, funciones, triggers, RLS, buckets, semillas y catálogo de ejercicios en R2).
-4. Actualizar las **Variables de Entorno en Vercel** (auditadas directamente contra tu configuración actual).
-5. Instalar los **Servidores MCP opcionales** si deseas que el agente ejecute la migración y configuración automáticamente por ti.
+Esta guía describe paso a paso la migración técnica y la entrega «llave en mano» (turnkey) de la plataforma **RU Coach** desde el entorno de desarrollo actual hacia las cuentas de producción definitivas del cliente bajo el dominio **`rucoach.app`**.
 
 ---
 
-## 0. ¿Qué MCPs puedes instalar para que yo lo haga por ti?
+## 1. Respuestas Estratégicas Clave
 
-Si quieres que yo cree/configure el proyecto en la nueva cuenta de Supabase, ejecute todo el SQL, verifique los registros o configure Cloudflare/Vercel automáticamente desde aquí, puedes agregar estos **MCP Servers oficiales** en tu configuración de Antigravity (`/home/herwingx/.gemini/antigravity/mcp_config.json` o desde el panel MCP):
-
-### 1. Supabase MCP Server (El más importante para migrar la DB automáticamente)
-Con un **Personal Access Token (`sbp_...`)** generado en tu **nueva cuenta de Supabase** ([https://supabase.com/dashboard/account/tokens](https://supabase.com/dashboard/account/tokens)), yo puedo ejecutar el esquema SQL completo, crear buckets, insertar semillas y darte las nuevas llaves listas:
-
-```json
-{
-  "mcpServers": {
-    "supabase": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@supabase/mcp-server-supabase@latest",
-        "--access-token",
-        "sbp_TU_TOKEN_DE_LA_NUEVA_CUENTA"
-      ]
-    }
-  }
-}
-```
-
-### 2. Cloudflare MCP Server (Opcional — para DNS y R2)
-Permite gestionar tus zonas DNS (`rucoach.app`) y buckets R2 (`gymcoaching-exercises`):
-```json
-{
-  "mcpServers": {
-    "cloudflare": {
-      "command": "npx",
-      "args": ["-y", "@cloudflare/mcp-server-cloudflare@latest"]
-    }
-  }
-}
-```
-
-### 3. Vercel CLI (Ya disponible vía terminal con `npx vercel`)
-No necesitas instalar nada extra: si ejecutas `npx vercel login` en tu terminal, yo puedo subir y actualizar todas las variables de entorno en Vercel con `npx vercel env`.
+### 1.1 ¿Es estrictamente necesario instalar el MCP de Supabase?
+**No, no es obligatorio.**
+- **El MCP de Supabase** es simplemente una herramienta de automatización para que el agente de IA (Antigravity) ejecute queries SQL y configure tablas directamente mediante llamadas API sin que tú tengas que abrir el navegador.
+- **Sin MCP**, la migración se realiza de forma limpia y directa en menos de 5 minutos utilizando los scripts y volcados que ya dejamos preparados en el repositorio:
+  1. Pegar [`supabase/supabase_schema_dump.sql`](../supabase/supabase_schema_dump.sql) en el **SQL Editor** de Supabase (crea las 19 tablas, RLS, triggers, funciones y buckets).
+  2. Pegar [`supabase/seed.sql`](../supabase/seed.sql) en el SQL Editor (puebla logros y membresías).
+  3. Ejecutar en tu terminal:
+     ```bash
+     TARGET_SUPABASE_URL="https://nuevo-proyecto.supabase.co" TARGET_SERVICE_ROLE_KEY="sb_secret_..." npx tsx scripts/migrate-exercises.ts
+     ```
+     *(Migra automáticamente los 1,324 ejercicios con nombres en español y URLs de Cloudflare R2).*
+- **¿Cuándo sí conviene el MCP?** Únicamente si deseas que el agente Antigravity cree tablas, verifique registros o ejecute migraciones de forma 100% desatendida. Para una migración normal de entrega al cliente, el script oficial y el SQL Editor son suficientes y más seguros.
 
 ---
 
-## Paso 1: Dominio `rucoach.app` (Name.com → Cloudflare → Vercel)
+### 1.2 ¿Conviene crear una cuenta nueva personal de GitHub o una Organización?
+**Recomendación definitiva: Crea una ORGANIZACIÓN de GitHub gratuita (por ejemplo, `rucoach-org` o `rucoach-app`), NO una cuenta personal nueva.**
 
-### 1.1 Reclamar el dominio en Name.com (GitHub Student Pack)
-1. Entra a [education.github.com/pack](https://education.github.com/pack) → busca **Name.com** y abre tu enlace de beneficio.
-2. Registra **`rucoach.app`**.
+#### ¿Por qué NO crear una cuenta de usuario personal nueva?
+1. **Conflicto de credenciales locales:** En tu computadora de desarrollo tendrías problemas constantes con llaves SSH (`~/.ssh/id_ed25519`), `git config user.name`, `git config user.email` y tokens personales (`gh auth`), requiriendo configurar perfiles de SSH complejos para poder hacer `git push`.
+2. **Violación de los Términos de Servicio de GitHub:** Las políticas de GitHub prohíben explícitamente que una misma persona física cree y mantenga múltiples cuentas personales individuales (pueden ser suspendidas).
+3. **Poco profesional para el cliente:** Si creas una cuenta personal para el cliente, tendrías que compartirle la contraseña o transferirle el login, lo cual es inseguro y propenso a bloqueos por 2FA.
 
-### 1.2 Pasar el DNS de Name.com a Cloudflare
-1. Crea/entra a tu cuenta de **Cloudflare** (donde ya tienes tu bucket R2 `gymcoaching-exercises`).
-2. En el menú principal de Cloudflare, haz clic en **"Add a domain"** (Agregar un dominio) → escribe **`rucoach.app`** → selecciona el plan **Free** → **Continue**.
-3. Cloudflare te dará **2 Nameservers** (por ejemplo: `ada.ns.cloudflare.com` y `bob.ns.cloudflare.com`).
-4. Ve a **Name.com** → *My Domains* → `rucoach.app` → **Manage Nameservers** → borra los de Name.com, pega los **2 Nameservers de Cloudflare** y guarda.
-5. En Cloudflare, haz clic en **"Check nameservers now"** (tarda entre 2 y 15 minutos en activarse).
+#### Las ventajas de una Organización de GitHub:
+- **100% Gratuita:** Repositorios privados y públicos ilimitados, GitHub Actions y despliegues sin coste para este tamaño de proyecto.
+- **Propiedad intelectual separada:** El repositorio pertenece a la entidad corporativa (`rucoach`), no a tu cuenta de desarrollador personal.
+- **Múltiples Propietarios (Owners):** Puedes añadir al cliente (Rodrigo) como **Owner** y mantenerte a ti mismo (`herwingx`) como **Owner / Technical Admin** sin compartir contraseñas.
+- **Transferencia en 1 clic:** Desde tu repositorio actual en GitHub (`gym-coaching`), vas a **Settings** → **Danger Zone** → **Transfer Repository** → escribes el nombre de la organización (`rucoach-app`) y se transfiere instantáneamente conservando todos los commits, ramas e historial.
+- **Integración transparente con Vercel:** Vercel se conecta a las Organizaciones de GitHub y despliega automáticamente cada push a `main`.
 
-### 1.3 Conectar `rucoach.app` con Vercel
-1. Entra a tu proyecto en **Vercel Dashboard** → **Settings** → **Domains**.
-2. Escribe **`rucoach.app`** y haz clic en **Add**. Selecciona la opción recomendada (redirigir `www.rucoach.app` a `rucoach.app`).
-3. En **Cloudflare** → `rucoach.app` → **DNS** → **Records**, agrega estos 2 registros:
+---
 
-| Tipo | Nombre (Name) | Contenido / Destino (Target) | Proxy Status (¡Importante!) |
+## 2. Mapa de Cuentas Necesarias para Producción
+
+Para dejar el ecosistema 100% independiente de tus cuentas de desarrollador y entregarlo al cliente, se requieren las siguientes cuentas:
+
+| Servicio | Propósito en Producción | Costo Base | Quién debe ser Owner |
+| :--- | :--- | :--- | :--- |
+| **GitHub** | Organización que aloja el repositorio de código fuente. | Gratis | El cliente y tú (ambos como Owners) |
+| **Supabase** | Base de datos PostgreSQL, Auth, Realtime (Chat) y Storage. | Tier Gratuito / $25 Pro | Cliente (te invita como Admin) |
+| **Resend** | Envío de correos transaccionales desde `@rucoach.app`. | Gratis (hasta 3,000 emails/mes) | Cliente (te invita como Admin) |
+| **Cloudflare** | DNS oficial para `rucoach.app` y bucket R2 (`gymcoaching-exercises`). | DNS Gratis / R2 Gratis (hasta 10 GB) | Cliente (te invita como Admin) |
+| **Vercel** | Hosting de Next.js, API Routes, PWA y dominio `rucoach.app`. | Hobby Gratis / Pro | Cliente (o equipo Vercel) |
+| **Name.com** | Registrador donde se obtuvo el dominio `rucoach.app`. | Cubierto por GitHub Student Pack | Tu cuenta / Cliente |
+
+---
+
+## 3. Configuración del Dominio `rucoach.app`
+
+### 3.1 Name.com → Cloudflare (Delegación de DNS)
+1. Entra a tu cuenta de **Cloudflare** → haz clic en **Add a domain** → escribe **`rucoach.app`** → selecciona el plan **Free** → **Continue**.
+2. Cloudflare te asignará **2 Servidores de Nombres (Nameservers)** (ejemplo: `ada.ns.cloudflare.com` y `bob.ns.cloudflare.com`).
+3. Ve a **Name.com** → *My Domains* → selecciona **`rucoach.app`** → **Manage Nameservers**.
+4. Elimina los servidores por defecto de Name.com y pega los **2 Nameservers de Cloudflare**. Guarda los cambios.
+5. En Cloudflare, haz clic en **Check nameservers now** (suele propagarse entre 2 y 15 minutos).
+
+---
+
+### 3.2 Cloudflare DNS → Vercel (Apuntamiento Web)
+1. En tu proyecto de **Vercel** → ve a **Settings** → **Domains**.
+2. Escribe **`rucoach.app`** y haz clic en **Add**. Selecciona la opción recomendada:
+   - Dominio principal: `rucoach.app`
+   - Redirección automática: `www.rucoach.app` → `rucoach.app`
+3. En **Cloudflare** → selecciona `rucoach.app` → menú **DNS** → **Records** → agrega estos dos registros:
+
+| Tipo | Nombre | Contenido / Destino | Estado del Proxy (¡Crucial!) |
 | :--- | :--- | :--- | :--- |
 | **`A`** | `@` (o `rucoach.app`) | `76.76.21.21` | **DNS Only (Nube Gris)** |
 | **`CNAME`** | `www` | `cname.vercel-dns.com` | **DNS Only (Nube Gris)** |
 
 > [!IMPORTANT]
-> Deja la nube en **Gris (DNS Only)** en ambos registros hacia Vercel. Si activas la nube naranja sin configurar SSL *Full (Strict)* en Cloudflare, puede provocar un error de redirección infinita (`ERR_TOO_MANY_REDIRECTS`) al renovar certificados en Vercel.
+> Mantén la nube en **Gris (DNS Only)** en ambos registros hacia Vercel. Si activas la nube naranja de Cloudflare sin configurar modo SSL *Full (Strict)*, provocará un bucle de redirecciones infinitas (`ERR_TOO_MANY_REDIRECTS`) durante la generación de certificados SSL automáticos de Vercel.
 
 ---
 
-## Paso 2: Configurar Resend con `rucoach.app` (Correos Transaccionales)
-
-1. Entra a [https://resend.com/domains](https://resend.com/domains) → haz clic en **Add Domain**.
-2. Escribe **`rucoach.app`** y elige la región **North Virginia (us-east-1)**.
-3. **Conexión en 1 clic con Cloudflare**:
-   - Resend tiene el botón **"Configure automáticamente con Cloudflare"** (*Sign in to Cloudflare*). Haz clic ahí y autoriza para que Resend inserte automáticamente los registros `DKIM` (`resend._domainkey`), `SPF` (`send` MX y TXT) y `DMARC` (`_dmarc`) en tu DNS de Cloudflare.
-   - *(Si prefieres hacerlo manual, solo copia cada registro que muestra Resend en Cloudflare DNS con **Nube Gris / DNS Only**).*
-4. Haz clic en **Verify DNS Records** en Resend hasta que el estado cambie a **Verified** (verde).
-5. Ve a [https://resend.com/api-keys](https://resend.com/api-keys) → **Create API Key**:
-   - **Name**: `RU Coach Production`
-   - **Permission**: `Sending access`
-   - **Domain**: `rucoach.app`
-   - Copia la llave generada (`re_...`). La usaremos tanto en **Vercel** como en **Supabase SMTP**.
+### 3.3 Cloudflare DNS → Resend (Verificación de Dominio para Correos)
+1. Entra a [https://resend.com/domains](https://resend.com/domains) → **Add Domain** → escribe **`rucoach.app`** → Región: **North Virginia (us-east-1)**.
+2. Haz clic en **Sign in to Cloudflare** para que Resend vincule los registros automáticamente con un solo clic.
+3. *(Si lo haces manual)* Agrega los registros `DKIM` (`resend._domainkey`), `SPF` (`send` MX y TXT) y `DMARC` (`_dmarc`) en Cloudflare con **Nube Gris (DNS Only)**.
+4. En Resend, presiona **Verify DNS Records** hasta que el estado muestre **Verified** (verde).
+5. Ve a **API Keys** en Resend → **Create API Key**:
+   - Nombre: `RU Coach Production`
+   - Permiso: `Sending access`
+   - Dominio: `rucoach.app`
+   - Guarda la clave resultante (`re_xxxxxxxxxxxxxxxxxxxx`).
 
 ---
 
-## Paso 3: Crear y Migrar a la Nueva Cuenta de Supabase
+## 4. Migración de Base de Datos a la Nueva Cuenta de Supabase
 
-### 3.1 Crear el proyecto en la nueva cuenta
-1. Inicia sesión en tu **nueva cuenta de Supabase** ([https://supabase.com/dashboard](https://supabase.com/dashboard)).
-2. Haz clic en **New Project**:
-   - **Name**: `ru-coach-prod`
-   - **Database Password**: Genera una contraseña segura y guárdala.
-   - **Region**: **`East US (North Virginia) - us-east-1`** *(recomendada porque Vercel y Resend corren por defecto en `us-east-1`, logrando latencia de ~2ms entre servidor y base de datos)*.
+### 4.1 Crear el Proyecto Destino
+1. Inicia sesión en la **nueva cuenta de Supabase** del cliente.
+2. Crea un nuevo proyecto:
+   - **Name:** `ru-coach-prod`
+   - **Database Password:** Genera una clave segura de al menos 20 caracteres y guárdala en un gestor de contraseñas.
+   - **Region:** **`East US (North Virginia) - us-east-1`** *(imprescindible para tener latencia de ~2ms con los servidores de Vercel y Resend)*.
 
-### 3.2 Ejecutar el Esquema Completo y Datos Semilla
-Una vez que el proyecto termine de aprovisionarse (2 minutos):
-1. En el menú lateral izquierdo de Supabase, abre **SQL Editor** → **New query**.
-2. Abre el archivo [`supabase/supabase_schema_dump.sql`](../supabase/supabase_schema_dump.sql) de este repositorio, copia **todo su contenido**, pégalo en el SQL Editor y presiona **Run**.
-   - *Esto crea las 17 tablas, vistas, funciones RPC (`use_invitation_code_atomic`, `handle_new_user`, `sync_client_last_session_from_workout`, etc.), triggers en `auth.users`, índices optimizados, políticas RLS completas, buckets de Storage (`avatars` y `progress-photos`) y la publicación de Supabase Realtime para el chat.*
-3. Crea una segunda pestaña en **SQL Editor**, pega el contenido de [`supabase/seed.sql`](../supabase/seed.sql) y presiona **Run**.
-   - *Esto poblará el catálogo oficial de logros (`public.achievements`) y los planes base (`public.membership_plans`).*
+---
 
-### 3.3 Poblar el Catálogo de Ejercicios (`public.exercises`)
-Como tus GIFs de ejercicios **ya están en tu bucket de Cloudflare R2 (`gymcoaching-exercises` — 1,330 objetos / 388 MB)** como se ve en tu segunda captura:
-- **No necesitas volver a subir las imágenes a R2**. Tu bucket R2 se queda exactamente igual y apunta a `https://pub-xxxxxx.r2.dev`.
-- Para copiar las filas de la tabla `public.exercises` de tu Supabase anterior al nuevo:
-  - **Opción A (Más rápida — 30 segundos)**: En tu cuenta vieja de Supabase ve a **Table Editor** → tabla **`exercises`** → botón **Export to CSV**. Luego en tu cuenta nueva de Supabase ve a **Table Editor** → **`exercises`** → **Insert** → **Import data from CSV**.
-  - **Opción B (Por script)**: Si instalas el MCP de Supabase o actualizas `.env.local` con las llaves nuevas, yo puedo migrar todas las filas de `exercises` directamente de la cuenta vieja a la nueva sin que toques un solo CSV.
+### 4.2 Ejecutar Esquema Completo y Logros Base
+Una vez aprovisionado el proyecto en Supabase (tarda ~90 segundos):
+1. Ve a **SQL Editor** → **New Query**.
+2. Abre en este repositorio el archivo [`supabase/supabase_schema_dump.sql`](../supabase/supabase_schema_dump.sql), copia todo su contenido (1,189 líneas), pégalo en el editor y haz clic en **Run**.
+   - *Este archivo contiene la arquitectura completa: 19 tablas, funciones RPC seguras (`use_invitation_code_atomic`, `handle_new_user`, etc.), triggers automáticos, índices compuestos, políticas RLS, buckets de almacenamiento (`avatars` y `progress-photos`) y la publicación Realtime para el chat de mensajería.*
+3. Abre una nueva pestaña en **SQL Editor**, copia el contenido de [`supabase/seed.sql`](../supabase/seed.sql), pégalo y presiona **Run**.
+   - *Puebla el catálogo de 43 logros oficiales y las membresías base.*
 
-### 3.4 Configurar URLs de Autenticación en la Nueva Cuenta de Supabase
-En el panel de la nueva cuenta de Supabase, ve a **Authentication** → **URL Configuration**:
-1. **Site URL**:
-   ```text
-   https://rucoach.app
+---
+
+### 4.3 Migrar el Catálogo de Ejercicios (`public.exercises`)
+Tus 1,330 archivos multimedia (GIFs y videos de ejercicios) **ya están alojados en Cloudflare R2 (`gymcoaching-exercises`)**, por lo que **no hay que resubir archivos multimedia**. Solo se requiere copiar los 1,324 registros de la tabla `exercises`.
+
+Para hacerlo en 1 comando automático:
+1. En tu archivo `.env.local` (o temporalmente en la terminal), define las credenciales del proyecto nuevo:
+   ```bash
+   TARGET_SUPABASE_URL="https://tu-nuevo-id.supabase.co"
+   TARGET_SERVICE_ROLE_KEY="sb_secret_o_service_role_key_del_nuevo"
    ```
-2. **Redirect URLs** (haz clic en *Add URL* y agrega estas 5):
-   ```text
-   https://rucoach.app/auth/callback
-   https://rucoach.app/auth/confirm
-   https://rucoach.app/auth/reset-password
-   https://*.vercel.app/auth/callback
-   http://localhost:3000/auth/callback
+2. Ejecuta el migrador automatizado del repositorio:
+   ```bash
+   npx tsx scripts/migrate-exercises.ts
    ```
+3. El script leerá los 1,324 ejercicios del Supabase origen, generará un respaldo local en `supabase/exercises_backup.json` y los insertará en lotes de 200 en la nueva base de datos en ~15 segundos.
+
+---
+
+### 4.4 Configurar Authentication en la Nueva Cuenta de Supabase
+En el panel del nuevo proyecto de Supabase:
+1. Ve a **Authentication** → **URL Configuration**:
+   - **Site URL:**
+     ```text
+     https://rucoach.app
+     ```
+   - **Redirect URLs (agregar estas 5):**
+     ```text
+     https://rucoach.app/auth/callback
+     https://rucoach.app/auth/confirm
+     https://rucoach.app/auth/reset-password
+     https://*.vercel.app/auth/callback
+     http://localhost:3000/auth/callback
+     ```
+2. Haz clic en **Save**.
+
+---
+
+### 4.5 Conectar Resend como Servidor SMTP de Supabase Auth
+Por defecto, Supabase limita los correos a 2 envíos por hora y salen desde una dirección genérica. Para que las confirmaciones de cuenta salgan inmediatamente desde `noreply@rucoach.app`:
+1. En Supabase → **Authentication** → **SMTP Settings** (o **Project Settings → Authentication → SMTP Settings**).
+2. Activa el interruptor **Enable Custom SMTP**:
+   - **Sender email:** `noreply@rucoach.app`
+   - **Sender name:** `RU Coach`
+   - **Host:** `smtp.resend.com`
+   - **Port number:** `465`
+   - **Minimum interval per user:** `60`
+   - **Username:** `resend` *(la palabra literal `resend`)*
+   - **Password:** Pega tu API Key de Resend (`re_xxxxxxxxxxxxxxxxxxxx`)
 3. Haz clic en **Save**.
 
-### 3.5 Conectar Resend como SMTP de Supabase Auth (¡Fundamental!)
-Por defecto, el servidor de correo gratuito de Supabase solo permite enviar **2 correos por hora** y salen desde `noreply@mail.app.supabase.io`. Como ya tienes `rucoach.app` en Resend:
-1. En tu nueva cuenta de Supabase, ve a **Authentication** → **SMTP Settings** (o **Project Settings → Authentication → SMTP Settings**).
-2. Activa **Enable Custom SMTP** y llena estos datos:
-   - **Sender email**: `noreply@rucoach.app`
-   - **Sender name**: `RU Coach`
-   - **Host**: `smtp.resend.com`
-   - **Port number**: `465`
-   - **Minimum interval per user**: `60`
-   - **Username**: `resend` *(literalmente la palabra `resend`)*
-   - **Password**: Pega tu **`RESEND_API_KEY`** (`re_xxxxxxxxx`)
-3. Haz clic en **Save**.
+---
 
-### 3.6 Pegar las Plantillas HTML de Correo en Supabase
-En tu nueva cuenta de Supabase, ve a **Authentication** → **Email Templates** y pega el HTML de cada plantilla ubicada en la carpeta [`emails/supabase/`](../emails/supabase/supabase-confirm-signup.html) *(ya actualizadas con el logo apuntando a `https://rucoach.app/android-chrome-512x512.png`)*:
-- **Confirm signup**: pega [`emails/supabase/supabase-confirm-signup.html`](../emails/supabase/supabase-confirm-signup.html)
-- **Reset password**: pega [`emails/supabase/supabase-reset-password.html`](../emails/supabase/supabase-reset-password.html)
-- **Magic Link**: pega [`emails/supabase/supabase-magic-link.html`](../emails/supabase/supabase-magic-link.html)
-- **Change Email Address**: pega [`emails/supabase/supabase-change-email.html`](../emails/supabase/supabase-change-email.html)
-- **Invite user**: pega [`emails/supabase/supabase-invite-user.html`](../emails/supabase/supabase-invite-user.html)
+### 4.6 Instalar las Plantillas HTML de Correo
+En Supabase → **Authentication** → **Email Templates**, copia y pega el contenido HTML de cada archivo ubicado en [`emails/supabase/`](../emails/supabase/):
+- **Confirm signup:** pega [`emails/supabase/supabase-confirm-signup.html`](../emails/supabase/supabase-confirm-signup.html)
+- **Reset password:** pega [`emails/supabase/supabase-reset-password.html`](../emails/supabase/supabase-reset-password.html)
+- **Magic link:** pega [`emails/supabase/supabase-magic-link.html`](../emails/supabase/supabase-magic-link.html)
+- **Change email address:** pega [`emails/supabase/supabase-change-email.html`](../emails/supabase/supabase-change-email.html)
+- **Invite user:** pega [`emails/supabase/supabase-invite-user.html`](../emails/supabase/supabase-invite-user.html)
 
 ---
 
-## Paso 4: Qué datos copiar de la Nueva Cuenta de Supabase
+## 5. Auditoría de Variables de Entorno en Vercel
 
-En tu nueva cuenta de Supabase, ve a **Project Settings (ícono de engrane)** → **API** (y **API Keys**):
-Necesitarás copiar estos **3 valores**:
-1. **Project URL**: `https://xxxxxxxxxxxxxxxxxxxx.supabase.co`
-2. **Publishable Key / `anon` `public` key**: `sb_publishable_...` (o `eyJ...`)
-3. **Secret Key / `service_role` key**: `sb_secret_...` (o `eyJ...`)
+En el panel de **Vercel** → Tu Proyecto → **Settings** → **Environment Variables**, actualiza la configuración:
 
----
-
-## Paso 5: Auditoría y Actualización de tus Variables de Entorno en Vercel
-
-Revisando la captura de pantalla de tus **Variables de Entorno actuales en Vercel**, aquí tienes exactamente qué hacer con cada una:
-
-### A. Variables que DEBES ACTUALIZAR en Vercel (4 variables)
-
-| Variable en tu Vercel | Valor Anterior | Nuevo Valor a Poner |
+### 5.1 Variables que DEBEN cambiar (4 variables)
+| Variable | Valor Anterior | Nuevo Valor de Producción |
 | :--- | :--- | :--- |
-| **`NEXT_PUBLIC_APP_URL`** | `https://rucoach-development.vercel.app/` | **`https://rucoach.app`** *(sin barra `/` al final)* |
-| **`NEXT_PUBLIC_SUPABASE_URL`** | `https://tu-proyecto-anterior.supabase.co` | **La nueva Project URL** (`https://xxxx.supabase.co`) |
-| **`NEXT_PUBLIC_SUPABASE_ANON_KEY`** | `sb_publishable_xxxxxxxxxxxx` | **La nueva `sb_publishable_...` (o `anon` key)** de la cuenta nueva *(nuestro código soporta tanto `NEXT_PUBLIC_SUPABASE_ANON_KEY` como `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`)* |
-| **`SUPABASE_SERVICE_ROLE_KEY`** | `sb_secret_xxxxxxxxxxxx` | **La nueva `sb_secret_...` (o `service_role` key)** de la cuenta nueva |
+| **`NEXT_PUBLIC_APP_URL`** | `https://rucoach-development.vercel.app/` | **`https://rucoach.app`** *(sin barra al final)* |
+| **`NEXT_PUBLIC_SUPABASE_URL`** | `https://antiguo.supabase.co` | **La nueva URL del proyecto** (`https://nuevo.supabase.co`) |
+| **`NEXT_PUBLIC_SUPABASE_ANON_KEY`** | `sb_publishable_antigua` | **La nueva `anon` / `publishable` key** |
+| **`SUPABASE_SERVICE_ROLE_KEY`** | `sb_secret_antigua` | **La nueva `service_role` / `secret` key** *(marca Sensitive)* |
 
-### B. Variables de Resend en Vercel (2 variables)
+### 5.2 Variables de Envío de Correo (2 variables)
+| Variable | Valor |
+| :--- | :--- |
+| **`RESEND_API_KEY`** | Tu API Key generada en Resend (`re_...`) *(marca Sensitive)* |
+| **`EMAIL_FROM`** | `RU Coach <noreply@rucoach.app>` |
 
-Asegúrate de tener configuradas las variables de Resend para el envío de correos de invitación, bienvenida, nueva rutina y recibos de pago:
-
-| Variable | Valor | Entornos |
-| :--- | :--- | :--- |
-| **`RESEND_API_KEY`** | `re_xxxxxxxxxxxxxxxxxxxxxxxx` *(tu API Key de Resend)* | All Environments (Marca *Sensitive*) |
-| **`EMAIL_FROM`** | `RU Coach <noreply@rucoach.app>` | All Environments |
-
-### C. Variables que SE QUEDAN EXACTAMENTE IGUAL (No necesitas cambiarlas)
-
-Como tu cuenta de Cloudflare R2 (`gymcoaching-exercises`) y tus llaves VAPID ya están listas y funcionando:
-- **`NEXT_PUBLIC_VAPID_PUBLIC_KEY`**: Se queda igual (`tu-vapid-public-key`)
-- **`VAPID_PRIVATE_KEY`**: Se queda igual (`tu-vapid-private-key`)
-- **`ADMIN_SETUP_CODE`**: Se queda igual (`tu-codigo-secreto-de-admin` — lo usarás para registrar tu cuenta de Coach en `/auth/sign-up` en la nueva base de datos)
-- **`R2_ACCESS_KEY_ID`**: Se queda igual (`tu-r2-access-key-id`)
-- **`R2_SECRET_ACCESS_KEY`**: Se queda igual (`tu-r2-secret-access-key`)
-- **`R2_ACCOUNT_ID`**: Se queda igual (`tu-cloudflare-account-id`)
-- **`R2_BUCKET_NAME`**: Se queda igual (`gymcoaching-exercises`)
-- **`NEXT_PUBLIC_R2_PUBLIC_URL`**: Se queda igual (`https://pub-xxxxxx.r2.dev`)
+### 5.3 Variables que se mantienen IDÉNTICAS (No mover)
+| Variable | Motivo |
+| :--- | :--- |
+| **`ADMIN_SETUP_CODE`** | Código secreto para autorizar el registro del Coach en `/auth/sign-up`. |
+| **`NEXT_PUBLIC_VAPID_PUBLIC_KEY`** | Clave pública para notificaciones Web Push PWA. |
+| **`VAPID_PRIVATE_KEY`** | Clave privada para notificaciones Web Push PWA *(marca Sensitive)*. |
+| **`R2_ACCESS_KEY_ID`** | Credencial de Cloudflare R2. |
+| **`R2_SECRET_ACCESS_KEY`** | Secreto de Cloudflare R2 *(marca Sensitive)*. |
+| **`R2_ACCOUNT_ID`** | Identificador de cuenta Cloudflare. |
+| **`R2_BUCKET_NAME`** | `gymcoaching-exercises` |
+| **`NEXT_PUBLIC_R2_PUBLIC_URL`** | `https://pub-xxxxxx.r2.dev` (o tu dominio CDN de R2) |
 
 > [!TIP]
-> **¿Por qué Vercel muestra el aviso naranja `Needs Attention` en `VAPID_PRIVATE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` y `R2_SECRET_ACCESS_KEY`?**
-> Porque Vercel detecta que son llaves privadas (`secret` / `private`) y están guardadas como variables normales en lugar de tener activado el switch **"Sensitive"**. Cuando actualices `SUPABASE_SERVICE_ROLE_KEY` o agregues `RESEND_API_KEY`, activa la casilla **Sensitive** en Vercel para quitar esa alerta y proteger su lectura en el dashboard.
+> **Eliminar advertencias «Needs Attention» en Vercel:**
+> Al guardar llaves privadas como `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY` o `VAPID_PRIVATE_KEY`, activa la casilla **Sensitive** en Vercel. Esto encripta su visualización en el panel y elimina las advertencias visuales amarillas.
 
 ---
 
-## Paso 6: Actualizar el CORS de tu Bucket R2 para `https://rucoach.app`
+## 6. Actualizar CORS en Cloudflare R2
 
-Para que la subida directa de fotos de progreso y avatares funcione desde tu nuevo dominio **`https://rucoach.app`**:
-1. En **Cloudflare Dashboard** → **R2 Almacenamiento de objetos** → haz clic en tu bucket **`gymcoaching-exercises`** → pestaña **Settings (Configuración)**.
-2. Baja hasta **CORS Policy** → **Edit CORS Policy** y pega este JSON:
-
-```json
-[
-  {
-    "AllowedOrigins": [
-      "https://rucoach.app",
-      "https://www.rucoach.app",
-      "https://rucoach-development.vercel.app",
-      "http://localhost:3000"
-    ],
-    "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
-    "AllowedHeaders": ["*"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
+Para que las subidas directas de fotos de progreso y avatares funcionen desde el nuevo dominio sin bloqueos del navegador:
+1. En **Cloudflare Dashboard** → **R2 Almacenamiento de objetos** → Selecciona el bucket **`gymcoaching-exercises`**.
+2. Ve a la pestaña **Settings (Configuración)** → baja a **CORS Policy** → **Edit CORS Policy**.
+3. Pega esta configuración actualizada:
+   ```json
+   [
+     {
+       "AllowedOrigins": [
+         "https://rucoach.app",
+         "https://www.rucoach.app",
+         "https://rucoach-development.vercel.app",
+         "http://localhost:3000"
+       ],
+       "AllowedMethods": ["GET", "PUT", "POST", "DELETE", "HEAD"],
+       "AllowedHeaders": ["*"],
+       "ExposeHeaders": ["ETag"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+4. Guarda los cambios.
 
 ---
 
-## Paso 7: Redeploy y Creación de tu Cuenta de Coach en la Nueva DB
+## 7. Despliegue y Puesta en Marcha (Checklist de Entrega)
 
-1. En **Vercel** → **Deployments** → haz clic en los tres puntos del último deploy → **Redeploy** (para que tome las nuevas variables de entorno).
-2. Entra a **`https://rucoach.app/auth/sign-up`**.
-3. Ingresa tu código maestro configurado en **`ADMIN_SETUP_CODE`**, crea tu cuenta de Coach, completa el onboarding de 2 pasos de Coach y ¡tu plataforma estará 100% en vivo sobre la nueva cuenta de Supabase y con el dominio `rucoach.app`!
-
+1. **Redeploy en Vercel:**
+   - En **Vercel** → **Deployments** → Menú de tres puntos del último commit → **Redeploy**.
+   - Verifica que el build finalice con éxito (`Ready`).
+2. **Crear la Cuenta del Coach Principal en Producción:**
+   - Abre tu navegador en modo normal o incógnito y entra a:
+     ```text
+     https://rucoach.app/auth/sign-up
+     ```
+   - Ingresa el código maestro de administrador configurado en `ADMIN_SETUP_CODE`.
+   - Registra el correo y contraseña del Coach titular.
+   - Completa el onboarding de 2 pasos del Coach.
+3. **Verificación de Flujos Críticos:**
+   - [x] Crear un atleta de prueba y enviarle invitación por correo (comprobar que llegue desde `noreply@rucoach.app`).
+   - [x] Asignar una rutina desde el catálogo de 1,324 ejercicios con URLs en R2.
+   - [x] Probar el chat en vivo con Supabase Realtime entre Coach y Atleta.
+   - [x] Registrar una medida física y verificar que la fecha y métricas se muestren consistentes en gráficos y calendarios.
+   - [x] Instalar la PWA en un dispositivo móvil desde `rucoach.app`.
+4. **Entrega de Roles de Administración al Cliente:**
+   - En la **Organización de GitHub**: Invitar al usuario del cliente como `Owner`.
+   - En **Supabase**: Invitar al cliente a la organización con rol `Owner`.
+   - En **Resend**: Invitar al cliente en `Settings` → `Team`.
+   - En **Cloudflare**: Invitar al cliente en `Manage Account` → `Members`.
+   - En **Vercel**: Invitar al cliente a la cuenta o transferir el proyecto al equipo del cliente.
