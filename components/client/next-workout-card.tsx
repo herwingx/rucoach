@@ -214,7 +214,7 @@ export function NextWorkoutCard({
                       </span>
                     </div>
                     <div className="shrink-0 rounded-full border border-border/60 bg-muted/30 px-2.5 py-1 text-[11px] font-bold tabular-nums text-muted-foreground group-hover:border-primary/25 group-hover:text-foreground transition-colors whitespace-nowrap">
-                      {ex.sets} <span className="text-[10px] text-muted-foreground/70">series</span> × {ex.reps || "var"}
+                      {ex.sets} <span className="text-[10px] text-muted-foreground/70">series</span> × <span className="whitespace-nowrap">{ex.reps || "var"}</span>
                     </div>
                   </div>
                 ))}

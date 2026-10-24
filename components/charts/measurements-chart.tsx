@@ -11,6 +11,7 @@ import { es } from 'date-fns/locale'
 import { Activity, Calendar, History, Ruler, Scale } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { MeasurementRow } from './measurements-types'
+import { parseRecordedDate } from '@/lib/calendar-date'
 import {
   createAreaGradient,
   monotoneXCurve,
@@ -101,10 +102,6 @@ function extractMetric(row: MeasurementRow, metric: Metric): number | null {
   if (raw === null || raw === undefined) return null
   const n = Number(raw)
   return Number.isFinite(n) ? n : null
-}
-
-function parseRecordedDate(dateStr: string): Date {
-  return new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`)
 }
 
 export function MeasurementsChart({
@@ -310,41 +307,41 @@ export function MeasurementsChart({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <Tabs
-          value={metric}
-          onValueChange={(v) => setMetric(v as Metric)}
-          className="w-full xl:w-auto"
-        >
-          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 rounded-xl p-1 xl:w-auto">
-            {(Object.keys(METRIC_META) as Metric[]).map((key) => {
-              const Icon = METRIC_META[key].icon
-              return (
-                <TabsTrigger
-                  key={key}
-                  value={key}
-                  className="h-8 flex-none gap-1.5 rounded-lg px-2.5 text-xs"
-                >
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  {METRIC_META[key].label}
-                </TabsTrigger>
-              )
-            })}
-          </TabsList>
-        </Tabs>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 -mx-1 px-1">
+          {(Object.keys(METRIC_META) as Metric[]).map((key) => {
+            const Icon = METRIC_META[key].icon
+            const isSelected = metric === key
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setMetric(key)}
+                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-bold transition-all ${
+                  isSelected
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'border border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                }`}
+              >
+                <Icon className="size-3.5 shrink-0" />
+                <span>{METRIC_META[key].label}</span>
+              </button>
+            )
+          })}
+        </div>
 
         <Tabs
           value={viewMode}
           onValueChange={(v) => setViewMode(v as ViewMode)}
           className="w-full sm:w-auto shrink-0"
         >
-          <TabsList className="grid h-9 w-full grid-cols-2 rounded-xl p-1 sm:w-[200px]">
-            <TabsTrigger value="raw" className="gap-1.5 rounded-lg text-xs">
-              <History className="h-3.5 w-3.5 shrink-0" />
+          <TabsList className="grid h-8.5 w-full grid-cols-2 rounded-full p-1 bg-muted/50 border border-border/50 sm:w-[190px]">
+            <TabsTrigger value="raw" className="gap-1.5 rounded-full text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs">
+              <History className="size-3.5 shrink-0" />
               Registros
             </TabsTrigger>
-            <TabsTrigger value="monthly" className="gap-1.5 rounded-lg text-xs">
-              <Calendar className="h-3.5 w-3.5 shrink-0" />
+            <TabsTrigger value="monthly" className="gap-1.5 rounded-full text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs">
+              <Calendar className="size-3.5 shrink-0" />
               Mensual
             </TabsTrigger>
           </TabsList>

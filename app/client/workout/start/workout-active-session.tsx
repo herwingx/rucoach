@@ -1475,8 +1475,8 @@ export function WorkoutActiveSession({
                 </h2>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="rounded-xl border border-primary/20 bg-primary/10 px-3 py-1">
-                    <p className="text-xs font-black text-primary">
+                  <div className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 whitespace-nowrap">
+                    <p className="text-xs font-black text-primary whitespace-nowrap">
                       PLAN: {currentExercise.sets} × {currentExercise.reps || "VAR."}
                     </p>
                   </div>

@@ -428,11 +428,11 @@ export function ClientRoutinesContent({
                                               </Badge>
                                             )}
                                           </div>
-                                          <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground/80 tabular-nums">
+                                          <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground/80 tabular-nums whitespace-nowrap">
                                             <span className="text-foreground font-black">{exercise.sets}</span>
                                             <span className="text-[11px] font-medium text-muted-foreground">series</span>
                                             <span className="text-muted-foreground/30 font-bold">·</span>
-                                            <span className="text-foreground font-black">{exercise.reps}</span>
+                                            <span className="text-foreground font-black whitespace-nowrap">{exercise.reps}</span>
                                             <span className="text-[11px] font-medium text-muted-foreground">reps</span>
                                           </div>
                                           {exercise.notes?.trim() && (

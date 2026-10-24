@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Loader2, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { parseRecordedDate } from "@/lib/calendar-date";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,10 +32,6 @@ export type MeasurementHistoryRow = {
   thigh_cm: number | null;
 };
 
-function parseRecordedDate(dateStr: string): Date {
-  return new Date(dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`);
-}
-
 export function MeasurementsHistoryList({
   measurements,
 }: {
@@ -42,11 +39,20 @@ export function MeasurementsHistoryList({
 }) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 8;
 
   const sortedDesc = [...measurements].sort(
     (a, b) =>
       parseRecordedDate(b.recorded_at).getTime() -
       parseRecordedDate(a.recorded_at).getTime(),
+  );
+
+  const totalPages = Math.ceil(sortedDesc.length / PAGE_SIZE) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedRows = sortedDesc.slice(
+    (safeCurrentPage - 1) * PAGE_SIZE,
+    safeCurrentPage * PAGE_SIZE,
   );
 
   const handleDelete = async (id: string) => {
@@ -77,8 +83,9 @@ export function MeasurementsHistoryList({
   }
 
   return (
-    <div className="divide-y divide-border/60">
-      {sortedDesc.map((row) => {
+    <div className="space-y-4">
+      <div className="divide-y divide-border/60">
+        {paginatedRows.map((row) => {
         const dateFormatted = parseRecordedDate(
           row.recorded_at,
         ).toLocaleDateString("es-MX", {
@@ -183,6 +190,40 @@ export function MeasurementsHistoryList({
           </div>
         );
       })}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border/60">
+          <p className="text-xs font-semibold text-muted-foreground">
+            Mostrando {(safeCurrentPage - 1) * PAGE_SIZE + 1}–{Math.min(safeCurrentPage * PAGE_SIZE, sortedDesc.length)} de {sortedDesc.length} registros
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={safeCurrentPage === 1}
+              className="h-8 rounded-full px-3 text-xs font-bold gap-1"
+            >
+              <ChevronLeft className="size-3.5" />
+              Anterior
+            </Button>
+            <span className="text-xs font-bold text-foreground px-2">
+              {safeCurrentPage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safeCurrentPage === totalPages}
+              className="h-8 rounded-full px-3 text-xs font-bold gap-1"
+            >
+              Siguiente
+              <ChevronRight className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

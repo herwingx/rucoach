@@ -176,6 +176,9 @@ Definido íntegramente en [`supabase/supabase_schema_dump.sql`](../supabase/supa
 
 ### 4. Antropometría, Fotos, Chat y Notificaciones Push
 - **`body_measurements`**: Historial de 7 medidas corporales (`weight`, `body_fat_pct`, `waist_cm`, `hip_cm`, `chest_cm`, `arm_cm`, `thigh_cm`, `recorded_at`).
+  - **Arquitectura de Fechas Timezone-Safe**: Las fechas de registro se persisten a mediodía UTC (`${date}T12:00:00Z`) y se parsean mediante `parseRecordedDate` (`lib/calendar-date.ts`) extrayendo `YYYY-MM-DD` a las 12:00 locales. Esto previene que husos horarios occidentales (ej. UTC-6 Ciudad de México) desplacen la fecha al día anterior.
+  - **Selector UI**: Utiliza el `DatePicker` de shadcn en lugar de inputs nativos heterogéneos.
+  - **Gráficas y Paginación**: Selector horizontal de métricas en pastillas deslizables (`overflow-x-auto no-scrollbar`), radar corporal sin hueco interior (`radialArea` con `domain([0, domainMax])`), y paginación client-side de 8 registros por página en el historial para evitar bloat del DOM.
 - **`progress_photos`**: Metadatos de fotos de progreso (`client_id`, `photo_url`, `category` [`front` | `side` | `back`], `weight_kg`, `notes`, `taken_at`).
 - **`messages`**: Mensajería directa en tiempo real (`from_user_id`, `to_user_id`, `content`, `is_read`, `created_at`).
 - **`push_subscriptions`**: Suscripciones Web Push VAPID por dispositivo (`user_id`, `endpoint`, `p256dh`, `auth`).

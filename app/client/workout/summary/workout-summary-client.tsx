@@ -452,7 +452,7 @@ export function WorkoutSummaryClient({
             <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                     <Layers className="size-5 text-primary" aria-hidden />
                   </div>
                   <div>
@@ -563,7 +563,7 @@ export function WorkoutSummaryClient({
             <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/50 transition-all hover:bg-card">
               <CardHeader className="pb-4 pt-6 px-6">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                     <Activity className="size-5 text-primary" aria-hidden />
                   </div>
                   <div>
@@ -605,7 +605,7 @@ export function WorkoutSummaryClient({
             <CardHeader className="pb-4 pt-6 px-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                     <Trophy className="size-5 text-primary" aria-hidden />
                   </div>
                   <div>
@@ -639,7 +639,7 @@ export function WorkoutSummaryClient({
           <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl bg-card/50 transition-all hover:bg-card">
             <CardHeader className="pb-4 pt-6 px-6">
               <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                   <Sparkles className="size-5 text-primary" aria-hidden />
                 </div>
                 <div>

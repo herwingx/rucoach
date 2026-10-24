@@ -64,16 +64,11 @@
   - **Balance Muscular y Fatiga (`MuscleBalanceCard`)**: Evaluación del balance entre músculos agonistas/antagonistas, semáforo de recuperación neuromuscular e índice de retención de 1RM.
   - **Heatmap de Actividad Anual (`ActivityHeatmap`)**: 52 semanas de consistencia de entrenamientos.
   - Gráficas de carga máxima y volumen total con insights automáticos (`lib/progress-insights.ts`).
-- **Medidas (`/client/measurements`)**: Registro y visualización de Peso, % Grasa, Cintura, Cadera, Pecho, Brazo y Muslo (curva histórica + gráfico de radar).
+- **Medidas (`/client/measurements`)**: Registro y visualización de 7 métricas antropométricas (Peso, % Grasa, Cintura, Cadera, Pecho, Brazo y Muslo). Incluye selector horizontal de métricas, gráfica de radar sin hueco central (`radialArea`), manejo seguro de fechas timezone-safe (`parseRecordedDate` a mediodía UTC) e historial paginado (8 registros por página).
 - **Fotos (`/client/photos`)**: Subida directa a Cloudflare R2 con URLs pre-firmadas, galería por ángulo y comparador interactivo **Antes / Después**.
-- **Calendario (`/client/calendar`)**: Historial mensual de entrenamientos con detalle por día.
+- **Calendario (`/client/calendar`)**: Matriz mensual de asistencia y frecuencia de entrenamientos con desglose detallado de sesiones.
 - **Hitos (`/client/achievements`)**: Catálogo interactivo de medallas desbloqueadas y próximas metas.
-- **Perfil y Seguridad (`/client/profile`)**: Edición de perfil, **Reporte de Dolor o Molestia Física** para proteger la auto-progresión y avisar al coach, cambio de contraseña y activación de **Notificaciones Web Push**.
-- **Medidas (`/client/measurements`)**: Registro y visualización de Peso, % Grasa, Cintura, Cadera, Pecho, Brazo y Muslo (curva histórica + gráfico de radar).
-- **Fotos (`/client/photos`)**: Subida directa a Cloudflare R2 con URLs pre-firmadas, galería por ángulo y comparador interactivo **Antes / Después**.
-- **Calendario (`/client/calendar`)**: Historial mensual de entrenamientos con detalle por día.
-- **Hitos (`/client/achievements`)**: Catálogo interactivo de medallas desbloqueadas y próximas metas.
-- **Perfil y Seguridad (`/client/profile`)**: Edición de perfil, **Reporte de Dolor o Molestia Física** para proteger la auto-progresión y avisar al coach, cambio de contraseña y activación de **Notificaciones Web Push**.
+- **Perfil y Seguridad (`/client/profile`)**: Edición de perfil con DatePicker unificado, **Reporte de Dolor o Molestia Física** para proteger la auto-progresión y avisar al coach, cambio de contraseña y activación de **Notificaciones Web Push**.
 
 ---
 

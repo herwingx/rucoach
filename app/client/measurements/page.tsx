@@ -14,6 +14,7 @@ import { MeasurementsChartLazy } from "@/components/charts/measurements-chart-la
 import { MeasurementsRadarChartLazy } from "@/components/charts/measurements-radar-chart-lazy";
 import { AddMeasurementForm } from "./add-measurement-form";
 import { MeasurementsHistoryList } from "./measurements-history-list";
+import { parseRecordedDate } from "@/lib/calendar-date";
 import {
   CLIENT_DATA_PAGE_SHELL,
   ClientIncompleteProfileCard,
@@ -40,10 +41,6 @@ type MetricKey =
   | "chest_cm"
   | "arm_cm"
   | "thigh_cm";
-
-function parseRecordedDate(dateStr: string): Date {
-  return new Date(dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`);
-}
 
 function formatDeltaText(
   delta: number | null,
@@ -86,11 +83,16 @@ export default async function ClientMeasurementsPage() {
     )
     .eq("client_id", clientRecord.id)
     .order("recorded_at", { ascending: false })
+    .order("created_at", { ascending: false })
     .limit(120);
 
   const measurements = [
     ...((measurementsRes.data || []) as MeasurementRow[]),
-  ].reverse();
+  ].sort(
+    (a, b) =>
+      parseRecordedDate(a.recorded_at).getTime() -
+      parseRecordedDate(b.recorded_at).getTime(),
+  );
   const latest =
     measurements.length > 0 ? measurements[measurements.length - 1] : null;
 
@@ -175,7 +177,7 @@ export default async function ClientMeasurementsPage() {
           <Card className="overflow-hidden rounded-3xl border-border/80 shadow-md ring-1 ring-primary/5 transition-all hover:shadow-lg">
             <CardHeader className="space-y-4 pb-6">
               <div className="flex items-center gap-4">
-                <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 transition-transform hover:scale-105">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary transition-transform hover:scale-105">
                   <Scale className="size-5 text-primary" aria-hidden />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -361,7 +363,7 @@ export default async function ClientMeasurementsPage() {
             <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
               <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                     <Ruler className="size-5 text-primary" aria-hidden />
                   </div>
                   <div>
@@ -389,7 +391,7 @@ export default async function ClientMeasurementsPage() {
             <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
               <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                     <Sparkles className="size-5 text-primary" aria-hidden />
                   </div>
                   <div>
@@ -417,7 +419,7 @@ export default async function ClientMeasurementsPage() {
             <Card className="overflow-hidden border-border/80 shadow-md ring-1 ring-primary/5 rounded-3xl transition-all hover:shadow-lg">
               <CardHeader className="pb-4 pt-6 px-6 border-b bg-muted/5">
                 <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                     <History className="size-5 text-primary" aria-hidden />
                   </div>
                   <div>

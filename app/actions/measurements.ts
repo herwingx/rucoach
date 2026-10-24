@@ -40,10 +40,11 @@ export async function addMeasurement(data: {
   }
 
   const recordedAtRaw = data.recorded_at;
-  // en-CA format returns YYYY-MM-DD
-  const recordedAt = recordedAtRaw
+  // Store at 12:00:00 UTC so any client timezone between UTC-11 and UTC+12 never shifts the calendar date
+  const dateOnly = recordedAtRaw
     ? recordedAtRaw.slice(0, 10)
     : new Date().toLocaleDateString("en-CA", { timeZone });
+  const recordedAt = `${dateOnly}T12:00:00Z`;
 
   const { error } = await supabase.from("body_measurements").insert({
     id: crypto.randomUUID(),

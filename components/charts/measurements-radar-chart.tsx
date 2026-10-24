@@ -19,6 +19,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { MeasurementRow } from './measurements-types'
+import { parseRecordedDate } from '@/lib/calendar-date'
 import {
   closedLinearCurve,
   monotoneXCurve,
@@ -57,10 +58,6 @@ type RadarDatum = {
   value: number
   rawDisplay?: string
   initialDisplay?: string
-}
-
-function parseRecordedDate(dateStr: string): Date {
-  return new Date(dateStr.includes('T') ? dateStr : `${dateStr}T12:00:00`)
 }
 
 export function MeasurementsRadarChart({
@@ -247,17 +244,11 @@ export function MeasurementsRadarChart({
 
   const polarDefinition = React.useMemo(() => {
     const values = chartData.map((d) => d.value)
-    const minVal = values.length > 0 ? Math.min(...values) : 0
     const maxVal = values.length > 0 ? Math.max(...values) : 100
-    const span = Math.max(10, maxVal - minVal)
-    const domainMin =
-      metric === 'balance'
-        ? Math.max(0, Math.min(60, minVal - 15))
-        : Math.max(0, minVal - span * 0.35)
     const domainMax =
       metric === 'balance'
         ? Math.max(120, maxVal + 15)
-        : maxVal + span * 0.2
+        : Math.max(10, Math.ceil(maxVal * 1.15))
     const activeColor =
       metric === 'balance' ? 'var(--primary)' : meta.colorVar
 
@@ -272,7 +263,7 @@ export function MeasurementsRadarChart({
               wrap: true,
             },
             radius: {
-              scale: scaleLinear().domain([domainMin, domainMax]),
+              scale: scaleLinear().domain([0, domainMax]),
               nice: true,
             },
           },
@@ -296,7 +287,6 @@ export function MeasurementsRadarChart({
             radialArea(chartData, {
               angle: 'date',
               radius: 'value',
-              radius1: domainMin,
               key: 'slot',
               curve: closedLinearCurve,
               fill: activeColor,
@@ -379,22 +369,22 @@ export function MeasurementsRadarChart({
       <div className="flex justify-center">
         <Tabs value={metric} onValueChange={(v) => setMetric(v as Metric)}>
           <TabsList
-            className={`grid h-9 w-full max-w-[320px] rounded-xl p-1 ${
+            className={`grid h-9 w-full max-w-[340px] rounded-full p-1 bg-muted/50 border border-border/50 ${
               hasMultiKpi ? 'grid-cols-4' : 'grid-cols-3'
             }`}
           >
             {hasMultiKpi && (
-              <TabsTrigger value="balance" className="rounded-lg text-xs">
+              <TabsTrigger value="balance" className="rounded-full text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs">
                 Balance
               </TabsTrigger>
             )}
-            <TabsTrigger value="weight" className="rounded-lg text-xs">
+            <TabsTrigger value="weight" className="rounded-full text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs">
               Peso
             </TabsTrigger>
-            <TabsTrigger value="waist" className="rounded-lg text-xs">
+            <TabsTrigger value="waist" className="rounded-full text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs">
               Cintura
             </TabsTrigger>
-            <TabsTrigger value="fat" className="rounded-lg text-xs">
+            <TabsTrigger value="fat" className="rounded-full text-xs font-semibold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs">
               % Grasa
             </TabsTrigger>
           </TabsList>

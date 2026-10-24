@@ -16,6 +16,8 @@ import { Scale, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { addMeasurement } from "@/app/actions/measurements";
 import { FieldGroup, Field, FieldLabel } from "@/components/ui/field";
+import { DatePicker } from "@/components/ui/date-picker";
+import { formatLocalDateYmd } from "@/lib/calendar-date";
 
 export interface LatestMeasurementValues {
   weight?: number | null;
@@ -33,10 +35,9 @@ export function AddMeasurementForm({
   latestValues?: LatestMeasurementValues;
 }) {
   const router = useRouter();
-  const todayStr = new Date().toLocaleDateString("en-CA");
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [recordedAt, setRecordedAt] = useState(todayStr);
+  const [recordedDate, setRecordedDate] = useState<Date | undefined>(() => new Date());
   const [weight, setWeight] = useState("");
   const [bodyFat, setBodyFat] = useState("");
   const [waist, setWaist] = useState("");
@@ -85,7 +86,7 @@ export function AddMeasurementForm({
         chest_cm: c,
         arm_cm: a,
         thigh_cm: t,
-        recorded_at: recordedAt || undefined,
+        recorded_at: recordedDate ? formatLocalDateYmd(recordedDate) : undefined,
       });
     } catch (e) {
       console.error(e);
@@ -98,7 +99,7 @@ export function AddMeasurementForm({
     if (result.success) {
       toast.success("¡Medida registrada correctamente!");
       setOpen(false);
-      setRecordedAt(new Date().toLocaleDateString("en-CA"));
+      setRecordedDate(new Date());
       setWeight("");
       setBodyFat("");
       setWaist("");
@@ -126,7 +127,7 @@ export function AddMeasurementForm({
         <div className="bg-primary/5 p-6 border-b border-primary/10">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-primary/10 rounded-xl">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 border border-primary/20 text-primary">
                 <Scale className="size-5 text-primary" />
               </div>
               <DialogTitle className="text-xl font-bold tracking-tight">Nueva Medida</DialogTitle>
@@ -142,14 +143,12 @@ export function AddMeasurementForm({
               <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                 <Field className="col-span-2">
                   <FieldLabel htmlFor="recorded_at">Fecha del registro</FieldLabel>
-                  <Input
+                  <DatePicker
                     id="recorded_at"
-                    type="date"
-                    max={todayStr}
-                    value={recordedAt}
-                    onChange={(e) => setRecordedAt(e.target.value)}
-                    required
-                    className="rounded-xl h-11"
+                    date={recordedDate}
+                    setDate={setRecordedDate}
+                    placeholder="Seleccionar fecha"
+                    className="w-full"
                   />
                 </Field>
                 <Field>

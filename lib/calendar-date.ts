@@ -19,6 +19,29 @@ export function formatDateKeyLocal(dateKey: string, locale: string, options?: In
   return dateKeyToLocalDate(dateKey).toLocaleDateString(locale, options)
 }
 
+/**
+ * Safely parse a recorded date string (ISO timestamp or YYYY-MM-DD) into a local Date at 12:00 (noon)
+ * to prevent any timezone offsets (e.g. UTC-6 Mexico City) from shifting the calendar date backwards.
+ */
+export function parseRecordedDate(dateStr: string): Date {
+  if (!dateStr) return new Date()
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (match) {
+    const [, y, m, d] = match
+    return new Date(Number(y), Number(m) - 1, Number(d), 12, 0, 0)
+  }
+  return new Date(dateStr)
+}
+
+/** Format a Date object to YYYY-MM-DD */
+export function formatLocalDateYmd(date?: Date | null): string {
+  if (!date || Number.isNaN(date.getTime())) return ''
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 /** Días enteros desde un instante ISO hasta ahora (misma lógica que el dashboard coach). */
 export function diffWholeDaysFromNow(fromIso?: string | null, now = new Date()): number | null {
   if (!fromIso) return null
