@@ -852,7 +852,7 @@ export function RoutineBuilderClient({
         <CardHeader className="gap-2 px-6 pb-2 pt-6">
           <div className="flex items-center gap-3.5">
             <div
-              className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-b from-primary/20 to-primary/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] border border-primary/20 text-primary"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-b from-primary/20 to-primary/10 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] border border-primary/20 text-primary"
               aria-hidden
             >
               <ClipboardList className="size-5" strokeWidth={2.5} />
@@ -1346,7 +1346,7 @@ export function RoutineBuilderClient({
           <CardHeader className="pb-4 border-b border-border/40 bg-muted/10">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">
                   <Activity className="size-4.5" aria-hidden />
                 </div>
                 <div>

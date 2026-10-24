@@ -562,7 +562,7 @@ export function ClientProfileHub({
         >
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400">
                 <ShieldAlert className="size-4" />
               </div>
               <div>

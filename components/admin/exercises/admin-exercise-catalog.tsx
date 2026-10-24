@@ -263,7 +263,7 @@ export function AdminExerciseCatalog({
             <div className="relative flex flex-col gap-6 p-5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-inner border border-primary/10">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-inner border border-primary/10">
                     <Library className="size-5" aria-hidden />
                   </div>
                   <div className="min-w-0">

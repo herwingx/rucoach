@@ -325,7 +325,7 @@ export function CoachOverviewClient({
         {cardsState.length === 0 ? (
           <Card className="overflow-hidden rounded-3xl border-dashed border-border/70 bg-card/50 backdrop-blur-xl shadow-sm">
             <CardContent className="flex flex-col items-center justify-center gap-4 p-8 sm:p-12 text-center">
-              <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <div className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
                 <Users className="size-8" aria-hidden />
               </div>
               <div className="flex flex-col gap-1.5 max-w-md">

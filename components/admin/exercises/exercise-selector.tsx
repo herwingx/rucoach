@@ -160,7 +160,7 @@ export function ExerciseSelector({
       <div className="shrink-0 border-b border-border bg-card/50 backdrop-blur-md px-4 pt-5 pb-3.5 sm:px-6">
         <div className="mb-3.5 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Library className="size-5" aria-hidden />
             </div>
             <div className="flex min-w-0 flex-col gap-0.5">

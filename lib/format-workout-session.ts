@@ -1,15 +1,17 @@
 /** Etiquetas de sesión para admin/cliente (es-ES). */
 
-import { formatDateKeyLocal } from '@/lib/calendar-date'
+import { parseRecordedDate } from '@/lib/calendar-date'
 
 /** Fecha de medición: soporta ISO o solo `YYYY-MM-DD` sin bug UTC. */
 export function formatBodyMeasurementDate(recordedAt?: string | null): string {
   if (!recordedAt?.trim()) return '—'
-  const t = recordedAt.trim()
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
-    return formatDateKeyLocal(t, 'es', { day: 'numeric', month: 'short', year: 'numeric' })
-  }
-  return sessionInstantLabel(t).dateLine
+  const d = parseRecordedDate(recordedAt.trim())
+  const raw = d.toLocaleDateString('es', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
 }
 
 export function sessionInstantLabel(iso?: string | null): {
